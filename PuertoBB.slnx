@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="CamaraPortuaria.UI/CamaraPortuaria.UI.csproj" />
+  <Project Path="CentroMaritimo.UI/CentroMaritimo.UI.csproj" />
+  <Project Path="PuertoBB.Core/PuertoBB.Core.csproj" />
+  <Project Path="PuertoBB.Infrastructure/PuertoBB.Infrastructure.csproj" />
+  <Project Path="PuertoBB.Services/PuertoBB.Services.csproj" />
+</Solution>

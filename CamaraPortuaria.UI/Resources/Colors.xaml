@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Cámara Portuaria accent -->
+    <Color x:Key="AccentColor">#1565C0</Color>
+    <Color x:Key="AccentLightColor">#E3F2FD</Color>
+
+    <!-- Neutrales compartidos -->
+    <Color x:Key="BackgroundColor">#F5F5F5</Color>
+    <Color x:Key="SurfaceColor">#FFFFFF</Color>
+    <Color x:Key="BorderColor">#E0E0E0</Color>
+    <Color x:Key="TextPrimaryColor">#1A1A1A</Color>
+    <Color x:Key="TextSecondaryColor">#6B6B6B</Color>
+    <Color x:Key="SuccessColor">#2E7D32</Color>
+    <Color x:Key="WarningColor">#F57C00</Color>
+    <Color x:Key="ErrorColor">#C62828</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentLightBrush" Color="{StaticResource AccentLightColor}" />
+    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+
+    <!-- Estado de recibo -->
+    <SolidColorBrush x:Key="EstadoEmitidoBrush">#E3F2FD</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoEnviadoBrush">#FFF9C4</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoPagadoBrush">#E8F5E9</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoVencidoBrush">#FFEBEE</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoAnuladoBrush">#F5F5F5</SolidColorBrush>
+
+</ResourceDictionary>
