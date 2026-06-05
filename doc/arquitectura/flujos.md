@@ -114,11 +114,16 @@ ViewModel → IReciboService.EmitirIndividualAsync(entidadId, importe, detalle, 
 ```
 Trigger: Laura selecciona un recibo emitido y pulsa "Anular"
 
-ViewModel → IReciboService.AnularReciboAsync(reciboId, ct)
-  a. IDialogService.ConfirmarAsync("¿Anular recibo Nro X?")
-  b. Construir NotaDeCredito referenciando el Recibo original
-  c. IAfipService.ObtenerCAEAsync(notaDeCredito)
-  d. IPdfService.GenerarPdfNotaDeCreditoAsync(notaDeCredito)
+ViewModel → dialog con:
+  - Confirmación: "¿Anular recibo Nro X de [Empresa] período MM/YYYY?"
+  - Checkbox: "Enviar notificación por mail a [email(s)]" (default: true)
+
+ViewModel → IReciboService.AnularReciboAsync(reciboId, enviarMail, ct)
+  a. Construir NotaDeCredito referenciando el Recibo original
+  b. IAfipService.ObtenerCAEAsync(notaDeCredito)
+  c. IPdfService.GenerarPdfNotaDeCreditoAsync(notaDeCredito) → pdf
+  d. Si enviarMail=true:
+       IMailService.EnviarReciboAsync(emails, pdf, ct)
   e. recibo.Estado = ReciboEstado.Anulado
   f. IReciboRepository.UpdateAsync(recibo)
   g. INotaDeCreditoRepository.AddAsync(notaDeCredito)
@@ -154,21 +159,7 @@ ViewModel → IReciboService.MarcarPagadoAsync(reciboId, ct)
 
 ---
 
-## 7. Actualización automática de vencidos (al iniciar la app)
-
-```
-Trigger: App.xaml.cs → OnStartup o al abrir el dashboard
-
-Service: IReciboService.ActualizarVencidosAsync(ct)
-  Obtener recibos con Estado IN (Emitido, Enviado) AND FechaVencimientoPago < DateTime.Today
-  Para cada uno:
-    recibo.Estado = ReciboEstado.Vencido
-    IReciboRepository.UpdateAsync(recibo)
-```
-
----
-
-## 8. Dashboard de pendientes / control de pagos
+## 7. Dashboard de pendientes / control de pagos
 
 ```
 Trigger: Laura abre la sección "Pendientes"
@@ -178,13 +169,18 @@ ViewModel → IReciboService.GetPendientesAsync(filtros, ct)
 Filtros disponibles:
   - Por período (PeriodoAnio + PeriodoMes)
   - Por grupo/generación (GrupoFacturacionId)
-  - Por estado (Emitido / Enviado / Vencido)
+  - Por estado persistido (Emitido / Enviado)
   - Por empresa/agencia
 
 Datos mostrados por fila:
   Empresa/Agencia | Período | Importe | Estado | FechaEmision | FechaVencimientoPago | Días de atraso
 
-"Días de atraso" = (DateTime.Today - FechaVencimientoPago).Days — solo para Vencido
+"Días de atraso" = max(0, (DateTime.Today - FechaVencimientoPago).Days)
+  → calculado en ViewModel al cargar, no persistido en DB
+  → fila se destaca en rojo si FechaVencimientoPago < DateTime.Today && Estado != Pagado/Anulado
+
+Nota: "Vencido" no es un estado persistido — es un estado visual derivado de FechaVencimientoPago.
+El enum ReciboEstado solo tiene: Emitido, Enviado, Pagado, Anulado.
 ```
 
 ---
