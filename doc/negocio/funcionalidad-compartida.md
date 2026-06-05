@@ -57,16 +57,16 @@ El **Grupo de Facturación** es el concepto central de la emisión masiva:
 
 - Laura marca manualmente un recibo como **Pagado** desde la vista de recibos o el dashboard
 - Al marcar como pagado se registra la `FechaPago`
-- El sistema actualiza automáticamente a **Vencido** los recibos en estado Emitido/Enviado cuya `FechaVencimientoPago` ya pasó (al iniciar la app o al abrir el dashboard)
-- `FechaVencimientoPago` = `FechaEmision` + `DiasVencimiento` (configurable por entidad, ej. 30 días)
+- `FechaVencimientoPago` = `FechaEmision` + `DiasVencimiento` (configurable, ej. 30 días)
+- **"Vencido" no es un estado persistido** — se calcula visualmente: recibos con `FechaVencimientoPago < hoy` y estado Emitido/Enviado se destacan en rojo en el dashboard
 
 ## Dashboard de pendientes
 
-- Vista filtrable de recibos en estado Emitido / Enviado / Vencido
-- Filtros: por período (mes/año) o por generación de recibo (grupo + período)
-- Columnas clave: Empresa/Agencia, Período, Importe, Estado, Días de atraso
-- Los vencidos se destacan visualmente (color `#FFEBEE`)
-- No genera PDF de reporte por ahora; es una vista en pantalla
+- Vista filtrable de recibos en estado Emitido / Enviado (+ los visualmente vencidos)
+- Filtros: por período (mes/año), por grupo/generación, por empresa/agencia
+- Columnas: Empresa/Agencia, Período, Importe, Estado, FechaVencimientoPago, Días de atraso
+- Días de atraso calculado en tiempo de presentación, no persistido
+- Solo vista en pantalla, sin exportación
 
 ## Backup
 

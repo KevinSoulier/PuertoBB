@@ -125,6 +125,7 @@ public class Configuracion : BaseEntity
     // Certificado AFIP/WSAA
     public string? AfipCertificadoRuta     { get; set; } // ruta al archivo .p12
     public string? AfipCertificadoPassword { get; set; } // contraseña del .p12
+    public bool    AfipUsarHomologacion    { get; set; } = false; // solo para desarrollo/testing
 
     // Control de pagos
     public int DiasVencimiento { get; set; } = 30;
@@ -315,6 +316,7 @@ public class Configuracion : BaseEntity
     // Certificado AFIP/WSAA
     public string? AfipCertificadoRuta     { get; set; }
     public string? AfipCertificadoPassword { get; set; }
+    public bool    AfipUsarHomologacion    { get; set; } = false;
 
     // Apoderado fiscal
     public bool    UsarApoderado   { get; set; }
@@ -365,3 +367,8 @@ public enum TipoComprobante { Recibo, NotaDeCredito }
 | SMTP password | Texto plano en SQLite | Aceptable: app unipersonal de escritorio, DB no expuesta externamente |
 | NC por mail | Opcional en el dialog | Checkbox al anular: "Enviar notificación por mail" (default: true) |
 | Apoderado en `Recibo` | Copiado desde `Configuracion` al emitir | Inmutabilidad del comprobante: el apoderado puede cambiar luego sin afectar recibos pasados |
+| PDF de recibos | Regenerado a demanda (no persiste en DB) | Volumen bajo; template consistente garantiza mismo resultado; simplifica modelo |
+| Estados del recibo | `Emitido` (CAE obtenido) → `Enviado` (mail OK) | Si mail falla, queda Emitido; botón "Reenviar" en dashboard; rollback solo si falla AFIP |
+| Cobros extraordinarios CM | GrupoFacturacion + emisión individual | Mismo mecanismo que CP; no requiere entidad nueva |
+| Emisión individual | Solo a entidades del sistema | No se emite a receptores libres; destinatario siempre existe en la DB |
+| Entorno AFIP | `AfipUsarHomologacion` en Configuracion | Flag solo para desarrollo; la app de producción siempre usa producción (default: false) |

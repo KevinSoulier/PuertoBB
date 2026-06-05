@@ -78,11 +78,13 @@ Service (IReciboService.EmitirMasivoAsync):
   Para cada Empresa/Agencia del grupo:
     a. Verificar no duplicado: (EntidadId, GrupoId, anio, mes)
     b. Construir Recibo (Importe=grupo.Importe, Detalle=grupo.Nombre, EsConsolidadoVouchers=false)
-    c. IAfipService.ObtenerCAEAsync(recibo)
-    d. IPdfService.GenerarPdfReciboAsync(recibo)
-    e. IMailService.EnviarReciboAsync(entidad.Email, pdf, ct)
-    f. recibo.Estado = ReciboEstado.Enviado
-    g. IReciboRepository.AddAsync(recibo)
+    c. IAfipService.ObtenerCAEAsync(recibo) → recibo.Estado = Emitido
+    d. IReciboRepository.AddAsync(recibo)
+    e. IPdfService.GenerarPdfReciboAsync(recibo) → pdf (regenerado a demanda, no se persiste)
+    f. IMailService.EnviarReciboAsync(entidad.Emails, pdf, ct)
+       → éxito:  recibo.Estado = Enviado
+       → fallo:  recibo.Estado queda Emitido; se registra en ResultadoEmisionPorEntidad.ErrorMail
+    g. IReciboRepository.UpdateAsync(recibo)
 
   Return ServiceResult<List<ResultadoEmisionPorEntidad>>
 
@@ -96,15 +98,21 @@ Infrastructure:
 
 ## 3. Emisión individual — fuera del ciclo masivo
 
+El destinatario siempre debe existir en el sistema (Empresa en CP, Agencia en CM).
+Cubre tanto cobros puntuales como cobros extraordinarios de una sola entidad.
+
 ```
-Trigger: Laura selecciona empresa/agencia y pulsa "Emitir recibo individual"
+Trigger: Laura selecciona empresa/agencia, completa importe y detalle, pulsa "Emitir"
 
 ViewModel → IReciboService.EmitirIndividualAsync(entidadId, importe, detalle, anio, mes, ct)
-  a. Construir Recibo (GrupoFacturacionId=null)
-  b. IAfipService.ObtenerCAEAsync(recibo)
-  c. IPdfService.GenerarPdfReciboAsync(recibo)
-  d. IMailService.EnviarReciboAsync(...)
-  e. IReciboRepository.AddAsync(recibo)
+  a. Construir Recibo (GrupoFacturacionId=null, Detalle=ingresado por Laura)
+  b. IAfipService.ObtenerCAEAsync(recibo)        → recibo.Estado = Emitido
+  c. IReciboRepository.AddAsync(recibo)
+  d. IPdfService.GenerarPdfReciboAsync(recibo)   → pdf (regenerado a demanda, no se persiste)
+  e. IMailService.EnviarReciboAsync(emails, pdf, ct)
+     → éxito:  recibo.Estado = Enviado
+     → fallo:  recibo.Estado queda Emitido; se muestra advertencia; Laura puede reenviar desde dashboard
+  f. IReciboRepository.UpdateAsync(recibo)
 ```
 
 ---
@@ -146,7 +154,23 @@ ViewModel → IVoucherService.CrearVoucherAsync(agenciaId, barcoId, fecha, impor
 
 ---
 
-## 6. Marcar recibo como pagado
+## 6. Reenviar mail de un recibo
+
+Para recibos en estado Emitido (mail falló o Laura quiere reenviar).
+
+```
+Trigger: Laura selecciona recibo con Estado=Emitido y pulsa "Reenviar mail"
+
+ViewModel → IReciboService.ReenviarMailAsync(reciboId, ct)
+  a. IPdfService.GenerarPdfReciboAsync(recibo)  → pdf (regenerado a demanda)
+  b. IMailService.EnviarReciboAsync(emails, pdf, ct)
+     → éxito: recibo.Estado = Enviado; IReciboRepository.UpdateAsync(recibo)
+     → fallo: mostrar error; estado no cambia
+```
+
+---
+
+## 7. Marcar recibo como pagado
 
 ```
 Trigger: Laura selecciona un recibo en el dashboard y pulsa "Marcar como pagado"
@@ -159,7 +183,7 @@ ViewModel → IReciboService.MarcarPagadoAsync(reciboId, ct)
 
 ---
 
-## 7. Dashboard de pendientes / control de pagos
+## 8. Dashboard de pendientes / control de pagos
 
 ```
 Trigger: Laura abre la sección "Pendientes"
