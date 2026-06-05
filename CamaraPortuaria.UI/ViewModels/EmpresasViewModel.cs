@@ -1,0 +1,157 @@
+using System.Collections.ObjectModel;
+using System.Windows.Input;
+using CamaraPortuaria.UI.ViewModels.Base;
+using PuertoBB.Core.Entities.CamaraPortuaria;
+using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
+using PuertoBB.Core.Interfaces.Services;
+
+namespace CamaraPortuaria.UI.ViewModels;
+
+public class EmpresasViewModel : PageViewModel
+{
+    private readonly IEmpresaRepository _repo;
+    private readonly IDialogService _dialog;
+    private int _editId; // 0 = alta
+
+    public ObservableCollection<Empresa> Empresas { get; } = [];
+
+    private Empresa? _seleccionada;
+    public Empresa? Seleccionada
+    {
+        get => _seleccionada;
+        set { if (SetField(ref _seleccionada, value) && value is not null) _ = CargarEdicionAsync(value.Id); }
+    }
+
+    public string NombreEdit { get; set; } = string.Empty;
+    public string RazonSocialEdit { get; set; } = string.Empty;
+    public string CuitEdit { get; set; } = string.Empty;
+    public string DomicilioEdit { get; set; } = string.Empty;
+    public bool ActivaEdit { get; set; } = true;
+    public string EmailsEdit { get; set; } = string.Empty; // uno por línea
+
+    public ICommand NuevoCommand { get; }
+    public ICommand GuardarCommand { get; }
+    public ICommand EliminarCommand { get; }
+
+    public EmpresasViewModel(IEmpresaRepository repo, IDialogService dialog)
+    {
+        _repo = repo;
+        _dialog = dialog;
+        NuevoCommand = new RelayCommand(_ => Nuevo());
+        GuardarCommand = new AsyncRelayCommand(GuardarAsync);
+        EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionada is not null);
+        _ = CargarListaAsync();
+    }
+
+    private async Task CargarListaAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            Empresas.Clear();
+            foreach (var e in await _repo.GetTodasConEmailsAsync()) Empresas.Add(e);
+        }
+        finally { IsBusy = false; }
+    }
+
+    private void Nuevo()
+    {
+        _editId = 0;
+        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
+        ActivaEdit = true;
+        _seleccionada = null;
+        NotificarEdicion();
+        LimpiarStatus();
+    }
+
+    private async Task CargarEdicionAsync(int id)
+    {
+        var e = await _repo.GetConDetalleAsync(id);
+        if (e is null) return;
+        _editId = e.Id;
+        NombreEdit = e.Nombre;
+        RazonSocialEdit = e.RazonSocial;
+        CuitEdit = e.Cuit;
+        DomicilioEdit = e.Domicilio ?? string.Empty;
+        ActivaEdit = e.Activa;
+        EmailsEdit = string.Join(Environment.NewLine, e.Emails.Select(x => x.Email));
+        NotificarEdicion();
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NombreEdit)) { MostrarError("El nombre es obligatorio."); return; }
+        if (string.IsNullOrWhiteSpace(CuitEdit)) { MostrarError("El CUIT es obligatorio."); return; }
+
+        var emails = ParsearEmails();
+        try
+        {
+            if (_editId == 0)
+            {
+                var nueva = new Empresa
+                {
+                    Nombre = NombreEdit.Trim(),
+                    RazonSocial = RazonSocialEdit.Trim(),
+                    Cuit = CuitEdit.Trim(),
+                    Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
+                    Activa = ActivaEdit,
+                    Emails = emails.Select(em => new EmailEmpresa { Email = em }).ToList()
+                };
+                await _repo.AddAsync(nueva);
+                MostrarExito("Empresa creada.");
+            }
+            else
+            {
+                var existente = await _repo.GetConDetalleAsync(_editId);
+                if (existente is null) { MostrarError("La empresa ya no existe."); return; }
+                existente.Nombre = NombreEdit.Trim();
+                existente.RazonSocial = RazonSocialEdit.Trim();
+                existente.Cuit = CuitEdit.Trim();
+                existente.Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim();
+                existente.Activa = ActivaEdit;
+                existente.Emails.Clear();
+                foreach (var em in emails) existente.Emails.Add(new EmailEmpresa { Email = em, EmpresaId = existente.Id });
+                await _repo.UpdateAsync(existente);
+                MostrarExito("Empresa actualizada.");
+            }
+            await CargarListaAsync();
+        }
+        catch (Exception ex)
+        {
+            MostrarError($"No se pudo guardar: {ex.Message}");
+        }
+    }
+
+    private async Task EliminarAsync()
+    {
+        if (Seleccionada is null) return;
+        if (!await _dialog.ShowConfirmAsync("Eliminar empresa",
+                $"¿Eliminar a {Seleccionada.Nombre}? Esta acción no se puede deshacer.", "Eliminar", "Cancelar")) return;
+
+        try
+        {
+            await _repo.DeleteAsync(Seleccionada.Id);
+            MostrarExito("Empresa eliminada.");
+            Nuevo();
+            await CargarListaAsync();
+        }
+        catch (Exception ex)
+        {
+            MostrarError($"No se pudo eliminar (¿tiene recibos asociados?): {ex.Message}");
+        }
+    }
+
+    private List<string> ParsearEmails()
+        => EmailsEdit.Split(['\n', '\r', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct().ToList();
+
+    private void NotificarEdicion()
+    {
+        OnPropertyChanged(nameof(NombreEdit));
+        OnPropertyChanged(nameof(RazonSocialEdit));
+        OnPropertyChanged(nameof(CuitEdit));
+        OnPropertyChanged(nameof(DomicilioEdit));
+        OnPropertyChanged(nameof(ActivaEdit));
+        OnPropertyChanged(nameof(EmailsEdit));
+    }
+}

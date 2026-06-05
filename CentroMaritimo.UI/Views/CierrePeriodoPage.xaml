@@ -1,0 +1,58 @@
+<Page x:Class="CentroMaritimo.UI.Views.CierrePeriodoPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Cierre de período">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Cierre de período (consolidación de vouchers)" Style="{StaticResource PageTitle}" />
+
+        <Border Grid.Row="1" Margin="0,0,0,12" Padding="12,8"
+                CornerRadius="{StaticResource ControlCornerRadius}"
+                Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
+                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox ItemsSource="{Binding Meses}" SelectedItem="{Binding Mes}" Width="70" />
+            <ComboBox ItemsSource="{Binding Anios}" SelectedItem="{Binding Anio}" Width="90" Margin="8,0,0,0" />
+            <Button Content="Previsualizar" Command="{Binding PreviewCommand}"
+                    Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+            <Button Content="Cerrar período" Command="{Binding CerrarCommand}"
+                    Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
+            <TextBlock Text="{Binding Resumen}" VerticalAlignment="Center" Margin="16,0,0,0"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <Grid Grid.Row="3">
+            <DataGrid ItemsSource="{Binding Resultados}" AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Agencia" Binding="{Binding AgenciaNombre}" Width="*" />
+                    <DataGridTextColumn Header="Vouchers" Binding="{Binding CantidadVouchers}" Width="90" />
+                    <DataGridTextColumn Header="Importe" Binding="{Binding Importe, StringFormat=C2}" Width="120" />
+                    <DataGridTextColumn Header="Nro." Binding="{Binding NumeroComprobante}" Width="100" />
+                    <DataGridCheckBoxColumn Header="Éxito" Binding="{Binding Exito}" Width="70" />
+                    <DataGridTextColumn Header="Observación" Binding="{Binding ErrorEmision}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Background="{DynamicResource SmokeFillColorDefaultBrush}"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="220" Height="6" />
+                    <TextBlock Text="Cerrando período…" Foreground="White"
+                               HorizontalAlignment="Center" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>
+

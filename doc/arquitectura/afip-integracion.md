@@ -267,3 +267,45 @@ PuertoBB.Infrastructure/
 | Manual WSAA | https://www.afip.gob.ar/ws/WSAA/WSAAmanualDev.pdf |
 | Especificación WSAA 1.2.2 | https://www.afip.gob.ar/ws/WSAA/Especificacion_Tecnica_WSAA_1.2.2.pdf |
 | Manual desarrollador WSFE v4.0 | https://www.afip.gob.ar/fe/documentos/manual-desarrollador-ARCA-COMPG-v4-0.pdf |
+
+---
+
+## Estado de implementación (2026-06-05) — ✅ implementado
+
+Los clientes SOAP se generaron con `dotnet-svcutil` desde los WSDL de **homologación** y viven en
+`PuertoBB.Services` (no en Infrastructure — ver decisión D-13 en `doc/decisiones/registro-decisiones.md`).
+
+```
+PuertoBB.Services/
+└── Afip/
+    ├── Soap/
+    │   ├── Generated/
+    │   │   ├── WsaaReference.cs   ← LoginCMSClient (autogenerado, no editar)
+    │   │   └── WsfeReference.cs   ← ServiceSoapClient (autogenerado, no editar)
+    │   ├── WsaaSoapClient.cs      ← IWsaaClient real
+    │   ├── WsfeSoapClient.cs      ← IWsfeClient real
+    │   └── WsfeMapper.cs          ← mapeo neutro ↔ contratos WSFE (testeado)
+    ├── Abstractions/IWsaaClient.cs, IWsfeClient.cs
+    ├── TraBuilder.cs              ← TRA + firma CMS PKCS#7
+    ├── WsaaTokenCache.cs          ← caché del ticket (12 hs)
+    ├── AfipService.cs             ← orquesta WSAA + WSFE (IAfipService)
+    └── FakeAfipService.cs         ← CAE simulado para dev/testing
+```
+
+Paquetes: `System.ServiceModel.Http` + `System.ServiceModel.Primitives` (4.10.*).
+
+**Regenerar el cliente (p. ej. para producción):**
+```bash
+dotnet tool install --global dotnet-svcutil   # una vez
+cd PuertoBB.Services
+dotnet-svcutil "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?wsdl" -n "*,PuertoBB.Services.Afip.Soap.Wsaa" -o Afip/Soap/Generated/WsaaReference.cs
+dotnet-svcutil "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"   -n "*,PuertoBB.Services.Afip.Soap.Wsfe" -o Afip/Soap/Generated/WsfeReference.cs
+```
+
+**Activar AFIP real:** poner `App.ModoDemo = false` en cada `App.xaml.cs`. Eso registra
+`WsaaSoapClient`/`WsfeSoapClient` reales (vía `AddPuertoBBAfip(usarFake:false)`). Luego, en
+Configuración, cargar el certificado `.p12`, su contraseña, el CUIT emisor y el punto de venta
+habilitado como "Exento en IVA - Web Services".
+
+> Falta solo la prueba end-to-end con certificado real (no disponible en la sesión de implementación).
+> El mapeo WSFE y la firma TRA están cubiertos por tests; las URLs homo/prod ya están parametrizadas.

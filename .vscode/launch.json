@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CamaraPortuaria.UI",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-camara",
+      "program": "${workspaceFolder}/CamaraPortuaria.UI/bin/Debug/net10.0-windows/CamaraPortuaria.UI.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/CamaraPortuaria.UI",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    },
+    {
+      "name": "CentroMaritimo.UI",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-centro",
+      "program": "${workspaceFolder}/CentroMaritimo.UI/bin/Debug/net10.0-windows/CentroMaritimo.UI.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/CentroMaritimo.UI",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    }
+  ]
+}

@@ -4,4 +4,5 @@
   <Project Path="PuertoBB.Core/PuertoBB.Core.csproj" />
   <Project Path="PuertoBB.Infrastructure/PuertoBB.Infrastructure.csproj" />
   <Project Path="PuertoBB.Services/PuertoBB.Services.csproj" />
+  <Project Path="PuertoBB.Tests/PuertoBB.Tests.csproj" />
 </Solution>

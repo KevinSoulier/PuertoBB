@@ -1,0 +1,204 @@
+# Registro de decisiones de diseño — Implementación end-to-end
+
+> Documento vivo. Registra cada decisión tomada durante la implementación autónoma
+> de la plataforma PuertoBB, con su motivo. Complementa (no reemplaza) las decisiones
+> ya registradas en `doc/arquitectura/datos.md`.
+
+Fecha de inicio de la sesión de implementación: 2026-06-05.
+
+---
+
+## D-01 — Framework MVVM: hand-rolled, no CommunityToolkit
+
+**Decisión:** Se usa el `BaseViewModel` + `RelayCommand` escritos a mano (ya presentes en
+el repo y descritos en `doc/arquitectura/convenciones.md`). Se agrega un `AsyncRelayCommand`
+para comandos asíncronos con soporte de `IsBusy`/`CanExecute`.
+
+**Motivo:** `convenciones.md` es el documento autoritativo de convenciones y ya fija el
+patrón hand-rolled, con código existente en ambos proyectos UI. `fluent-navigation.md`
+(estado "investigado, pendiente") sugería `CommunityToolkit.Mvvm`. Ante el conflicto se
+prioriza la convención establecida para no introducir una dependencia ni dos estilos de
+ViewModel en la misma base de código. Cero dependencias externas de UI.
+
+---
+
+## D-02 — AFIP: lógica real + implementación Fake conmutable
+
+**Decisión:** Se implementa toda la orquestación WSAA (TRA → CMS PKCS#7 → caché de ticket)
+y WSFE (mapeo de comprobante → request de CAE) contra una **abstracción de cliente SOAP**
+(`IWsaaClient` / `IWsfeClient`). Para correr sin red ni certificado se provee
+`FakeAfipService` (CAE simulado determinístico). La selección real/fake se hace por
+configuración (`AfipUsarHomologacion` / disponibilidad de certificado) en el arranque DI.
+
+**Motivo:** La generación del cliente SOAP real desde el WSDL (`dotnet-svcutil`) requiere
+acceso de red al endpoint de AFIP y un certificado `.p12` válido — no disponibles en la
+sesión autónoma. Abstrayendo el cliente, toda la lógica de negocio AFIP queda implementada,
+testeable y lista; sólo resta generar el cliente concreto (paso manual documentado en
+`doc/arquitectura/afip-integracion.md`). El `FakeAfipService` permite desarrollar y testear
+el sistema completo de punta a punta.
+
+---
+
+## D-03 — Testing: xUnit + NSubstitute + SQLite in-memory
+
+**Decisión:** Proyecto `PuertoBB.Tests` (net10.0) con xUnit como runner, NSubstitute para
+dobles de prueba de interfaces, y EF Core SQLite in-memory (conexión `:memory:` mantenida
+abierta) para tests de repositorios reales.
+
+**Motivo:** xUnit es el estándar de facto en .NET moderno. NSubstitute da una sintaxis de
+mocking limpia sin lambdas verbosas. SQLite in-memory ejerce el mapeo EF real (índices
+únicos, relaciones) sin tocar disco — más fiel que el provider InMemory de EF.
+
+---
+
+## D-04 — Servicios de negocio por aplicación
+
+**Decisión:** Las interfaces de servicio de negocio que difieren entre apps se dividen
+(`ICamaraPortuariaReciboService` / `ICentroMaritimoReciboService`, y los PDF ya divididos).
+La lógica común (AFIP, Mail) se comparte vía interfaces únicas.
+
+**Motivo:** El flujo de emisión difiere (CP: cuota por grupo / individual; CM: además
+consolidación de vouchers y apoderado fiscal). Contratos separados evitan métodos vacíos y
+mantienen cada servicio expresivo, consistente con la decisión ya tomada para PDF en
+`doc/arquitectura/flujos.md`.
+
+---
+
+## D-05 — "Vencido" calculado en presentación
+
+**Decisión:** Se respeta `datos.md`: `ReciboEstado` no incluye `Vencido`. El estado vencido
+es un cálculo de presentación (`FechaVencimientoPago < hoy && Estado ∈ {Emitido, Enviado}`),
+encapsulado en un helper compartido para no duplicarlo entre ViewModels.
+
+---
+
+## D-06 — Numeración de comprobantes AFIP
+
+**Decisión:** El número de comprobante se obtiene de AFIP vía `FECompUltimoAutorizado + 1`
+justo antes de solicitar el CAE, dentro del servicio AFIP (no se persiste un contador propio
+de recibos). El `ContadorVoucher` sí es propio (los vouchers no son comprobantes AFIP).
+
+**Motivo:** AFIP es la fuente de verdad de la numeración fiscal; mantener un contador paralelo
+arriesga desincronización. El `FakeAfipService` simula esta secuencia en memoria.
+
+---
+
+## D-07 — Mocks/seed de datos para correr sin backend real
+
+**Decisión:** Se incluye `SeedData` opcional (activable por configuración de desarrollo) que
+puebla empresas/agencias/grupos/barcos de ejemplo, y el `FakeAfipService` + un `FakeMailService`
+para correr la app completa sin AFIP ni SMTP reales.
+
+**Motivo:** Permite validar la plataforma de punta a punta (incluido el recorrido visual WPF)
+sin credenciales externas, cumpliendo el pedido de "mocks donde sea necesario para testear".
+
+---
+
+## D-08 — Ciclos de vida DI en WPF: Transient para datos/servicios
+
+**Decisión:** `DbContext`, repositorios, servicios de negocio, providers de config, AFIP/Mail reales
+y ViewModels/Páginas se registran **Transient**. Singletons: `INavigationService`, `IDialogService`,
+`MainWindow`/`MainWindowViewModel`, PDF, `WsaaTokenCache` y los fakes (AFIP/Mail).
+
+**Motivo:** WPF no tiene scope por request. Un `DbContext` Scoped resuelto desde el root vive como
+singleton y arrastra tracking obsoleto entre páginas. Transient da contextos de vida corta por
+operación (la app es unipersonal y secuencial), evitando ese problema. `WsaaTokenCache` es Singleton
+para compartir el ticket de 12 hs; los fakes son Singleton para mantener su contador en memoria.
+
+---
+
+## D-09 — Diálogos modales por overlay (no MessageBox)
+
+**Decisión:** `IDialogService` se implementa mostrando `UserControl`s (`ConfirmDialog`, `AlertDialog`,
+`InputDialog`) en un overlay con `ContentPresenter` en `MainWindow`, resueltos vía `TaskCompletionSource`.
+
+**Motivo:** WPF no tiene `ContentDialog`. Cumple la regla "nunca `MessageBox`" de `ux-reglas.md` y usa
+brushes dinámicos del tema Fluent (se adaptan a claro/oscuro). El `MessageBox` solo sobrevive como
+último recurso si el shell aún no se inicializó (handler global de excepciones).
+
+---
+
+## D-10 — Persistencia de tema por archivo, no Settings
+
+**Decisión:** La preferencia de tema (claro/oscuro/sistema) se guarda en un `tema.txt` en
+`%LocalAppData%\PuertoBB\<App>` (`PreferenciasUsuario`), no en `Properties.Settings`.
+
+**Motivo:** Evita el andamiaje de `Settings` en proyectos SDK-style; una sola preferencia simple no lo
+justifica. Se restaura en `App.OnStartup` antes de mostrar la ventana (sin parpadeo de tema).
+
+---
+
+## D-11 — `WPF0001` (ThemeMode) suprimido
+
+**Decisión:** `System.Windows.ThemeMode` / `Application.ThemeMode` son experimentales en .NET 10
+(diagnóstico `WPF0001`). Se suprime con `<NoWarn>WPF0001</NoWarn>` en los dos `.csproj` de UI.
+
+**Motivo:** Es la API nativa de tema documentada en `diseño-wpf`; es estable para nuestro uso y evita
+una dependencia de terceros para dark mode. Se acepta el riesgo de cambio futuro de API.
+
+---
+
+## D-12 — Bug corregido: entidades *detached* en el cierre de período
+
+**Decisión / hallazgo:** En `CerrarPeriodoAsync` se cargaba la agencia y los vouchers con `AsNoTracking`
+(detached) y se asignaban a las navegaciones de un `Recibo` nuevo antes de `AddAsync`. EF los trataba
+como entidades nuevas e intentaba reinsertarlos, violando los índices únicos (Numero de voucher / Cuit).
+**Corrección:** cargar la agencia rastreada (`GetConDetalleAsync`) y pasar los vouchers solo como dato
+para el PDF/consolidación (sin asignarlos a la navegación persistida).
+
+**Motivo / lección:** Detectado por el test `CerrarPeriodo_ConsolidaVouchers` antes de llegar a
+producción. Regla general anotada en el skill `/testing`: nunca asignar entidades detached a las
+navegaciones de una entidad nueva; usar la versión rastreada o solo el FK id.
+
+---
+
+## D-13 — Cliente AFIP real: generado con svcutil, en `PuertoBB.Services`
+
+**Decisión:** Los clientes SOAP de WSAA (`LoginCms`) y WSFE v1 se generaron con `dotnet-svcutil`
+desde los WSDL de homologación, en `PuertoBB.Services/Afip/Soap/Generated/`. Las implementaciones
+`WsaaSoapClient`/`WsfeSoapClient` (+ `WsfeMapper`) cubren `IWsaaClient`/`IWsfeClient`. Paquetes
+`System.ServiceModel.Http` + `System.ServiceModel.Primitives` (4.10.*).
+
+**Por qué en Services y no en Infrastructure:** el README asigna AFIP a `PuertoBB.Services`, y allí
+viven `AfipService` y las abstracciones `IWsaaClient`/`IWsfeClient`. Una implementación concreta debe
+poder referenciar esas interfaces; como `Infrastructure` no referencia `Services` (regla de
+dependencias), el hogar natural del cliente es `Services`. Esto ajusta la nota original de
+`afip-integracion.md` (que sugería Infrastructure, previa a la abstracción introducida en D-02).
+
+**Referencia:** `~/source/repos/FacturadorAfip/FacturadorAfip.AfipWsfeClient` (cliente AFIP real del
+equipo) — confirmó el patrón de `ServiceSoapClient`/`LoginCMSClient`, `FEAuthRequest`, `FECAERequest`.
+
+**Pendiente real (no testeable sin credenciales):** generar el cliente desde el WSDL de **producción**
+si se desea, y cargar el certificado `.p12` + punto de venta habilitado. El mapeo y la firma están
+testeados; la llamada de red end-to-end requiere certificado válido.
+
+---
+
+## D-14 — Adopción de WPF-UI (NavigationView + FluentWindow + Mica)
+
+**Decisión:** Se reemplaza el Fluent **nativo** de .NET 10 (`PresentationFramework.Fluent` +
+`Application.ThemeMode`) por la librería **WPF-UI 4.3.0** (NuGet `WPF-UI` + `WPF-UI.DependencyInjection`)
+en ambas apps. El shell pasa a `ui:FluentWindow` con `ui:TitleBar` + `ui:NavigationView`; los iconos de
+navegación usan `ui:SymbolIcon` (Fluent System Icons); la transparencia es **Mica** real
+(`WindowBackdropType="Mica"` + `ExtendsContentIntoTitleBar`). El tema se gestiona con
+`ApplicationThemeManager` + `SystemThemeWatcher` (en lugar de `ThemeMode`), manteniendo la persistencia
+en `tema.txt` (D-10). El **acento es el del sistema** (Windows): no se fuerza color de marca, se deja
+`updateAccent: true` y los botones/indicadores siguen el acento de Windows vía `AccentFillColorDefault`.
+
+**Motivo:** El `NavigationView` de WPF-UI (indicador de selección animado, pane header/footer, back
+integrado) es superior al `TreeView`+`Frame` hecho a mano, y la librería entrega la transparencia Mica
+y el set de iconos tipados que se pedían, con alta fidelidad al diseño de referencia (repo `wpfui`).
+La migración fue acotada porque WPF-UI usa **los mismos resource keys WinUI** que el Fluent nativo
+(`TextFillColor*`, `ApplicationBackgroundBrush`, `Card*`, `SystemFillColor*`, etc.), así que las páginas
+no requirieron cambios de brushes. Se eliminó el `RuntimeHostConfigurationOption EnableMicaBackdrop` y el
+`NoWarn WPF0001` (revierte parcialmente D-11: ya no se usa `ThemeMode`).
+
+**Consecuencias / detalles:**
+- Se borró la navegación propia (`Navigation/INavigationService`, `Navigation/NavigationService`,
+  `Models/NavigationItem`); se usa `Wpf.Ui.INavigationService` + `AddNavigationViewPageProvider()`.
+- WPF-UI no define `AccentButtonStyle` (sí lo hacía el Fluent nativo). Se replicó en `Resources/Styles.xaml`
+  con un template propio sobre los brushes `AccentButton*` de WPF-UI, para no tocar páginas ni diálogos.
+- Los diálogos por overlay (D-09) se mantienen sin cambios (usan los mismos brushes del tema).
+- Mejores prácticas extraídas del repo de referencia documentadas en `doc/diseño/fluent-wpfui.md`
+  (supera a `doc/diseño/fluent-navigation.md`).
+</content>

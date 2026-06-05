@@ -480,3 +480,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# PuertoBB — bases SQLite de runtime
+camara-portuaria.db
+centro-maritimo.db
+*.db-shm
+*.db-wal
