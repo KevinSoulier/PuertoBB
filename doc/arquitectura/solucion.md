@@ -33,6 +33,8 @@ PuertoBB.Infrastructure →  PuertoBB.Core
 - `Microsoft.EntityFrameworkCore`
 - `Microsoft.EntityFrameworkCore.Sqlite`
 - `Microsoft.EntityFrameworkCore.Design`
+- `System.ServiceModel.Http` *(cliente SOAP para AFIP WSFE/WSAA)*
+- `System.ServiceModel.Security`
 
 **PuertoBB.Services:**
 - `QuestPDF`
@@ -41,6 +43,10 @@ PuertoBB.Infrastructure →  PuertoBB.Core
 **CamaraPortuaria.UI / CentroMaritimo.UI:**
 - `Microsoft.Extensions.DependencyInjection`
 - `Microsoft.Extensions.Hosting`
+- `Serilog` *(logging)*
+- `Serilog.Extensions.Hosting` *(integración con IHostBuilder)*
+- `Serilog.Sinks.File` *(archivo de log diario rotativo)*
+- `Serilog.Enrichers.Environment` *(enriquece logs con nombre de máquina)*
 
 ## Bases de datos
 

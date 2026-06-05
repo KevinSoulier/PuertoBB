@@ -28,6 +28,8 @@ Diseño:
 ☐ ¿El ViewModel no tiene lógica de negocio ni acceso directo a `DbContext`?
 ☐ ¿Los diálogos usan `IDialogService`, no `MessageBox`?
 ☐ ¿`<Nullable>enable</Nullable>` está activo y los tipos están correctamente anotados?
+☐ ¿Los servicios y repositorios con I/O reciben `ILogger<T>` y loguean en el nivel correcto?
+☐ ¿Todo `catch` en la capa Service loguea el error y devuelve `ServiceResult.Fail`?
 
 **3. Patrones obligatorios:**
 
@@ -37,5 +39,7 @@ Diseño:
 - Nombres de dominio en español, técnicos en inglés
 - Un archivo = una clase; filename = class name
 - Todo I/O es async con CancellationToken
+- Logging con `ILogger<T>` inyectado — nunca `Console.WriteLine`
+- Errores no esperados: loguear con `LogError`/`LogCritical` antes de propagar o convertir a `ServiceResult.Fail`
 
 **4. Confirmá** con una línea describiendo la tarea a implementar y en qué capa(s) impacta. Esperá instrucciones.
