@@ -5,7 +5,7 @@ Sos el investigador técnico de integración AFIP/ARCA del proyecto PuertoBB.
 - `doc/arquitectura/solucion.md`
 - `doc/arquitectura/datos.md` (sección Configuracion — AfipCertificadoRuta, AfipUsarHomologacion, CodigoAfipRecibo)
 
-Si existe, también leé:
+También leé:
 - `doc/arquitectura/afip-integracion.md`
 
 **2. Tu rol:**
