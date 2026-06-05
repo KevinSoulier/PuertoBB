@@ -4,12 +4,19 @@
 
 La Cámara Portuaria emite recibos a **empresas** asociadas. Es administrada por Laura de forma unipersonal.
 
-## Empresas y grupos
+## Empresas
 
-- ~29 empresas con cuota social mensual (mismo importe para todas)
-- Grupos extraordinarios (~5 empresas con importe distinto al estándar)
-- Los grupos pueden cambiar: se pueden agregar empresas o modificar integrantes
-- Cobros extraordinarios puntuales posibles (ej. papelería)
+La unidad de negocio de Cámara Portuaria es la **Empresa**. Actualmente ~29 empresas asociadas.
+
+## Grupos de facturación
+
+Un **Grupo de Facturación** es una colección de Empresas a las que se les genera un recibo en bloque al cierre de un período elegido por Laura.
+
+- Cada grupo tiene un importe de cuota propio (todas las empresas del grupo pagan lo mismo entre sí)
+- La cantidad de empresas por grupo es variable y no está fijada en el sistema
+- Los grupos son dinámicos: se pueden crear nuevos grupos, agregar o quitar empresas en cualquier momento
+- Una misma empresa puede pertenecer a múltiples grupos (ej. cuota social + extraordinario)
+- Cobros extraordinarios puntuales posibles para un grupo (ej. papelería)
 
 ## Paleta visual
 

@@ -4,9 +4,16 @@
 
 El Centro Marítimo emite recibos a **agencias** marítimas. Es administrado por Laura de forma unipersonal, desde la misma oficina que la Cámara Portuaria.
 
-## Agencias y cuota social
+## Agencias
 
-- ~13 agencias con cuota social mensual (mismo importe para todas)
+La unidad de negocio de Centro Marítimo es la **Agencia** marítima. Actualmente ~13 agencias asociadas.
+
+## Grupos de facturación (cuota social)
+
+Al igual que en Cámara Portuaria, las agencias se organizan en **Grupos de Facturación** para la emisión masiva de recibos de cuota social.
+
+- Mismo importe para todas las agencias dentro de un grupo
+- Grupos dinámicos: cantidad variable de agencias, modificables en cualquier momento
 
 ## Vouchers
 
