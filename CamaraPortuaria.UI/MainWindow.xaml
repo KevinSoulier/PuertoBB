@@ -50,7 +50,7 @@
 
         <!-- Overlay de diálogos modales (sobre todo el contenido) -->
         <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Panel.ZIndex="999" Visibility="Collapsed">
-            <Rectangle Fill="{DynamicResource SmokeFillColorDefaultBrush}" Opacity="0.6" />
+            <Rectangle Fill="{DynamicResource SmokeFillColorDefaultBrush}" Opacity="0.88" />
             <ContentPresenter x:Name="DialogHost" HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Grid>
     </Grid>

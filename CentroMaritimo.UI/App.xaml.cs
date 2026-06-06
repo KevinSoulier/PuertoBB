@@ -71,7 +71,8 @@ public partial class App : Application
         services.AddSingleton<MainWindow>();
         services.AddSingleton<MainWindowViewModel>();
 
-        services.AddTransient<DashboardPage>();      services.AddTransient<DashboardViewModel>();
+        services.AddTransient<DashboardPage>();       services.AddTransient<DashboardViewModel>();
+        services.AddTransient<ControlPagosPage>();   services.AddTransient<ControlPagosViewModel>();
         services.AddTransient<RecibosPage>();        services.AddTransient<RecibosViewModel>();
         services.AddTransient<VouchersPage>();       services.AddTransient<VouchersViewModel>();
         services.AddTransient<CierrePeriodoPage>();  services.AddTransient<CierrePeriodoViewModel>();

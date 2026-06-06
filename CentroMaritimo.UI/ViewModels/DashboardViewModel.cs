@@ -1,73 +1,68 @@
-using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CentroMaritimo.UI.ViewModels.Base;
-using CentroMaritimo.UI.ViewModels.Items;
+using CentroMaritimo.UI.Views;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Resultados;
+using Wpf.Ui;
 
 namespace CentroMaritimo.UI.ViewModels;
 
 public class DashboardViewModel : PageViewModel
 {
     private readonly ICentroMaritimoReciboService _recibos;
-    private readonly IDialogService _dialog;
+    private readonly IVoucherService _vouchers;
+    private readonly INavigationService _nav;
 
-    public ObservableCollection<ReciboItem> Recibos { get; } = [];
+    private string _resumenVouchers = "–";
+    public string ResumenVouchers { get => _resumenVouchers; set => SetField(ref _resumenVouchers, value); }
 
-    private bool _soloVencidos;
-    public bool SoloVencidos { get => _soloVencidos; set => SetField(ref _soloVencidos, value); }
+    private string _resumenRecibosVencidos = "–";
+    public string ResumenRecibosVencidos { get => _resumenRecibosVencidos; set => SetField(ref _resumenRecibosVencidos, value); }
 
-    private ReciboItem? _seleccionado;
-    public ReciboItem? Seleccionado { get => _seleccionado; set => SetField(ref _seleccionado, value); }
+    private string _resumenRecibosPendientes = "–";
+    public string ResumenRecibosPendientes { get => _resumenRecibosPendientes; set => SetField(ref _resumenRecibosPendientes, value); }
 
-    private string _resumen = string.Empty;
-    public string Resumen { get => _resumen; set => SetField(ref _resumen, value); }
+    public ICommand IrAVouchersCommand { get; }
+    public ICommand IrAControlPagosCommand { get; }
+    public ICommand IrAEmisionMasivaCommand { get; }
+    public ICommand IrAAgenciasCommand { get; }
+    public ICommand IrABarcosCommand { get; }
+    public ICommand IrAGruposCommand { get; }
 
-    public ICommand BuscarCommand { get; }
-    public ICommand MarcarPagadoCommand { get; }
-    public ICommand ReenviarCommand { get; }
-
-    public DashboardViewModel(ICentroMaritimoReciboService recibos, IDialogService dialog)
+    public DashboardViewModel(ICentroMaritimoReciboService recibos, IVoucherService vouchers, INavigationService nav)
     {
         _recibos = recibos;
-        _dialog = dialog;
-        BuscarCommand = new AsyncRelayCommand(BuscarAsync);
-        MarcarPagadoCommand = new AsyncRelayCommand(MarcarPagadoAsync, () => Seleccionado?.EsPagable == true);
-        ReenviarCommand = new AsyncRelayCommand(ReenviarAsync, () => Seleccionado?.EsReenviable == true);
-        _ = BuscarAsync();
+        _vouchers = vouchers;
+        _nav = nav;
+
+        IrAVouchersCommand     = new RelayCommand(_ => _nav.Navigate(typeof(VouchersPage)));
+        IrAControlPagosCommand = new RelayCommand(_ => _nav.Navigate(typeof(ControlPagosPage)));
+        IrAEmisionMasivaCommand = new RelayCommand(_ => _nav.Navigate(typeof(EmisionMasivaPage)));
+        IrAAgenciasCommand     = new RelayCommand(_ => _nav.Navigate(typeof(AgenciasPage)));
+        IrABarcosCommand       = new RelayCommand(_ => _nav.Navigate(typeof(BarcosPage)));
+        IrAGruposCommand       = new RelayCommand(_ => _nav.Navigate(typeof(GruposPage)));
+
+        _ = CargarResumenAsync();
     }
 
-    private async Task BuscarAsync()
+    private async Task CargarResumenAsync()
     {
         IsBusy = true;
-        LimpiarStatus();
         try
         {
-            var res = await _recibos.GetPendientesAsync(new FiltroPendientes { SoloVencidos = SoloVencidos });
-            Recibos.Clear();
-            if (res.Success && res.Data is not null)
-                foreach (var r in res.Data) Recibos.Add(new ReciboItem(r));
-            var vencidos = Recibos.Count(r => r.Estado == "Vencido");
-            Resumen = $"{Recibos.Count} recibo(s) · {vencidos} vencido(s)";
+            var hoy = DateTime.Today;
+            var vouchers = await _vouchers.GetPendientesAsync(hoy.Year, hoy.Month);
+            ResumenVouchers = vouchers.Success ? (vouchers.Data?.Count ?? 0).ToString() : "–";
+
+            var pendientes = await _recibos.GetPendientesAsync(new FiltroPendientes { SoloVencidos = false });
+            if (pendientes.Success && pendientes.Data is not null)
+            {
+                var vencidos = pendientes.Data.Count(r =>
+                    PuertoBB.Core.Common.EstadoReciboHelper.EstaVencido(r.Estado, r.FechaVencimientoPago, hoy));
+                ResumenRecibosVencidos = vencidos.ToString();
+                ResumenRecibosPendientes = pendientes.Data.Count.ToString();
+            }
         }
         finally { IsBusy = false; }
-    }
-
-    private async Task MarcarPagadoAsync()
-    {
-        if (Seleccionado is null) return;
-        if (!await _dialog.ShowConfirmAsync("Marcar como pagado",
-                $"¿Marcar el recibo {Seleccionado.Comprobante} de {Seleccionado.Agencia} como pagado?")) return;
-        var res = await _recibos.MarcarPagadoAsync(Seleccionado.Id);
-        if (res.Success) { MostrarExito("Recibo marcado como pagado."); await BuscarAsync(); }
-        else MostrarError(res.ErrorMessage ?? "No se pudo marcar.");
-    }
-
-    private async Task ReenviarAsync()
-    {
-        if (Seleccionado is null) return;
-        var res = await _recibos.ReenviarMailAsync(Seleccionado.Id);
-        if (res.Success) { MostrarExito("Recibo reenviado."); await BuscarAsync(); }
-        else MostrarError(res.ErrorMessage ?? "No se pudo reenviar.");
     }
 }

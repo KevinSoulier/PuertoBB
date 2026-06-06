@@ -9,11 +9,20 @@ public class MainWindowViewModel : BaseViewModel
 {
     public ObservableCollection<object> NavigationItems { get; } =
     [
-        new NavigationViewItem("Inicio",            SymbolRegular.Home24,              typeof(DashboardPage)),
+        new NavigationViewItem("Inicio", SymbolRegular.Home24, typeof(DashboardPage)),
+
+        new NavigationViewItemSeparator(),
+
+        // Comprobantes
         new NavigationViewItem("Vouchers",          SymbolRegular.TicketDiagonal24,    typeof(VouchersPage)),
         new NavigationViewItem("Cierre de período", SymbolRegular.CalendarCheckmark24, typeof(CierrePeriodoPage)),
         new NavigationViewItem("Recibos",           SymbolRegular.ReceiptMoney24,      typeof(RecibosPage)),
         new NavigationViewItem("Emisión masiva",    SymbolRegular.DocumentMultiple24,  typeof(EmisionMasivaPage)),
+        new NavigationViewItem("Control de pagos",  SymbolRegular.MoneyHand24,         typeof(ControlPagosPage)),
+
+        new NavigationViewItemSeparator(),
+
+        // Maestros
         new NavigationViewItem("Agencias",          SymbolRegular.BuildingShop24,      typeof(AgenciasPage)),
         new NavigationViewItem("Barcos",            SymbolRegular.VehicleShip24,       typeof(BarcosPage)),
         new NavigationViewItem("Grupos",            SymbolRegular.PeopleTeam24,        typeof(GruposPage)),

@@ -11,9 +11,17 @@ public class EmpresasViewModel : PageViewModel
 {
     private readonly IEmpresaRepository _repo;
     private readonly IDialogService _dialog;
-    private int _editId; // 0 = alta
+    private int _editId;
+    private List<Empresa> _todasLasEmpresas = [];
 
-    public ObservableCollection<Empresa> Empresas { get; } = [];
+    public ObservableCollection<Empresa> EmpresasFiltradas { get; } = [];
+
+    private string _filtro = string.Empty;
+    public string Filtro
+    {
+        get => _filtro;
+        set { if (SetField(ref _filtro, value)) AplicarFiltro(); }
+    }
 
     private Empresa? _seleccionada;
     public Empresa? Seleccionada
@@ -26,8 +34,7 @@ public class EmpresasViewModel : PageViewModel
     public string RazonSocialEdit { get; set; } = string.Empty;
     public string CuitEdit { get; set; } = string.Empty;
     public string DomicilioEdit { get; set; } = string.Empty;
-    public bool ActivaEdit { get; set; } = true;
-    public string EmailsEdit { get; set; } = string.Empty; // uno por línea
+    public string EmailsEdit { get; set; } = string.Empty;
 
     public ICommand NuevoCommand { get; }
     public ICommand GuardarCommand { get; }
@@ -45,20 +52,27 @@ public class EmpresasViewModel : PageViewModel
 
     private async Task CargarListaAsync()
     {
-        IsBusy = true;
-        try
-        {
-            Empresas.Clear();
-            foreach (var e in await _repo.GetTodasConEmailsAsync()) Empresas.Add(e);
-        }
-        finally { IsBusy = false; }
+        _todasLasEmpresas = (await _repo.GetTodasConEmailsAsync()).ToList();
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        EmpresasFiltradas.Clear();
+        var texto = _filtro.Trim();
+        var lista = string.IsNullOrEmpty(texto)
+            ? _todasLasEmpresas
+            : _todasLasEmpresas.Where(e =>
+                e.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                e.RazonSocial.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                e.Cuit.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        foreach (var e in lista) EmpresasFiltradas.Add(e);
     }
 
     private void Nuevo()
     {
         _editId = 0;
         NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
-        ActivaEdit = true;
         _seleccionada = null;
         NotificarEdicion();
         LimpiarStatus();
@@ -73,7 +87,6 @@ public class EmpresasViewModel : PageViewModel
         RazonSocialEdit = e.RazonSocial;
         CuitEdit = e.Cuit;
         DomicilioEdit = e.Domicilio ?? string.Empty;
-        ActivaEdit = e.Activa;
         EmailsEdit = string.Join(Environment.NewLine, e.Emails.Select(x => x.Email));
         NotificarEdicion();
     }
@@ -88,16 +101,15 @@ public class EmpresasViewModel : PageViewModel
         {
             if (_editId == 0)
             {
-                var nueva = new Empresa
+                await _repo.AddAsync(new Empresa
                 {
                     Nombre = NombreEdit.Trim(),
                     RazonSocial = RazonSocialEdit.Trim(),
                     Cuit = CuitEdit.Trim(),
                     Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
-                    Activa = ActivaEdit,
+                    Activa = true,
                     Emails = emails.Select(em => new EmailEmpresa { Email = em }).ToList()
-                };
-                await _repo.AddAsync(nueva);
+                });
                 MostrarExito("Empresa creada.");
             }
             else
@@ -108,7 +120,7 @@ public class EmpresasViewModel : PageViewModel
                 existente.RazonSocial = RazonSocialEdit.Trim();
                 existente.Cuit = CuitEdit.Trim();
                 existente.Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim();
-                existente.Activa = ActivaEdit;
+                existente.Activa = true;
                 existente.Emails.Clear();
                 foreach (var em in emails) existente.Emails.Add(new EmailEmpresa { Email = em, EmpresaId = existente.Id });
                 await _repo.UpdateAsync(existente);
@@ -126,8 +138,7 @@ public class EmpresasViewModel : PageViewModel
     {
         if (Seleccionada is null) return;
         if (!await _dialog.ShowConfirmAsync("Eliminar empresa",
-                $"¿Eliminar a {Seleccionada.Nombre}? Esta acción no se puede deshacer.", "Eliminar", "Cancelar")) return;
-
+                $"¿Eliminar a {Seleccionada.Nombre}?", "Eliminar", "Cancelar")) return;
         try
         {
             await _repo.DeleteAsync(Seleccionada.Id);
@@ -151,7 +162,6 @@ public class EmpresasViewModel : PageViewModel
         OnPropertyChanged(nameof(RazonSocialEdit));
         OnPropertyChanged(nameof(CuitEdit));
         OnPropertyChanged(nameof(DomicilioEdit));
-        OnPropertyChanged(nameof(ActivaEdit));
         OnPropertyChanged(nameof(EmailsEdit));
     }
 }

@@ -14,9 +14,10 @@ public class GruposViewModel : PageViewModel
     private readonly IAgenciaRepository _agenciasRepo;
     private readonly IDialogService _dialog;
     private int _editId;
+    private List<MiembroGrupoItem> _todosMiembros = [];
 
     public ObservableCollection<GrupoFacturacion> Grupos { get; } = [];
-    public ObservableCollection<MiembroGrupoItem> Miembros { get; } = [];
+    public ObservableCollection<MiembroGrupoItem> MiembrosFiltrados { get; } = [];
 
     private GrupoFacturacion? _seleccionado;
     public GrupoFacturacion? Seleccionado
@@ -28,7 +29,13 @@ public class GruposViewModel : PageViewModel
     public string NombreEdit { get; set; } = string.Empty;
     public string DescripcionEdit { get; set; } = string.Empty;
     public decimal ImporteEdit { get; set; }
-    public bool ActivoEdit { get; set; } = true;
+
+    private string _filtroMiembros = string.Empty;
+    public string FiltroMiembros
+    {
+        get => _filtroMiembros;
+        set { if (SetField(ref _filtroMiembros, value)) AplicarFiltroMiembros(); }
+    }
 
     public ICommand NuevoCommand { get; }
     public ICommand GuardarCommand { get; }
@@ -56,8 +63,8 @@ public class GruposViewModel : PageViewModel
         _editId = 0;
         NombreEdit = DescripcionEdit = string.Empty;
         ImporteEdit = 0;
-        ActivoEdit = true;
         _seleccionado = null;
+        FiltroMiembros = string.Empty;
         await CargarMiembrosAsync(new HashSet<int>());
         Notificar();
         LimpiarStatus();
@@ -71,16 +78,28 @@ public class GruposViewModel : PageViewModel
         NombreEdit = g.Nombre;
         DescripcionEdit = g.Descripcion ?? string.Empty;
         ImporteEdit = g.Importe;
-        ActivoEdit = g.Activo;
+        FiltroMiembros = string.Empty;
         await CargarMiembrosAsync(g.Agencias.Select(a => a.AgenciaId).ToHashSet());
         Notificar();
     }
 
     private async Task CargarMiembrosAsync(HashSet<int> ids)
     {
-        Miembros.Clear();
-        foreach (var a in await _agenciasRepo.GetActivasAsync())
-            Miembros.Add(new MiembroGrupoItem(a, ids.Contains(a.Id)));
+        _todosMiembros = (await _agenciasRepo.GetAllAsync())
+            .OrderBy(a => a.Nombre)
+            .Select(a => new MiembroGrupoItem(a, ids.Contains(a.Id)))
+            .ToList();
+        AplicarFiltroMiembros();
+    }
+
+    private void AplicarFiltroMiembros()
+    {
+        MiembrosFiltrados.Clear();
+        var texto = _filtroMiembros.Trim();
+        var lista = string.IsNullOrEmpty(texto)
+            ? _todosMiembros
+            : _todosMiembros.Where(m => m.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        foreach (var m in lista) MiembrosFiltrados.Add(m);
     }
 
     private async Task GuardarAsync()
@@ -88,7 +107,7 @@ public class GruposViewModel : PageViewModel
         if (string.IsNullOrWhiteSpace(NombreEdit)) { MostrarError("El nombre es obligatorio."); return; }
         if (ImporteEdit <= 0) { MostrarError("El importe debe ser mayor a cero."); return; }
 
-        var seleccionados = Miembros.Where(m => m.EsMiembro).Select(m => m.AgenciaId).ToHashSet();
+        var seleccionados = _todosMiembros.Where(m => m.EsMiembro).Select(m => m.AgenciaId).ToHashSet();
         try
         {
             if (_editId == 0)
@@ -98,7 +117,7 @@ public class GruposViewModel : PageViewModel
                     Nombre = NombreEdit.Trim(),
                     Descripcion = string.IsNullOrWhiteSpace(DescripcionEdit) ? null : DescripcionEdit.Trim(),
                     Importe = ImporteEdit,
-                    Activo = ActivoEdit,
+                    Activo = true,
                     Agencias = seleccionados.Select(id => new AgenciaGrupo { AgenciaId = id }).ToList()
                 });
                 MostrarExito("Grupo creado.");
@@ -110,7 +129,7 @@ public class GruposViewModel : PageViewModel
                 existente.Nombre = NombreEdit.Trim();
                 existente.Descripcion = string.IsNullOrWhiteSpace(DescripcionEdit) ? null : DescripcionEdit.Trim();
                 existente.Importe = ImporteEdit;
-                existente.Activo = ActivoEdit;
+                existente.Activo = true;
                 existente.Agencias.Where(ag => !seleccionados.Contains(ag.AgenciaId)).ToList()
                     .ForEach(ag => existente.Agencias.Remove(ag));
                 var actuales = existente.Agencias.Select(ag => ag.AgenciaId).ToHashSet();
@@ -143,6 +162,5 @@ public class GruposViewModel : PageViewModel
         OnPropertyChanged(nameof(NombreEdit));
         OnPropertyChanged(nameof(DescripcionEdit));
         OnPropertyChanged(nameof(ImporteEdit));
-        OnPropertyChanged(nameof(ActivoEdit));
     }
 }

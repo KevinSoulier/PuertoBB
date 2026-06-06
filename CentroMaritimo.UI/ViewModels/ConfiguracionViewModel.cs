@@ -10,6 +10,7 @@ namespace CentroMaritimo.UI.ViewModels;
 public class ConfiguracionViewModel : PageViewModel
 {
     private readonly IConfiguracionRepository _repo;
+    private readonly IContadorVoucherRepository _contador;
     private readonly IBackupService _backup;
     private Configuracion _config = new();
 
@@ -24,6 +25,7 @@ public class ConfiguracionViewModel : PageViewModel
     public bool UsarApoderado { get => _config.UsarApoderado; set { _config.UsarApoderado = value; OnPropertyChanged(); } }
     public string? NombreApoderado { get => _config.NombreApoderado; set { _config.NombreApoderado = value; OnPropertyChanged(); } }
     public string? CuitApoderado { get => _config.CuitApoderado; set { _config.CuitApoderado = value; OnPropertyChanged(); } }
+    public decimal ImporteVoucherPredeterminado { get => _config.ImporteVoucherPredeterminado; set { _config.ImporteVoucherPredeterminado = value; OnPropertyChanged(); } }
     public int DiasVencimiento { get => _config.DiasVencimiento; set { _config.DiasVencimiento = value; OnPropertyChanged(); } }
     public string? SmtpHost { get => _config.SmtpHost; set { _config.SmtpHost = value; OnPropertyChanged(); } }
     public int SmtpPort { get => _config.SmtpPort; set { _config.SmtpPort = value; OnPropertyChanged(); } }
@@ -31,15 +33,21 @@ public class ConfiguracionViewModel : PageViewModel
     public string? SmtpPassword { get => _config.SmtpPassword; set { _config.SmtpPassword = value; OnPropertyChanged(); } }
     public string? EmailRemitente { get => _config.EmailRemitente; set { _config.EmailRemitente = value; OnPropertyChanged(); } }
 
+    private int _ultimoNumeroVoucher;
+    public int UltimoNumeroVoucher { get => _ultimoNumeroVoucher; set => SetField(ref _ultimoNumeroVoucher, value); }
+
     public ICommand GuardarCommand { get; }
+    public ICommand GuardarContadorCommand { get; }
     public ICommand SeleccionarCertificadoCommand { get; }
     public ICommand BackupCommand { get; }
 
-    public ConfiguracionViewModel(IConfiguracionRepository repo, IBackupService backup)
+    public ConfiguracionViewModel(IConfiguracionRepository repo, IContadorVoucherRepository contador, IBackupService backup)
     {
         _repo = repo;
+        _contador = contador;
         _backup = backup;
         GuardarCommand = new AsyncRelayCommand(GuardarAsync);
+        GuardarContadorCommand = new AsyncRelayCommand(GuardarContadorAsync);
         SeleccionarCertificadoCommand = new RelayCommand(_ => SeleccionarCertificado());
         BackupCommand = new AsyncRelayCommand(BackupAsync);
         _ = CargarAsync();
@@ -62,8 +70,10 @@ public class ConfiguracionViewModel : PageViewModel
     private async Task CargarAsync()
     {
         _config = await _repo.GetAsync();
+        var contador = await _contador.GetAsync();
+        UltimoNumeroVoucher = contador.UltimoNumero;
         foreach (var p in GetType().GetProperties())
-            if (p.CanRead && p.Name is not (nameof(GuardarCommand) or nameof(SeleccionarCertificadoCommand)))
+            if (p.CanRead && p.Name is not (nameof(GuardarCommand) or nameof(GuardarContadorCommand) or nameof(SeleccionarCertificadoCommand) or nameof(BackupCommand)))
                 OnPropertyChanged(p.Name);
     }
 
@@ -83,5 +93,17 @@ public class ConfiguracionViewModel : PageViewModel
             MostrarExito("Configuración guardada.");
         }
         catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+    }
+
+    private async Task GuardarContadorAsync()
+    {
+        try
+        {
+            var contador = await _contador.GetAsync();
+            contador.UltimoNumero = UltimoNumeroVoucher;
+            await _contador.SaveAsync(contador);
+            MostrarExito($"Numeración actualizada. Próximo voucher: {UltimoNumeroVoucher + 1}.");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo guardar la numeración: {ex.Message}"); }
     }
 }

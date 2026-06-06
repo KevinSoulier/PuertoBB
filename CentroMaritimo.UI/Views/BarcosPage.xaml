@@ -1,9 +1,11 @@
-﻿<Page x:Class="CentroMaritimo.UI.Views.BarcosPage"
+<Page x:Class="CentroMaritimo.UI.Views.BarcosPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="Barcos">
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -18,13 +20,18 @@
             <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
         </Border>
 
-        <Grid Grid.Row="2">
+        <!-- Buscador -->
+        <ui:TextBox Grid.Row="2" Margin="0,0,0,12"
+                 Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
+                 PlaceholderText="Buscar barco…" />
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <DataGrid Grid.Column="0" ItemsSource="{Binding Barcos}" SelectedItem="{Binding Seleccionado}"
+            <DataGrid Grid.Column="0" ItemsSource="{Binding BarcosFiltrados}" SelectedItem="{Binding Seleccionado}"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                       GridLinesVisibility="Horizontal" CanUserAddRows="False" Margin="0,0,16,0">
                 <DataGrid.Columns>
@@ -51,4 +58,3 @@
         </Grid>
     </Grid>
 </Page>
-

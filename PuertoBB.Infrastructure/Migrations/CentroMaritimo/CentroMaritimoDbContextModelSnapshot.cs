@@ -146,6 +146,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Property<int>("DiasVencimiento")
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal>("ImporteVoucherPredeterminado")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EmailRemitente")
                         .HasColumnType("TEXT");
 
@@ -192,6 +195,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 30,
+                            ImporteVoucherPredeterminado = 0m,
                             PuntoDeVenta = 1,
                             RazonSocial = "",
                             SmtpPort = 587,

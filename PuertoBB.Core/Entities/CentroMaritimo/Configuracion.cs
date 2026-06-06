@@ -23,6 +23,9 @@ public class Configuracion : BaseEntity
     public string? NombreApoderado { get; set; }
     public string? CuitApoderado   { get; set; }
 
+    // Vouchers
+    public decimal ImporteVoucherPredeterminado { get; set; } = 0;
+
     // Control de pagos
     public int DiasVencimiento { get; set; } = 30;
 

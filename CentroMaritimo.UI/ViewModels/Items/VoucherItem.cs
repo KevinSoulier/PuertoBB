@@ -12,6 +12,7 @@ public class VoucherItem
     public string Fecha { get; }
     public string Importe { get; }
     public bool Consolidado { get; }
+    public string EstadoTexto { get; }
 
     public VoucherItem(Voucher v)
     {
@@ -22,5 +23,6 @@ public class VoucherItem
         Fecha = Formato.Fecha(v.Fecha);
         Importe = Formato.Moneda(v.Importe);
         Consolidado = v.ReciboId is not null;
+        EstadoTexto = v.ReciboId is not null ? "Emitido" : "Pendiente";
     }
 }

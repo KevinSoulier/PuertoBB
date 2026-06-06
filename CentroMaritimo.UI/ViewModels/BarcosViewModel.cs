@@ -12,8 +12,16 @@ public class BarcosViewModel : PageViewModel
     private readonly IBarcoRepository _repo;
     private readonly IDialogService _dialog;
     private int _editId;
+    private List<Barco> _todosLosBarcos = [];
 
-    public ObservableCollection<Barco> Barcos { get; } = [];
+    public ObservableCollection<Barco> BarcosFiltrados { get; } = [];
+
+    private string _filtro = string.Empty;
+    public string Filtro
+    {
+        get => _filtro;
+        set { if (SetField(ref _filtro, value)) AplicarFiltro(); }
+    }
 
     private Barco? _seleccionado;
     public Barco? Seleccionado
@@ -40,8 +48,18 @@ public class BarcosViewModel : PageViewModel
 
     private async Task CargarAsync()
     {
-        Barcos.Clear();
-        foreach (var b in (await _repo.GetAllAsync()).OrderBy(b => b.Nombre)) Barcos.Add(b);
+        _todosLosBarcos = (await _repo.GetAllAsync()).OrderBy(b => b.Nombre).ToList();
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        BarcosFiltrados.Clear();
+        var texto = _filtro.Trim();
+        var lista = string.IsNullOrEmpty(texto)
+            ? _todosLosBarcos
+            : _todosLosBarcos.Where(b => b.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        foreach (var b in lista) BarcosFiltrados.Add(b);
     }
 
     private async Task GuardarAsync()

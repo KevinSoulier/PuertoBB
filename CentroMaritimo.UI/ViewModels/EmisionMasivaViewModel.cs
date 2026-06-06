@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Input;
 using CentroMaritimo.UI.ViewModels.Base;
+using CentroMaritimo.UI.ViewModels.Items;
 using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Services;
@@ -10,25 +12,54 @@ namespace CentroMaritimo.UI.ViewModels;
 
 public class EmisionMasivaViewModel : PageViewModel
 {
+    private static readonly CultureInfo _es = new("es-AR");
+
     private readonly ICentroMaritimoReciboService _service;
     private readonly IGrupoFacturacionRepository _gruposRepo;
     private readonly IDialogService _dialog;
 
     public ObservableCollection<GrupoFacturacion> Grupos { get; } = [];
     public ObservableCollection<ResultadoEmisionPorEntidad> Resultados { get; } = [];
-    public IReadOnlyList<int> Anios { get; } = Enumerable.Range(DateTime.Today.Year - 5, 7).Reverse().ToList();
-    public IReadOnlyList<int> Meses { get; } = Enumerable.Range(1, 12).ToList();
+    public ObservableCollection<PreviaEmisionItem> PreviaItems { get; } = [];
 
-    private GrupoFacturacion? _grupo;
-    public GrupoFacturacion? Grupo { get => _grupo; set => SetField(ref _grupo, value); }
+    public IReadOnlyList<string> MesesNombres { get; } =
+        Enumerable.Range(1, 12)
+            .Select(m => _es.DateTimeFormat.GetMonthName(m))
+            .Select(n => char.ToUpper(n[0]) + n[1..])
+            .ToList();
 
-    private int _anio = DateTime.Today.Year;
-    public int Anio { get => _anio; set => SetField(ref _anio, value); }
+    private int _mesIndex = DateTime.Today.Month - 1;
+    public int MesIndex
+    {
+        get => _mesIndex;
+        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; _ = ActualizarPreviaAsync(); } }
+    }
 
     private int _mes = DateTime.Today.Month;
-    public int Mes { get => _mes; set => SetField(ref _mes, value); }
+
+    private int _anio = DateTime.Today.Year;
+    public int Anio
+    {
+        get => _anio;
+        set { if (SetField(ref _anio, value)) _ = ActualizarPreviaAsync(); }
+    }
+
+    private GrupoFacturacion? _grupo;
+    public GrupoFacturacion? Grupo
+    {
+        get => _grupo;
+        set { if (SetField(ref _grupo, value)) _ = ActualizarPreviaAsync(); }
+    }
+
+    private bool _hayPrevia;
+    public bool HayPrevia { get => _hayPrevia; set => SetField(ref _hayPrevia, value); }
+
+    private string _resumenPrevia = string.Empty;
+    public string ResumenPrevia { get => _resumenPrevia; set => SetField(ref _resumenPrevia, value); }
 
     public ICommand EmitirCommand { get; }
+    public ICommand IncrementarAnioCommand { get; }
+    public ICommand DecrementarAnioCommand { get; }
 
     public EmisionMasivaViewModel(ICentroMaritimoReciboService service, IGrupoFacturacionRepository gruposRepo, IDialogService dialog)
     {
@@ -36,6 +67,8 @@ public class EmisionMasivaViewModel : PageViewModel
         _gruposRepo = gruposRepo;
         _dialog = dialog;
         EmitirCommand = new AsyncRelayCommand(EmitirAsync, () => Grupo is not null);
+        IncrementarAnioCommand = new RelayCommand(_ => Anio++);
+        DecrementarAnioCommand = new RelayCommand(_ => { if (Anio > 2000) Anio--; });
         _ = CargarGruposAsync();
     }
 
@@ -44,12 +77,46 @@ public class EmisionMasivaViewModel : PageViewModel
         foreach (var g in await _gruposRepo.GetActivosAsync()) Grupos.Add(g);
     }
 
+    private async Task ActualizarPreviaAsync()
+    {
+        PreviaItems.Clear();
+        HayPrevia = false;
+        ResumenPrevia = string.Empty;
+
+        if (Grupo is null) return;
+
+        var dup = await _service.GetDuplicadosAsync(Grupo.Id, _anio, _mes);
+        var yaEmitidos = (dup.Success && dup.Data is not null)
+            ? new HashSet<string>(dup.Data, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>();
+
+        var grupoConMiembros = await _gruposRepo.GetConMiembrosAsync(Grupo.Id);
+        if (grupoConMiembros is null) return;
+
+        foreach (var m in grupoConMiembros.Agencias)
+        {
+            var nombre = m.Agencia?.Nombre ?? $"Agencia #{m.AgenciaId}";
+            var esDup = yaEmitidos.Contains(nombre);
+            PreviaItems.Add(new PreviaEmisionItem
+            {
+                Agencia = nombre,
+                Estado = esDup ? "Ya emitido" : "A generar",
+                YaEmitido = esDup
+            });
+        }
+
+        var totalMiembros = PreviaItems.Count;
+        var aGenerar = PreviaItems.Count(p => !p.YaEmitido);
+        ResumenPrevia = $"{totalMiembros} miembro(s) · {aGenerar} a emitir · {totalMiembros - aGenerar} ya emitido(s)";
+        HayPrevia = totalMiembros > 0;
+    }
+
     private async Task EmitirAsync()
     {
         if (Grupo is null) return;
         LimpiarStatus();
 
-        var dup = await _service.GetDuplicadosAsync(Grupo.Id, Anio, Mes);
+        var dup = await _service.GetDuplicadosAsync(Grupo.Id, _anio, _mes);
         if (dup.Success && dup.Data is { Count: > 0 })
         {
             if (!await _dialog.ShowConfirmAsync("Recibos duplicados",
@@ -66,11 +133,12 @@ public class EmisionMasivaViewModel : PageViewModel
         Resultados.Clear();
         try
         {
-            var res = await _service.EmitirMasivoAsync(Grupo.Id, Anio, Mes);
+            var res = await _service.EmitirMasivoAsync(Grupo.Id, _anio, _mes);
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo emitir."); return; }
             foreach (var r in res.Data!) Resultados.Add(r);
             var ok = Resultados.Count(r => r.Exito);
             MostrarExito($"Emisión finalizada: {ok} emitido(s), {Resultados.Count - ok} con error.");
+            await ActualizarPreviaAsync();
         }
         finally { IsBusy = false; }
     }

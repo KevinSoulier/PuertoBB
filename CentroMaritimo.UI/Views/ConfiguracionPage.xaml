@@ -50,6 +50,18 @@
                          PasswordChanged="CertPasswordBox_PasswordChanged" />
             <CheckBox Content="Usar homologación (solo pruebas)" IsChecked="{Binding AfipUsarHomologacion}" Margin="0,4,0,8" />
 
+            <TextBlock Text="Vouchers" FontWeight="SemiBold" Margin="0,12,0,6" />
+            <TextBlock Text="Importe predeterminado" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+            <TextBox Text="{Binding ImporteVoucherPredeterminado, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left" Margin="0,0,0,8" />
+            <TextBlock Text="Numeración actual de vouchers" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <TextBox Text="{Binding UltimoNumeroVoucher, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                <TextBlock Text="(el próximo voucher será este número + 1)" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11" />
+            </StackPanel>
+            <Button Content="Guardar numeración" Command="{Binding GuardarContadorCommand}"
+                    Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,4,0,8" />
+
             <TextBlock Text="Pagos" FontWeight="SemiBold" Margin="0,12,0,6" />
             <TextBlock Text="Días de vencimiento" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
             <TextBox Text="{Binding DiasVencimiento, UpdateSourceTrigger=PropertyChanged}" Width="100" HorizontalAlignment="Left" Margin="0,0,0,8" />
@@ -90,4 +102,4 @@
         </StackPanel>
     </ScrollViewer>
 </Page>
-
+

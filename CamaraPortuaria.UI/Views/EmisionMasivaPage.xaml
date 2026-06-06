@@ -7,6 +7,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -23,13 +24,46 @@
             <TextBlock Text="Grupo:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox ItemsSource="{Binding Grupos}" SelectedItem="{Binding Grupo}" DisplayMemberPath="Nombre" Width="240" />
             <TextBlock Text="Período:" VerticalAlignment="Center" Margin="16,0,8,0" />
-            <ComboBox ItemsSource="{Binding Meses}" SelectedItem="{Binding Mes}" Width="70" />
-            <ComboBox ItemsSource="{Binding Anios}" SelectedItem="{Binding Anio}" Width="90" Margin="8,0,0,0" />
+            <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
+            <StackPanel Orientation="Horizontal" Margin="8,0,8,0" VerticalAlignment="Center">
+                <RepeatButton Content="−" Command="{Binding DecrementarAnioCommand}" Width="28" Height="28"
+                              FontSize="16" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
+                <TextBox Text="{Binding Anio, UpdateSourceTrigger=PropertyChanged}" Width="60"
+                         TextAlignment="Center" VerticalContentAlignment="Center" Margin="4,0" />
+                <RepeatButton Content="+" Command="{Binding IncrementarAnioCommand}" Width="28" Height="28"
+                              FontSize="16" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
+            </StackPanel>
             <Button Content="Emitir" Command="{Binding EmitirCommand}"
-                    Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
+                    Style="{StaticResource PrimaryButton}" />
         </StackPanel>
 
-        <Grid Grid.Row="3">
+        <!-- Previa del estado antes de emitir (EMI-1) -->
+        <Border Grid.Row="3" Margin="0,0,0,12" Padding="12" CornerRadius="8"
+                Background="{DynamicResource LayerFillColorDefaultBrush}"
+                Visibility="{Binding HayPrevia, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="{Binding ResumenPrevia}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <DataGrid ItemsSource="{Binding PreviaItems}" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          CanUserAddRows="False" MaxHeight="200">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Empresa" Binding="{Binding Empresa}" Width="*" />
+                        <DataGridTextColumn Header="Estado" Binding="{Binding Estado}" Width="120" />
+                    </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding YaEmitido}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="4">
             <DataGrid ItemsSource="{Binding Resultados}" AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
                 <DataGrid.Columns>
@@ -52,4 +86,3 @@
         </Grid>
     </Grid>
 </Page>
-

@@ -1,9 +1,11 @@
 <Page x:Class="CamaraPortuaria.UI.Views.EmpresasPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="Empresas">
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -18,19 +20,23 @@
             <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
         </Border>
 
-        <Grid Grid.Row="2">
+        <!-- Buscador -->
+        <ui:TextBox Grid.Row="2" Margin="0,0,0,12"
+                 Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
+                 PlaceholderText="Buscar por nombre, razón social o CUIT…" />
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <DataGrid Grid.Column="0" ItemsSource="{Binding Empresas}" SelectedItem="{Binding Seleccionada}"
+            <DataGrid Grid.Column="0" ItemsSource="{Binding EmpresasFiltradas}" SelectedItem="{Binding Seleccionada}"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                       GridLinesVisibility="Horizontal" CanUserAddRows="False" Margin="0,0,16,0">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*" />
                     <DataGridTextColumn Header="CUIT" Binding="{Binding Cuit}" Width="130" />
-                    <DataGridCheckBoxColumn Header="Activa" Binding="{Binding Activa}" Width="70" />
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -47,9 +53,8 @@
                     <TextBlock Text="Domicilio" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                     <TextBox Text="{Binding DomicilioEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                     <TextBlock Text="Emails (uno por línea)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding EmailsEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"
+                    <TextBox Text="{Binding EmailsEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
                              AcceptsReturn="True" Height="80" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
-                    <CheckBox Content="Activa" IsChecked="{Binding ActivaEdit}" Margin="0,4,0,12" />
                     <StackPanel Orientation="Horizontal">
                         <Button Content="Nuevo" Command="{Binding NuevoCommand}"
                                 Style="{StaticResource SecondaryButton}" />
@@ -63,4 +68,3 @@
         </Grid>
     </Grid>
 </Page>
-

@@ -12,8 +12,16 @@ public class AgenciasViewModel : PageViewModel
     private readonly IAgenciaRepository _repo;
     private readonly IDialogService _dialog;
     private int _editId;
+    private List<Agencia> _todasLasAgencias = [];
 
-    public ObservableCollection<Agencia> Agencias { get; } = [];
+    public ObservableCollection<Agencia> AgenciasFiltradas { get; } = [];
+
+    private string _filtro = string.Empty;
+    public string Filtro
+    {
+        get => _filtro;
+        set { if (SetField(ref _filtro, value)) AplicarFiltro(); }
+    }
 
     private Agencia? _seleccionada;
     public Agencia? Seleccionada
@@ -26,7 +34,6 @@ public class AgenciasViewModel : PageViewModel
     public string RazonSocialEdit { get; set; } = string.Empty;
     public string CuitEdit { get; set; } = string.Empty;
     public string DomicilioEdit { get; set; } = string.Empty;
-    public bool ActivaEdit { get; set; } = true;
     public string EmailsEdit { get; set; } = string.Empty;
 
     public ICommand NuevoCommand { get; }
@@ -45,15 +52,27 @@ public class AgenciasViewModel : PageViewModel
 
     private async Task CargarListaAsync()
     {
-        Agencias.Clear();
-        foreach (var a in await _repo.GetTodasConEmailsAsync()) Agencias.Add(a);
+        _todasLasAgencias = (await _repo.GetTodasConEmailsAsync()).ToList();
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        AgenciasFiltradas.Clear();
+        var texto = _filtro.Trim();
+        var lista = string.IsNullOrEmpty(texto)
+            ? _todasLasAgencias
+            : _todasLasAgencias.Where(a =>
+                a.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                a.RazonSocial.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                a.Cuit.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        foreach (var a in lista) AgenciasFiltradas.Add(a);
     }
 
     private void Nuevo()
     {
         _editId = 0;
         NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
-        ActivaEdit = true;
         _seleccionada = null;
         Notificar();
         LimpiarStatus();
@@ -68,7 +87,6 @@ public class AgenciasViewModel : PageViewModel
         RazonSocialEdit = a.RazonSocial;
         CuitEdit = a.Cuit;
         DomicilioEdit = a.Domicilio ?? string.Empty;
-        ActivaEdit = a.Activa;
         EmailsEdit = string.Join(Environment.NewLine, a.Emails.Select(x => x.Email));
         Notificar();
     }
@@ -89,7 +107,7 @@ public class AgenciasViewModel : PageViewModel
                     RazonSocial = RazonSocialEdit.Trim(),
                     Cuit = CuitEdit.Trim(),
                     Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
-                    Activa = ActivaEdit,
+                    Activa = true,
                     Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
                 });
                 MostrarExito("Agencia creada.");
@@ -102,7 +120,7 @@ public class AgenciasViewModel : PageViewModel
                 existente.RazonSocial = RazonSocialEdit.Trim();
                 existente.Cuit = CuitEdit.Trim();
                 existente.Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim();
-                existente.Activa = ActivaEdit;
+                existente.Activa = true;
                 existente.Emails.Clear();
                 foreach (var em in emails) existente.Emails.Add(new EmailAgencia { Email = em, AgenciaId = existente.Id });
                 await _repo.UpdateAsync(existente);
@@ -134,7 +152,6 @@ public class AgenciasViewModel : PageViewModel
         OnPropertyChanged(nameof(RazonSocialEdit));
         OnPropertyChanged(nameof(CuitEdit));
         OnPropertyChanged(nameof(DomicilioEdit));
-        OnPropertyChanged(nameof(ActivaEdit));
         OnPropertyChanged(nameof(EmailsEdit));
     }
 }

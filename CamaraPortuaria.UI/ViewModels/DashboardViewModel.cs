@@ -1,79 +1,57 @@
-using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CamaraPortuaria.UI.ViewModels.Base;
-using CamaraPortuaria.UI.ViewModels.Items;
+using CamaraPortuaria.UI.Views;
+using PuertoBB.Core.Common;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Resultados;
+using Wpf.Ui;
 
 namespace CamaraPortuaria.UI.ViewModels;
 
 public class DashboardViewModel : PageViewModel
 {
     private readonly ICamaraPortuariaReciboService _recibos;
-    private readonly IDialogService _dialog;
+    private readonly INavigationService _nav;
 
-    public ObservableCollection<ReciboItem> Recibos { get; } = [];
+    private string _resumenRecibosVencidos = "–";
+    public string ResumenRecibosVencidos { get => _resumenRecibosVencidos; set => SetField(ref _resumenRecibosVencidos, value); }
 
-    private bool _soloVencidos;
-    public bool SoloVencidos { get => _soloVencidos; set => SetField(ref _soloVencidos, value); }
+    private string _resumenRecibosPendientes = "–";
+    public string ResumenRecibosPendientes { get => _resumenRecibosPendientes; set => SetField(ref _resumenRecibosPendientes, value); }
 
-    private ReciboItem? _seleccionado;
-    public ReciboItem? Seleccionado { get => _seleccionado; set => SetField(ref _seleccionado, value); }
+    public ICommand IrAControlPagosCommand { get; }
+    public ICommand IrAEmisionMasivaCommand { get; }
+    public ICommand IrAEmpresasCommand { get; }
+    public ICommand IrAGruposCommand { get; }
 
-    private string _resumen = string.Empty;
-    public string Resumen { get => _resumen; set => SetField(ref _resumen, value); }
-
-    public ICommand BuscarCommand { get; }
-    public ICommand MarcarPagadoCommand { get; }
-    public ICommand ReenviarCommand { get; }
-
-    public DashboardViewModel(ICamaraPortuariaReciboService recibos, IDialogService dialog)
+    public DashboardViewModel(ICamaraPortuariaReciboService recibos, INavigationService nav)
     {
         _recibos = recibos;
-        _dialog = dialog;
+        _nav = nav;
 
-        BuscarCommand = new AsyncRelayCommand(BuscarAsync);
-        MarcarPagadoCommand = new AsyncRelayCommand(MarcarPagadoAsync, () => Seleccionado?.EsPagable == true);
-        ReenviarCommand = new AsyncRelayCommand(ReenviarAsync, () => Seleccionado?.EsReenviable == true);
+        IrAControlPagosCommand  = new RelayCommand(_ => _nav.Navigate(typeof(ControlPagosPage)));
+        IrAEmisionMasivaCommand = new RelayCommand(_ => _nav.Navigate(typeof(EmisionMasivaPage)));
+        IrAEmpresasCommand      = new RelayCommand(_ => _nav.Navigate(typeof(EmpresasPage)));
+        IrAGruposCommand        = new RelayCommand(_ => _nav.Navigate(typeof(GruposPage)));
 
-        _ = BuscarAsync();
+        _ = CargarResumenAsync();
     }
 
-    private async Task BuscarAsync()
+    private async Task CargarResumenAsync()
     {
         IsBusy = true;
-        LimpiarStatus();
         try
         {
-            var filtro = new FiltroPendientes { SoloVencidos = SoloVencidos };
-            var res = await _recibos.GetPendientesAsync(filtro);
-            Recibos.Clear();
-            if (res.Success && res.Data is not null)
-                foreach (var r in res.Data)
-                    Recibos.Add(new ReciboItem(r));
-
-            var vencidos = Recibos.Count(r => r.Estado == "Vencido");
-            Resumen = $"{Recibos.Count} recibo(s) · {vencidos} vencido(s)";
+            var hoy = DateTime.Today;
+            var pendientes = await _recibos.GetPendientesAsync(new FiltroPendientes { SoloVencidos = false });
+            if (pendientes.Success && pendientes.Data is not null)
+            {
+                var vencidos = pendientes.Data.Count(r =>
+                    EstadoReciboHelper.EstaVencido(r.Estado, r.FechaVencimientoPago, hoy));
+                ResumenRecibosVencidos = vencidos.ToString();
+                ResumenRecibosPendientes = pendientes.Data.Count.ToString();
+            }
         }
         finally { IsBusy = false; }
-    }
-
-    private async Task MarcarPagadoAsync()
-    {
-        if (Seleccionado is null) return;
-        if (!await _dialog.ShowConfirmAsync("Marcar como pagado",
-                $"¿Marcar el recibo {Seleccionado.Comprobante} de {Seleccionado.Empresa} como pagado?")) return;
-
-        var res = await _recibos.MarcarPagadoAsync(Seleccionado.Id);
-        if (res.Success) { MostrarExito("Recibo marcado como pagado."); await BuscarAsync(); }
-        else MostrarError(res.ErrorMessage ?? "No se pudo marcar como pagado.");
-    }
-
-    private async Task ReenviarAsync()
-    {
-        if (Seleccionado is null) return;
-        var res = await _recibos.ReenviarMailAsync(Seleccionado.Id);
-        if (res.Success) { MostrarExito("Recibo reenviado por mail."); await BuscarAsync(); }
-        else MostrarError(res.ErrorMessage ?? "No se pudo reenviar.");
     }
 }

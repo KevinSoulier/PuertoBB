@@ -10,7 +10,7 @@ namespace PuertoBB.Services.Pdf;
 public class CentroMaritimoPdfService : ICentroMaritimoPdfService
 {
     private readonly PdfTheme _theme = PdfTheme.CentroMaritimo;
-    private const string Titulo = "Centro de Navegación / Marítimo";
+    private const string Titulo = "Centro Marítimo";
 
     public Task<byte[]> GenerarPdfReciboAsync(Recibo recibo, CancellationToken ct = default)
     {
