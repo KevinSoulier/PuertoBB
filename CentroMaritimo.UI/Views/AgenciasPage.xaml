@@ -13,13 +13,6 @@
 
         <TextBlock Grid.Row="0" Text="Agencias" Style="{StaticResource PageTitle}" />
 
-        <Border Grid.Row="1" Margin="0,0,0,12" Padding="12,8"
-                CornerRadius="{StaticResource ControlCornerRadius}"
-                Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
-                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-        </Border>
-
         <!-- Buscador -->
         <ui:TextBox Grid.Row="2" Margin="0,0,0,12"
                  Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
@@ -36,6 +29,7 @@
                       GridLinesVisibility="Horizontal" CanUserAddRows="False" Margin="0,0,16,0">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*" />
+                    <DataGridTextColumn Header="Domicilio" Binding="{Binding Domicilio}" Width="2*" />
                     <DataGridTextColumn Header="CUIT" Binding="{Binding Cuit}" Width="130" />
                 </DataGrid.Columns>
             </DataGrid>
@@ -52,16 +46,32 @@
                     <TextBox Text="{Binding CuitEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                     <TextBlock Text="Domicilio" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                     <TextBox Text="{Binding DomicilioEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                    <TextBlock Text="Condición frente al IVA" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                    <ComboBox Text="{Binding CondicionIvaEdit, UpdateSourceTrigger=PropertyChanged}"
+                              IsEditable="True" Margin="0,0,0,8">
+                        <ComboBoxItem Content="IVA Responsable Inscripto" />
+                        <ComboBoxItem Content="IVA Exento" />
+                        <ComboBoxItem Content="Monotributista" />
+                        <ComboBoxItem Content="Consumidor Final" />
+                        <ComboBoxItem Content="No Responsable" />
+                    </ComboBox>
                     <TextBlock Text="Emails (uno por línea)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                     <TextBox Text="{Binding EmailsEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
-                             AcceptsReturn="True" Height="80" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                             AcceptsReturn="True" Height="80" VerticalContentAlignment="Top"
+                             TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                Style="{StaticResource SecondaryButton}" />
-                        <Button Content="Guardar" Command="{Binding GuardarCommand}"
-                                Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
-                        <Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
+                                   Style="{StaticResource AccionIconButton}">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="Guardar" Command="{Binding GuardarCommand}"
+                                   Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
+                                   Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                        </ui:Button>
                     </StackPanel>
                 </StackPanel>
             </Border>

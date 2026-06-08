@@ -10,6 +10,9 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>True si ya existe un recibo para (agencia, grupo, período).</summary>
     Task<bool> ExisteAsync(int agenciaId, int? grupoId, int anio, int mes, CancellationToken ct = default);
 
+    /// <summary>Recibo rastreado (con Agencia+Emails y Vouchers) para (agencia, grupo, período), o null. Para crear-o-resumir.</summary>
+    Task<Recibo?> GetPorClaveAsync(int agenciaId, int? grupoId, int anio, int mes, CancellationToken ct = default);
+
     /// <summary>True si ya existe un recibo consolidado de vouchers para (agencia, período).</summary>
     Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
 

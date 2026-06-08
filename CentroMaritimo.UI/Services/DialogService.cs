@@ -38,6 +38,12 @@ public class DialogService : IDialogService
         return ShowAsync(dialog, dialog.Result);
     }
 
+    public Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null)
+    {
+        var dialog = new PdfPreviewDialog(pdfBytes, titulo, nombreArchivo);
+        return ShowAsync(dialog, dialog.Result);
+    }
+
     private async Task<T> ShowAsync<T>(UIElement dialog, Task<T> resultTask)
     {
         if (_overlay is null || _host is null)

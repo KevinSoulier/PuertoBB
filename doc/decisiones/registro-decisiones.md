@@ -202,3 +202,160 @@ no requirieron cambios de brushes. Se eliminó el `RuntimeHostConfigurationOptio
 - Mejores prácticas extraídas del repo de referencia documentadas en `doc/diseño/fluent-wpfui.md`
   (supera a `doc/diseño/fluent-navigation.md`).
 </content>
+
+---
+
+## D-15 — Rediseño de Cierre de Período: UI agrupada por agencia + descarga PDF (PdfSharp)
+
+**Fecha:** 2026-06-06.
+
+**Decisión:** Se rediseña la página de **Cierre de período** del Centro Marítimo: la
+grilla pasa a mostrar una fila por agencia (con sus vouchers expandibles en `RowDetails`),
+un flag de tres estados (`Pendiente` / `Emitido` / `Completo`) derivado de `Recibo.Estado`,
+y un botón **Descargar PDF** adaptativo por agencia. La descarga concatena el PDF del
+recibo (con CAE+QR) con los PDFs individuales de los vouchers cuando el recibo ya está
+emitido, o sólo los vouchers cuando todavía está pendiente.
+
+**Cómo se implementa:**
+
+- `IVoucherRepository.GetTodosByPeriodoAsync` (nuevo) trae todos los vouchers del período
+  con `Agencia`, `Barco` y `Recibo` incluidos.
+- `IVoucherService.GetCierrePeriodoAsync` arma el shape de la vista (`AgenciaCierrePeriodoVm`)
+  agrupando por agencia y derivando el estado del recibo consolidado.
+- `IPdfMerger` (nueva) + `PdfMerger` (PdfSharp 6.2.0) concatenan PDFs.
+- `ICentroMaritimoPdfService.GenerarPdfDescargaAsync` arma el blob final (recibo opcional +
+  vouchers).
+- `IVoucherRepository.GetByIdConDetalleAsync` + comandos `DescargarVoucherCommand` y
+  `PrevisualizarVoucherCommand` en `VouchersViewModel` permiten descargar/previsualizar
+  un voucher individual desde la página de Vouchers.
+
+**Por qué PdfSharp y no iText:** QuestPDF (ya en uso) no concatena PDFs. PdfSharp es MIT,
+sin dependencias nativas, mantenido, y soporta net10.0. iText 7+ es AGPL/comercial — no
+encaja con la licencia del proyecto.
+
+**Alcance restringido a esta iteración:** la emisión por agencia (botón "Generar recibo") y
+el cierre masivo quedan visibles pero deshabilitados — se habilitan en iteración 2.
+El envío automático por mail del PDF único entra en iteración 3.
+
+**Por qué fasear así:** la descarga manual ya cubre el caso en que Laura necesita revisar
+los comprobantes antes de cerrar el período o reenviar el adjunto fuera de banda; la
+emisión automatizada implica cambios en `CentroMaritimoReciboService` que tienen su propio
+costo y prefieren su propio PR.
+
+**Documentación:** el proceso completo (4 fases, mapeo de estados, plan de iteraciones,
+aclaración sobre AFIP no devolviendo PDF) queda en `doc/negocio/cierre-periodo.md`, y
+`doc/negocio/centro-maritimo.md` ahora linkea ahí.
+
+---
+
+## D-16 — AFIP extraído a librería neutra `Afip.Net` (multi-servicio) + adaptador en Services
+
+**Fecha:** 2026-06-06.
+
+**Decisión:** Todo el cliente AFIP se movió de `PuertoBB.Services/Afip/` a un **proyecto independiente
+y reutilizable `Afip.Net`** (namespace raíz `Afip`, sin dependencias de PuertoBB). El dominio sigue
+hablando con `IAfipService` (en Core); un **adaptador** `PuertoBB.Services/Afip/AfipService.cs` traduce
+los modelos del dominio ↔ los de la librería y llama a la fachada `IWsfeService` de `Afip.Net`. Esto
+revisa la ubicación fijada en D-13 (que dejaba el cliente concreto dentro de `PuertoBB.Services`).
+
+**Diseño multi-servicio:** la autenticación WSAA quedó **compartida por todos los servicios** vía
+`ITicketProvider.GetTicketAsync(servicio, options)`. Sumar un web service nuevo (ej. **Remito
+Electrónico** `wsrem*`) es agregar su cliente SOAP + fachada reutilizando el `ITicketProvider`; el
+`TicketCache` ya está keyed por `(CUIT, servicio)`. Placeholder documentado en `Afip.Net/Wsrem/README.md`.
+
+**Mejoras de robustez incluidas:**
+- Cache del TA **persistido y cifrado a disco** con DPAPI (`FileTicketStore`) → sobrevive reinicios y
+  evita el rechazo "El CEE ya posee un TA válido". Reemplaza al `WsaaTokenCache` en memoria (que se borró).
+- **Contraseña del certificado cifrada en reposo** (DPAPI, `ISecretProtector` en `PuertoBB.Services/Security`),
+  con migración suave de valores en texto plano.
+- **Importación del `.p12`** a una carpeta controlada de la app al seleccionarlo.
+- `uniqueId` del TRA **monótono** (evita colisiones en el mismo segundo).
+- **Botón "Probar conexión"** en Configuración (login WSAA + FEDummy + último número) y **aviso de
+  ambiente** homologación/producción.
+- NU1903: se fija `System.Security.Cryptography.Pkcs` 10.0.0 para sacar la transitiva vulnerable (6.0.1).
+
+**Por qué:** el usuario pidió que AFIP fuera un proyecto/servicio aparte, genérico y reutilizable a
+futuro para otras cosas, y que todo siguiera siendo configurable desde la app. El patrón adaptador deja
+`Core` sin dependencias y `Afip.Net` 100% reutilizable.
+
+**Docs:** `Afip.Net/README.md` (desarrollador), `doc/usuario/afip-configuracion.md` (usuario/certificados),
+`doc/arquitectura/afip-integracion.md` (actualizado).
+
+**Pendiente real:** prueba end-to-end con certificado válido (igual que en D-13). Mapeo WSFE, firma TRA,
+cache por servicio y persistencia cifrada quedan cubiertos por tests.
+
+---
+
+## D-17 — Múltiples puntos de venta con uno activo (perfil por ambiente)
+
+**Fecha:** 2026-06-06.
+
+**Decisión:** La configuración deja de tener un único punto de venta + certificado + ambiente. Se agrega
+la entidad **`PuntoDeVenta`** (por app: CamaraPortuaria y CentroMaritimo) con `Nombre`, `Numero`,
+`UsarHomologacion`, `CertificadoRuta`, `CertificadoPassword` y `Activo`. `Configuracion` ahora tiene
+`List<PuntoDeVenta> PuntosDeVenta` + `PuntoDeVentaActivo` (`[NotMapped]`). Se quitaron de `Configuracion`
+los campos `PuntoDeVenta` (int), `AfipCertificadoRuta`, `AfipCertificadoPassword`, `AfipUsarHomologacion`.
+
+**Nombre:** el usuario pidió llamarlo **"Punto de venta"** (término oficial de AFIP) aunque el registro
+agrupe número + ambiente + certificado. En la práctica cada punto de venta = un ambiente (ej. uno de
+homologación y otro de producción) y se elige cuál está **activo** con un click.
+
+**Cómo se implementa:**
+- `AfipConfigProvider` (ambas UIs) arma el `AfipConfig` a partir del **PV activo** (cert + ambiente) + CUIT.
+- Los servicios de negocio usan `config.PuntoDeVentaActivo?.Numero` para el comprobante.
+- `IConfiguracionRepository` suma `GetPuntosDeVentaAsync`, `GuardarPuntoDeVentaAsync`,
+  `EliminarPuntoDeVentaAsync` y `MarcarPuntoDeVentaActivoAsync` (deja exactamente uno activo).
+- La contraseña de cada PV se cifra con DPAPI (igual que antes, ahora por punto de venta).
+- Migración `AgregarPuntosDeVenta` (ambos contextos): dropea las 4 columnas viejas, crea la tabla
+  `PuntosDeVenta` (FK a Configuracion) y siembra un PV "Principal" activo por defecto.
+- UI Configuración: grilla de puntos de venta + alta/edición/baja + "Marcar activo" + "Probar conexión"
+  (prueba el activo). Tests nuevos: seed con activo, marcar activo único, eliminar.
+
+**Por qué:** permite tener homologación y producción cargados a la vez y alternar sin recargar el
+certificado ni reescribir el número de PV cada vez.
+
+---
+
+## D-18 — Backup/Restaurar + Mantenimiento SQLite en tab "Base de datos"
+
+**Fecha:** 2026-06-07.
+
+**Decisión:** Se amplía el tab "Base de datos" en `ConfiguracionPage` de ambas apps (CentroMaritimo y
+CamaraPortuaria) con cuatro operaciones nuevas sobre la base SQLite, distribuidas en dos secciones:
+
+**Sección Backup:**
+- **Generar backup** (ya existía): usa `VACUUM INTO` para exportar una copia consistente sin bloquear la DB.
+  Se corrigió el ícono (`DocumentArrowDown24` → `ArrowDownload24`): el símbolo original no existe en el
+  font embebido de WPF-UI 4.3.0 y aparecía como glifo vacío.
+- **Restaurar backup** (nuevo): abre un `OpenFileDialog`, pide confirmación explícita con aviso de
+  cierre, cierra la conexión EF Core (`_db.Database.CloseConnection()`), copia el archivo `.db`
+  seleccionado sobre la base activa con `File.Copy(origen, dbPath, overwrite: true)`, y llama
+  `Application.Current.Shutdown()`. La ruta de la base se obtiene casteando la conexión a
+  `SqliteConnection` y leyendo `DataSource`.
+
+**Sección Mantenimiento:**
+- **Verificar integridad**: ejecuta `PRAGMA integrity_check` vía ADO.NET directo (EF Core no retorna
+  filas de PRAGMAs con `ExecuteSqlRaw`). Si SQLite responde `"ok"` muestra un mensaje de éxito; si
+  detecta problemas, los muestra en un `AlertDialog`.
+- **Compactar (VACUUM)**: ejecuta `VACUUM` que reconstruye el archivo de la base, recupera espacio
+  en disco, y rehace todos los índices (equivale a REINDEX implícito).
+- **Optimizar consultas**: ejecuta `PRAGMA optimize` para actualizar las estadísticas internas del
+  query planner de SQLite.
+
+**Implementación:**
+- `IBackupService` (Core): se agregaron `RestaurarAsync`, `VerificarIntegridadAsync`, `VacuumAsync`,
+  `OptimizarAsync`. Todas retornan `ServiceResult<T>` como el resto del servicio.
+- `BackupService` (ambas UIs): implementa los cuatro métodos nuevos + `using System.IO` +
+  `using Microsoft.Data.Sqlite` (para `SqliteConnection.DataSource`).
+- `ConfiguracionViewModel` (ambas UIs): cuatro comandos `AsyncRelayCommand` nuevos con sus métodos
+  privados. El restore usa `_dialog.ShowConfirmAsync` para la advertencia destructiva.
+- `ConfiguracionPage.xaml` (ambas UIs): el tab queda con dos subsecciones visuales (separadas por
+  `Separator`) con títulos, descripción secundaria en gris, y botones con íconos Fluent.
+
+**Por qué estas operaciones:**
+- `VACUUM` y `PRAGMA optimize` son las dos herramientas de mantenimiento preventivo recomendadas por
+  SQLite para bases que crecen con el tiempo. `PRAGMA integrity_check` es el primer paso ante cualquier
+  comportamiento inesperado o fallo de energía. El restore completa el ciclo backup/restore que ya existía
+  solo en una dirección.
+
+**Docs:** `doc/usuario/base-de-datos.md`.

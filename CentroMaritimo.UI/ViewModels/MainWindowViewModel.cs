@@ -25,6 +25,7 @@ public class MainWindowViewModel : BaseViewModel
         // Maestros
         new NavigationViewItem("Agencias",          SymbolRegular.BuildingShop24,      typeof(AgenciasPage)),
         new NavigationViewItem("Barcos",            SymbolRegular.VehicleShip24,       typeof(BarcosPage)),
+        new NavigationViewItem("Detalles",          SymbolRegular.TextBulletListSquare24, typeof(ConceptosReciboPage)),
         new NavigationViewItem("Grupos",            SymbolRegular.PeopleTeam24,        typeof(GruposPage)),
     ];
 

@@ -28,6 +28,15 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
             r.PeriodoAnio == anio &&
             r.PeriodoMes == mes, ct);
 
+    public Task<Recibo?> GetPorClaveAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default)
+        => _db.Recibos
+            .Include(r => r.Empresa).ThenInclude(e => e.Emails)
+            .FirstOrDefaultAsync(r =>
+                r.EmpresaId == empresaId &&
+                r.GrupoFacturacionId == grupoId &&
+                r.PeriodoAnio == anio &&
+                r.PeriodoMes == mes, ct);
+
     public async Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes f, CancellationToken ct = default)
     {
         var q = _db.Recibos.AsNoTracking().Include(r => r.Empresa).Include(r => r.Grupo).AsQueryable();

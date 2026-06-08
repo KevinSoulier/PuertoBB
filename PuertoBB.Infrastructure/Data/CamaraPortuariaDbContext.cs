@@ -12,8 +12,10 @@ public class CamaraPortuariaDbContext : DbContext
     public DbSet<GrupoFacturacion> Grupos          => Set<GrupoFacturacion>();
     public DbSet<EmpresaGrupo>     EmpresasGrupos  => Set<EmpresaGrupo>();
     public DbSet<Recibo>           Recibos         => Set<Recibo>();
+    public DbSet<ConceptoRecibo>   ConceptosRecibo => Set<ConceptoRecibo>();
     public DbSet<NotaDeCredito>    NotasDeCredito  => Set<NotaDeCredito>();
     public DbSet<Configuracion>    Configuraciones => Set<Configuracion>();
+    public DbSet<PuntoDeVenta>     PuntosDeVenta   => Set<PuntoDeVenta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

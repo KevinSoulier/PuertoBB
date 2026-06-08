@@ -12,4 +12,7 @@ public interface IMailService
         string asunto,
         string cuerpo,
         CancellationToken ct = default);
+
+    /// <summary>Verifica la conexión SMTP sin enviar ningún mensaje. Retorna el banner del servidor si OK.</summary>
+    Task<ServiceResult<string>> ProbarConexionAsync(CancellationToken ct = default);
 }

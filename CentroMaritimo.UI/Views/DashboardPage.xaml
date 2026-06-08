@@ -58,7 +58,7 @@
             <UniformGrid Columns="3" Margin="0,0,0,0">
 
                 <Button Command="{Binding IrAVouchersCommand}" Margin="0,0,8,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" HorizontalContentAlignment="Left">
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="TicketDiagonal24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
@@ -69,8 +69,8 @@
                     </StackPanel>
                 </Button>
 
-                <Button Command="{Binding IrAControlPagosCommand}" Margin="4,0,4,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" HorizontalContentAlignment="Left">
+                <Button Command="{Binding IrAControlPagosCommand}" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="MoneyHand24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
@@ -81,8 +81,8 @@
                     </StackPanel>
                 </Button>
 
-                <Button Command="{Binding IrAEmisionMasivaCommand}" Margin="8,0,0,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" HorizontalContentAlignment="Left">
+                <Button Command="{Binding IrAEmisionMasivaCommand}" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="DocumentMultiple24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
@@ -94,7 +94,7 @@
                 </Button>
 
                 <Button Command="{Binding IrAAgenciasCommand}" Margin="0,0,8,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" HorizontalContentAlignment="Left">
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="BuildingShop24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
@@ -105,8 +105,8 @@
                     </StackPanel>
                 </Button>
 
-                <Button Command="{Binding IrABarcosCommand}" Margin="4,0,4,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" HorizontalContentAlignment="Left">
+                <Button Command="{Binding IrABarcosCommand}" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="VehicleShip24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
@@ -117,8 +117,8 @@
                     </StackPanel>
                 </Button>
 
-                <Button Command="{Binding IrAGruposCommand}" Margin="8,0,0,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" HorizontalContentAlignment="Left">
+                <Button Command="{Binding IrAGruposCommand}" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>

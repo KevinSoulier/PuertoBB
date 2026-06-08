@@ -29,6 +29,16 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
             r.PeriodoAnio == anio &&
             r.PeriodoMes == mes, ct);
 
+    public Task<Recibo?> GetPorClaveAsync(int agenciaId, int? grupoId, int anio, int mes, CancellationToken ct = default)
+        => _db.Recibos
+            .Include(r => r.Agencia).ThenInclude(a => a.Emails)
+            .Include(r => r.Vouchers).ThenInclude(v => v.Barco)
+            .FirstOrDefaultAsync(r =>
+                r.AgenciaId == agenciaId &&
+                r.GrupoFacturacionId == grupoId &&
+                r.PeriodoAnio == anio &&
+                r.PeriodoMes == mes, ct);
+
     public Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
         => _db.Recibos.AnyAsync(r =>
             r.AgenciaId == agenciaId &&

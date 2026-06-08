@@ -1,8 +1,8 @@
 using System.Xml.Linq;
-using PuertoBB.Services.Afip;
-using PuertoBB.Services.Afip.Abstractions;
-using PuertoBB.Services.Afip.Soap;
-using PuertoBB.Services.Afip.Soap.Wsfe;
+using Afip.Abstractions;
+using Afip.Soap;
+using Afip.Soap.Wsfe;
+using Afip.Wsaa;
 using Xunit;
 
 namespace PuertoBB.Tests;

@@ -17,7 +17,6 @@ public class ConfiguracionConfiguration : IEntityTypeConfiguration<Configuracion
             Id = 1,
             RazonSocial = string.Empty,
             Cuit = string.Empty,
-            PuntoDeVenta = 1,
             CodigoAfipRecibo = 11,
             CodigoAfipNotaDeCredito = 13,
             DiasVencimiento = 30,

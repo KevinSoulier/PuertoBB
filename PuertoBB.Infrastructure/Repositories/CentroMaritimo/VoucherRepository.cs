@@ -21,6 +21,15 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
             .OrderBy(v => v.Numero)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Voucher>> GetTodosByPeriodoAsync(int anio, int mes, CancellationToken ct = default)
+        => await _db.Vouchers.AsNoTracking()
+            .Include(v => v.Agencia)
+            .Include(v => v.Barco)
+            .Include(v => v.Recibo)
+            .Where(v => v.PeriodoAnio == anio && v.PeriodoMes == mes)
+            .OrderBy(v => v.AgenciaId).ThenBy(v => v.Numero)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Agencia>> GetAgenciasConVouchersPendientesAsync(int anio, int mes, CancellationToken ct = default)
     {
         var agenciaIds = await _db.Vouchers
@@ -55,4 +64,10 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
         if (mes is int m)  q = q.Where(v => v.PeriodoMes == m);
         return await q.OrderByDescending(v => v.Numero).ToListAsync(ct);
     }
+
+    public Task<Voucher?> GetByIdConDetalleAsync(int id, CancellationToken ct = default)
+        => _db.Vouchers.AsNoTracking()
+            .Include(v => v.Agencia)
+            .Include(v => v.Barco)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
 }

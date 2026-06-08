@@ -11,13 +11,52 @@ public class ConfiguracionRepository : IConfiguracionRepository
     public ConfiguracionRepository(CentroMaritimoDbContext db) => _db = db;
 
     public async Task<Configuracion> GetAsync(CancellationToken ct = default)
-        => await _db.Configuraciones.FirstOrDefaultAsync(c => c.Id == 1, ct)
+        => await _db.Configuraciones.Include(c => c.PuntosDeVenta).FirstOrDefaultAsync(c => c.Id == 1, ct)
            ?? throw new InvalidOperationException("La configuración singleton (Id=1) no existe.");
 
     public async Task SaveAsync(Configuracion configuracion, CancellationToken ct = default)
     {
         configuracion.UpdatedAt = DateTime.Now;
         _db.Configuraciones.Update(configuracion);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<PuntoDeVenta>> GetPuntosDeVentaAsync(CancellationToken ct = default)
+        => await _db.PuntosDeVenta.AsNoTracking().OrderBy(p => p.Nombre).ToListAsync(ct);
+
+    public async Task<PuntoDeVenta> GuardarPuntoDeVentaAsync(PuntoDeVenta puntoDeVenta, CancellationToken ct = default)
+    {
+        if (puntoDeVenta.Id == 0)
+        {
+            puntoDeVenta.ConfiguracionId = 1;
+            puntoDeVenta.CreatedAt = DateTime.Now;
+            _db.PuntosDeVenta.Add(puntoDeVenta);
+        }
+        else
+        {
+            puntoDeVenta.ConfiguracionId = 1;
+            puntoDeVenta.UpdatedAt = DateTime.Now;
+            var existing = await _db.PuntosDeVenta.FindAsync(new object[] { puntoDeVenta.Id }, ct)
+                ?? throw new InvalidOperationException($"Punto de venta {puntoDeVenta.Id} no encontrado.");
+            _db.Entry(existing).CurrentValues.SetValues(puntoDeVenta);
+        }
+        await _db.SaveChangesAsync(ct);
+        return puntoDeVenta;
+    }
+
+    public async Task EliminarPuntoDeVentaAsync(int id, CancellationToken ct = default)
+    {
+        var pv = await _db.PuntosDeVenta.FirstOrDefaultAsync(p => p.Id == id, ct);
+        if (pv is null) return;
+        _db.PuntosDeVenta.Remove(pv);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task MarcarPuntoDeVentaActivoAsync(int id, CancellationToken ct = default)
+    {
+        var todos = await _db.PuntosDeVenta.ToListAsync(ct);
+        foreach (var pv in todos)
+            pv.Activo = pv.Id == id;
         await _db.SaveChangesAsync(ct);
     }
 }

@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Afip.Net\Afip.Net.csproj" />
     <ProjectReference Include="..\PuertoBB.Core\PuertoBB.Core.csproj" />
     <ProjectReference Include="..\PuertoBB.Services\PuertoBB.Services.csproj" />
     <ProjectReference Include="..\PuertoBB.Infrastructure\PuertoBB.Infrastructure.csproj" />

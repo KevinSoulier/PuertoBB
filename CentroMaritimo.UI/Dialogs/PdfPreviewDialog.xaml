@@ -1,0 +1,47 @@
+<UserControl x:Class="CentroMaritimo.UI.Dialogs.PdfPreviewDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             Loaded="OnLoaded" Unloaded="OnUnloaded">
+    <Border x:Name="Root" CornerRadius="8" MinWidth="640" MinHeight="440"
+            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+            Effect="{DynamicResource ElevationShadow16Effect}">
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="TitleText" Grid.Column="0" FontSize="18" FontWeight="SemiBold"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <ui:Button Grid.Column="1" x:Name="CloseButton" Click="Close_Click" ToolTip="Cerrar">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="Dismiss24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+            </Grid>
+
+            <Border Grid.Row="1" CornerRadius="4" ClipToBounds="True"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}">
+                <Grid>
+                    <wv2:WebView2 x:Name="Web" />
+                    <StackPanel x:Name="FallbackPanel" Visibility="Collapsed"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="No se pudo cargar el visor embebido."
+                                   HorizontalAlignment="Center" Margin="0,0,0,12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <ui:Button Content="Abrir en visor externo" Click="OpenExternal_Click"
+                                   Appearance="Primary" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

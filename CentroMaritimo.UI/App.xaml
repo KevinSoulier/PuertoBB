@@ -14,6 +14,10 @@
 
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:EstadoReciboToBrushConverter x:Key="EstadoReciboToBrushConverter" />
+            <conv:EstadoReciboToFgBrushConverter x:Key="EstadoReciboToFgBrushConverter" />
+            <conv:EstadoCierreToBrushConverter x:Key="EstadoCierreToBrushConverter" />
+            <conv:EstadoCierreToFgBrushConverter x:Key="EstadoCierreToFgBrushConverter" />
+            <conv:EstadoCierreToTextoConverter x:Key="EstadoCierreToTextoConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

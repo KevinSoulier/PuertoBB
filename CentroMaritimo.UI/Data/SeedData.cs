@@ -27,6 +27,8 @@ public static class SeedData
             new Barco { Nombre = "Río Paraná", CreatedAt = DateTime.Now },
             new Barco { Nombre = "Estrella del Sur", CreatedAt = DateTime.Now },
             new Barco { Nombre = "Cabo Frío", CreatedAt = DateTime.Now },
+            new Barco { Nombre = "Don Pedro", CreatedAt = DateTime.Now },
+            new Barco { Nombre = "Mar Argentino", CreatedAt = DateTime.Now },
         };
         db.Barcos.AddRange(barcos);
         await db.SaveChangesAsync();
@@ -34,22 +36,33 @@ public static class SeedData
         foreach (var a in agencias)
             db.AgenciasGrupos.Add(new AgenciaGrupo { AgenciaId = a.Id, GrupoFacturacionId = grupoSocial.Id, CreatedAt = DateTime.Now });
 
-        // Algunos vouchers pendientes del mes corriente para poder probar el cierre de período.
+        // Vouchers pendientes del mes corriente para probar el cierre de período.
+        // Cada agencia recibe una cantidad distinta, con barcos y fechas variados para que el
+        // PDF consolidado (recibo + N vouchers) muestre páginas claramente diferentes.
         var contador = await db.Contadores.FirstAsync(c => c.Id == 1);
         var hoy = DateTime.Today;
+        var diasEnMes = DateTime.DaysInMonth(hoy.Year, hoy.Month);
         var rnd = new Random(7);
-        foreach (var a in agencias)
+        int[] cantidades = [3, 2, 4];
+        for (var ai = 0; ai < agencias.Length; ai++)
         {
-            for (var i = 0; i < 2; i++)
+            var a = agencias[ai];
+            var cantidad = cantidades[ai % cantidades.Length];
+
+            // Barcos distintos por agencia y días distintos dentro del mes (orden cronológico).
+            var barcosAgencia = barcos.OrderBy(_ => rnd.Next()).Take(cantidad).ToList();
+            var dias = Enumerable.Range(1, diasEnMes).OrderBy(_ => rnd.Next()).Take(cantidad).OrderBy(d => d).ToList();
+
+            for (var i = 0; i < cantidad; i++)
             {
                 contador.UltimoNumero++;
                 db.Vouchers.Add(new Voucher
                 {
                     AgenciaId = a.Id,
-                    BarcoId = barcos[rnd.Next(barcos.Length)].Id,
+                    BarcoId = barcosAgencia[i].Id,
                     Numero = contador.UltimoNumero,
                     Importe = rnd.Next(50, 200) * 1000m,
-                    Fecha = hoy,
+                    Fecha = new DateTime(hoy.Year, hoy.Month, dias[i]),
                     PeriodoAnio = hoy.Year,
                     PeriodoMes = hoy.Month,
                     CreatedAt = DateTime.Now

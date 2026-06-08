@@ -4,6 +4,13 @@
 > Punto de partida: documentación completa + esqueleto de código (stubs vacíos).
 > Resultado: plataforma funcional de punta a punta en modo demo, con tests verdes.
 
+> **Actualización 2026-06-06 (D-16):** el cliente AFIP se extrajo a una **librería neutra y reutilizable
+> `Afip.Net`** (multi-servicio, lista para sumar Remito Electrónico a futuro). `PuertoBB.Services/Afip`
+> quedó como adaptador (`IAfipService` → `Afip.Net`) + `FakeAfipService`. Se sumaron: cache del Ticket de
+> Acceso por servicio y persistido cifrado (DPAPI), contraseña del certificado cifrada en reposo,
+> importación del `.p12`, botón **Probar conexión** y aviso de ambiente. Tests: 29 verdes. Docs:
+> `Afip.Net/README.md`, `doc/usuario/afip-configuracion.md`.
+
 ---
 
 ## Qué quedó implementado

@@ -1,0 +1,110 @@
+# Cierre de Período — Centro Marítimo
+
+Documento de negocio del proceso de cierre mensual de vouchers en Centro Marítimo.
+Complementa `centro-maritimo.md` con el detalle operativo del flujo.
+
+---
+
+## El proceso completo (multi-fase)
+
+El cierre de un período convierte los **vouchers pendientes** de cada agencia en un único
+recibo consolidado, lo entrega a la agencia, y deja todo el ciclo trazado en el sistema.
+Tiene cuatro fases secuenciales por agencia. Si una falla, la siguiente no se ejecuta y el
+estado del recibo refleja en qué paso quedó.
+
+### Fase 1 — Consolidar
+
+- Se agrupan los vouchers con `ReciboId IS NULL` del período `(Anio, Mes)` por agencia.
+- El total a facturar es la suma de los importes de esos vouchers.
+- La leyenda del recibo lista los números de voucher incluidos.
+
+### Fase 2 — Obtener CAE (AFIP/ARCA WSFE)
+
+- Se construye un `ComprobanteAfipRequest` (tipo Recibo C, código 211 por defecto) con el
+  total y el CUIT del receptor.
+- Se llama a `IAfipService.ObtenerCAEAsync` (WSAA → WSFE) y se recibe:
+  - **`NumeroComprobante`** (correlativo del punto de venta)
+  - **`Cae`** (código de autorización)
+  - **`FechaVencimientoCae`**
+- Si AFIP rechaza el comprobante, el flujo se interrumpe y el recibo queda sin persistir.
+
+> **Aclaración técnica importante.** AFIP/ARCA **no devuelve el PDF del recibo**. WSFE
+> sólo devuelve CAE + número de comprobante + vencimiento del CAE. El PDF del comprobante
+> siempre lo genera el emisor localmente, e incluye el CAE y el código QR obligatorio de
+> AFIP. En PuertoBB esto lo hace `CentroMaritimoPdfService.GenerarPdfReciboAsync`.
+
+### Fase 3 — Generar PDF único
+
+Al cerrar un período, lo que la agencia recibe es **un único PDF** con:
+
+1. El PDF del recibo consolidado (con CAE + QR), generado por
+   `CentroMaritimoPdfService.GenerarPdfReciboAsync`.
+2. Los PDFs individuales de cada voucher incluido, generados por
+   `CentroMaritimoPdfService.GenerarPdfVoucherAsync`.
+
+Esos PDFs se **concatenan** con `IPdfMerger.Merge` (implementación `PdfMerger` sobre
+PdfSharp). El método público es `CentroMaritimoPdfService.GenerarPdfDescargaAsync`,
+que admite recibo opcional:
+
+- Con recibo: descarga "completa" (recibo + vouchers).
+- Sin recibo: descarga "parcial" sólo de vouchers, útil como vista previa antes de cerrar.
+
+### Fase 4 — Enviar por mail
+
+- El PDF único se envía como adjunto a los `EmailAgencia.Email` activos de la agencia.
+- Si el mail se envía OK, el `Recibo.Estado` pasa a `Enviado`. Si falla, el recibo queda
+  en `Emitido` y se puede reintentar desde la página de Recibos.
+
+---
+
+## Estados visibles en la UI
+
+La página de **Cierre de período** muestra una fila por agencia con los vouchers del
+período expandibles. El flag de estado por agencia se deriva del `Recibo` consolidado:
+
+| Flag UI | Condición | `Recibo.Estado` |
+|---|---|---|
+| **Pendiente** | No hay recibo consolidado para `(Agencia, Período)` | — (no existe) |
+| **Emitido** | Recibo persistido con CAE, mail aún no enviado | `Emitido` |
+| **Completo** | Recibo enviado por mail (o ya pagado) | `Enviado` / `Pagado` |
+
+`Anulado` se trata transitoriamente como `Pendiente` en la UI para permitir reemisión.
+Caso borde a refinar en iteraciones siguientes.
+
+El mapeo está implementado en `VoucherService.MapEstado` y se sirve a través de
+`VoucherService.GetCierrePeriodoAsync`, que devuelve `AgenciaCierrePeriodoVm` con los
+vouchers, el total y el estado calculado.
+
+---
+
+## Acciones disponibles por agencia
+
+| Acción | Estado en que aplica | Resultado |
+|---|---|---|
+| **Descargar PDF** (parcial) | Pendiente | Concatenación de los PDFs de vouchers del período. |
+| **Descargar PDF** (completa) | Emitido / Completo | Recibo (con CAE+QR) + vouchers concatenados. |
+| **Generar recibo** | Pendiente | (Próxima iteración) Ejecuta fases 1→4 para una agencia. |
+| **Cerrar período** (masivo) | — | (Próxima iteración) Ejecuta el cierre para todas las agencias pendientes. |
+
+En la página de **Vouchers** además se puede:
+
+- **Previsualizar** un voucher individual: genera el PDF y lo abre con el visor por
+  defecto del SO (temporal).
+- **Descargar** un voucher individual: guarda el PDF en disco.
+
+Ambas operaciones usan `CentroMaritimoPdfService.GenerarPdfVoucherAsync`.
+
+---
+
+## Plan de iteraciones
+
+1. **Iteración 1 (hecha):** UI agrupada por agencia, flag de 3 estados, descarga de PDF
+   adaptativo (parcial/completo), acciones de voucher individual (descargar / previsualizar),
+   capa `IPdfMerger` + `GenerarPdfDescargaAsync`. Botones de emisión visibles pero deshabilitados.
+2. **Iteración 2:** habilitar **Generar recibo** por fila y **Cerrar período** masivo. Reusar
+   `CentroMaritimoReciboService.CerrarPeriodoAsync` refactorizado para exponer emisión por
+   agencia individual con reintentos. El PDF persistido/enviado pasa a ser el de
+   `GenerarPdfDescargaAsync` (reemplaza al actual `GenerarPdfConsolidadoAsync` con tabla
+   embebida).
+3. **Iteración 3:** cablear el envío automático del PDF único en el cierre masivo,
+   reusando `GenerarPdfDescargaAsync` + `IMailService`.

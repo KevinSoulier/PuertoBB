@@ -1,7 +1,10 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using CamaraPortuaria.UI.Dialogs;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Services.Common;
 
 namespace CamaraPortuaria.UI.Services;
 
@@ -36,6 +39,17 @@ public class DialogService : IDialogService
     {
         var dialog = new InputDialog(title, placeholder, initialValue);
         return ShowAsync(dialog, dialog.Result);
+    }
+
+    public async Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null)
+    {
+        // Cámara Portuaria aún no tiene visor embebido: abre el PDF en el visor externo del sistema.
+        // Subdir único para que el archivo conserve el nombre lindo sin chocar con otros.
+        var carpeta = Path.Combine(Path.GetTempPath(), $"pbb_preview_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(carpeta);
+        var ruta = Path.Combine(carpeta, $"{Formato.NombreArchivoSeguro(nombreArchivo)}.pdf");
+        await File.WriteAllBytesAsync(ruta, pdfBytes);
+        Process.Start(new ProcessStartInfo(ruta) { UseShellExecute = true });
     }
 
     private async Task<T> ShowAsync<T>(UIElement dialog, Task<T> resultTask)

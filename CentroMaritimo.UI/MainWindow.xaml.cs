@@ -12,7 +12,7 @@ public partial class MainWindow : FluentWindow
 {
     private readonly INavigationService _nav;
 
-    public MainWindow(MainWindowViewModel vm, INavigationService nav, DialogService dialogService)
+    public MainWindow(MainWindowViewModel vm, INavigationService nav, DialogService dialogService, ISnackbarService snackbarService)
     {
         InitializeComponent();
         DataContext = vm;
@@ -24,6 +24,8 @@ public partial class MainWindow : FluentWindow
 
         _nav.SetNavigationControl(RootNavigation);
         dialogService.Initialize(DialogOverlay, DialogHost);
+        snackbarService.SetSnackbarPresenter(RootSnackbar);
+        SnackbarHost.Service = snackbarService;
 
         RootNavigation.Navigated += (_, e) =>
         {

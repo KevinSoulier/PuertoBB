@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using PuertoBB.Core.Entities.Common;
 
 namespace PuertoBB.Core.Entities.CentroMaritimo;
@@ -7,16 +8,18 @@ public class Configuracion : BaseEntity
 {
     public string RazonSocial  { get; set; } = string.Empty;
     public string Cuit         { get; set; } = string.Empty;
-    public int    PuntoDeVenta { get; set; }
 
-    // Tipos AFIP (configurables; default = Exento IVA)
-    public int CodigoAfipRecibo        { get; set; } = 11;
-    public int CodigoAfipNotaDeCredito { get; set; } = 13;
+    // Tipos AFIP (configurables; default = clase C / Exento IVA).
+    // La Nota de Crédito se deriva de la clase del comprobante (ver CatalogoComprobantesAfip).
+    public int CodigoAfipRecibo        { get; set; } = 15; // Recibo C
+    public int CodigoAfipNotaDeCredito { get; set; } = 13; // Nota de Crédito C
 
-    // Certificado AFIP/WSAA
-    public string? AfipCertificadoRuta     { get; set; }
-    public string? AfipCertificadoPassword { get; set; }
-    public bool    AfipUsarHomologacion    { get; set; } = false;
+    // Puntos de venta AFIP (cada uno con su ambiente y certificado). Uno queda como activo.
+    public List<PuntoDeVenta> PuntosDeVenta { get; set; } = new();
+
+    /// <summary>Punto de venta activo (el que la app usa para emitir). Null si no hay ninguno marcado.</summary>
+    [NotMapped]
+    public PuntoDeVenta? PuntoDeVentaActivo => PuntosDeVenta.FirstOrDefault(p => p.Activo);
 
     // Apoderado fiscal
     public bool    UsarApoderado   { get; set; }
@@ -32,6 +35,7 @@ public class Configuracion : BaseEntity
     // Mail saliente
     public string? SmtpHost       { get; set; }
     public int     SmtpPort       { get; set; }
+    public int     SmtpSeguridad  { get; set; } = 0; // 0=Auto, 1=SslOnConnect, 2=None
     public string? SmtpUsuario    { get; set; }
     public string? SmtpPassword   { get; set; }
     public string? EmailRemitente { get; set; }

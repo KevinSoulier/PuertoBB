@@ -1,3 +1,5 @@
+using System.IO;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Common;
@@ -7,7 +9,7 @@ using PuertoBB.Infrastructure.Data;
 namespace CamaraPortuaria.UI.Services;
 
 /// <summary>
-/// Backup de la base de la Cámara Portuaria usando "VACUUM INTO" (copia consistente, sin bloquear).
+/// Backup, restauración y mantenimiento de la base de la Cámara Portuaria.
 /// </summary>
 public class BackupService : IBackupService
 {
@@ -37,6 +39,78 @@ public class BackupService : IBackupService
         {
             _logger.LogError(ex, "Falló el backup a {Ruta}", destinoPath);
             return ServiceResult<bool>.Fail($"No se pudo generar el backup: {ex.Message}");
+        }
+    }
+
+    public async Task<ServiceResult<bool>> RestaurarAsync(string origenPath, CancellationToken ct = default)
+    {
+        try
+        {
+            var conn = (SqliteConnection)_db.Database.GetDbConnection();
+            var dbPath = conn.DataSource;
+
+            _db.Database.CloseConnection();
+            await Task.Run(() => File.Copy(origenPath, dbPath, overwrite: true), ct);
+            _logger.LogInformation("Base restaurada desde {Origen}", origenPath);
+            return ServiceResult<bool>.Ok(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falló la restauración desde {Origen}", origenPath);
+            return ServiceResult<bool>.Fail($"No se pudo restaurar el backup: {ex.Message}");
+        }
+    }
+
+    public async Task<ServiceResult<string>> VerificarIntegridadAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.Database.OpenConnectionAsync(ct);
+            var conn = _db.Database.GetDbConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "PRAGMA integrity_check";
+            using var reader = await cmd.ExecuteReaderAsync(ct);
+            var rows = new List<string>();
+            while (await reader.ReadAsync(ct))
+                rows.Add(reader.GetString(0));
+            var resultado = string.Join("\n", rows);
+            _logger.LogInformation("integrity_check: {Resultado}", resultado);
+            return ServiceResult<string>.Ok(resultado);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falló la verificación de integridad");
+            return ServiceResult<string>.Fail($"No se pudo verificar la integridad: {ex.Message}");
+        }
+    }
+
+    public async Task<ServiceResult<bool>> VacuumAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.Database.ExecuteSqlRawAsync("VACUUM", ct);
+            _logger.LogInformation("VACUUM ejecutado correctamente");
+            return ServiceResult<bool>.Ok(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falló el VACUUM");
+            return ServiceResult<bool>.Fail($"No se pudo compactar la base de datos: {ex.Message}");
+        }
+    }
+
+    public async Task<ServiceResult<bool>> OptimizarAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.Database.ExecuteSqlRawAsync("PRAGMA optimize", ct);
+            _logger.LogInformation("PRAGMA optimize ejecutado correctamente");
+            return ServiceResult<bool>.Ok(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falló PRAGMA optimize");
+            return ServiceResult<bool>.Fail($"No se pudo optimizar la base de datos: {ex.Message}");
         }
     }
 }

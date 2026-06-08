@@ -1,108 +1,107 @@
+using Afip.Documentos;
+using Afip.Documentos.Pdf;
 using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Services.Common;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 
 namespace PuertoBB.Services.Pdf;
 
 public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
 {
-    private readonly PdfTheme _theme = PdfTheme.CamaraPortuaria;
-    private const string Titulo = "Cámara Portuaria de Bahía Blanca";
+    private const string RazonSocialEmisor = "Cámara Portuaria de Bahía Blanca";
 
-    public Task<byte[]> GenerarPdfReciboAsync(Recibo recibo, CancellationToken ct = default)
+    private readonly IAfipDocumentosService _documentos;
+    private readonly IAfipConfigProvider _configProvider;
+
+    public CamaraPortuariaPdfService(IAfipDocumentosService documentos, IAfipConfigProvider configProvider)
     {
-        var bytes = Document.Create(c => c.Page(p =>
-        {
-            ConfigurarPagina(p);
-            p.Header().Element(e => Encabezado(e, "RECIBO", recibo.CodigoAfip, recibo.PuntoDeVenta, recibo.NumeroComprobante));
-            p.Content().Element(e => Cuerpo(e, recibo));
-            p.Footer().Element(e => PieCae(e, recibo.CAE, recibo.FechaVencimientoCAE));
-        })).GeneratePdf();
-        return Task.FromResult(bytes);
+        _documentos = documentos;
+        _configProvider = configProvider;
     }
 
-    public Task<byte[]> GenerarPdfNotaDeCreditoAsync(NotaDeCredito nc, CancellationToken ct = default)
+    public async Task<byte[]> GenerarPdfReciboAsync(Recibo recibo, CancellationToken ct = default)
     {
-        var bytes = Document.Create(c => c.Page(p =>
-        {
-            ConfigurarPagina(p);
-            p.Header().Element(e => Encabezado(e, "NOTA DE CRÉDITO", nc.CodigoAfip, nc.PuntoDeVenta, nc.NumeroComprobante));
-            p.Content().PaddingVertical(20).Column(col =>
-            {
-                col.Item().Text($"Anula el recibo original Nro. {nc.ReciboOriginalId}.").FontColor(_theme.Texto);
-                col.Item().PaddingTop(8).Text($"Fecha de emisión: {Formato.Fecha(nc.FechaEmision)}").FontColor(_theme.TextoSecundario);
-            });
-            p.Footer().Element(e => PieCae(e, nc.CAE, nc.FechaVencimientoCAE));
-        })).GeneratePdf();
-        return Task.FromResult(bytes);
-    }
+        var config = await _configProvider.GetAsync(ct);
+        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.Empresa?.Cuit);
+        var receptorNombre = recibo.Empresa?.RazonSocial is { Length: > 0 } rs
+            ? rs
+            : recibo.Empresa?.Nombre ?? $"#{recibo.EmpresaId}";
 
-    private void ConfigurarPagina(PageDescriptor p)
-    {
-        p.Size(PageSizes.A4);
-        p.Margin(40);
-        p.DefaultTextStyle(s => s.FontFamily(_theme.Fuente).FontSize(10).FontColor(_theme.Texto));
-    }
+        var periodoDesde = new DateOnly(recibo.PeriodoAnio, recibo.PeriodoMes, 1);
+        var periodoHasta = periodoDesde.AddMonths(1).AddDays(-1);
 
-    private void Encabezado(IContainer e, string tipo, int codigoAfip, int puntoVenta, long numero)
-    {
-        e.BorderBottom(2).BorderColor(_theme.Acento).PaddingBottom(8).Row(row =>
+        var doc = new ComprobanteDocumento
         {
-            row.RelativeItem().Column(col =>
+            CodigoTipo    = recibo.CodigoAfip,
+            NombreOverride = "RECIBO",
+            PuntoVenta    = recibo.PuntoDeVenta,
+            Numero        = recibo.NumeroComprobante,
+            FechaEmision  = recibo.FechaEmision,
+            Cae           = recibo.CAE,
+            FechaVencimientoCae = recibo.FechaVencimientoCAE,
+            ImporteTotal  = recibo.Importe,
+            ConceptoGeneral = recibo.Detalle,
+            PeriodoServicioDesde = periodoDesde,
+            PeriodoServicioHasta = periodoHasta,
+            FechaVencimientoPago = recibo.FechaVencimientoPago,
+            Emisor = new EmisorDocumento
             {
-                col.Item().Text(Titulo).FontSize(16).Bold().FontColor(_theme.Acento);
-                col.Item().Text("Comprobante Exento de IVA").FontSize(9).FontColor(_theme.TextoSecundario);
-            });
-            row.ConstantItem(180).Column(col =>
+                RazonSocial   = RazonSocialEmisor,
+                Cuit          = Formato.ParseCuit(config.CuitEmisor),
+                CondicionIva  = "IVA Exento",
+                ColorAcentoHex = "#1565C0"
+            },
+            Receptor = new ReceptorDocumento
             {
-                col.Item().AlignRight().Text(tipo).FontSize(14).Bold();
-                col.Item().AlignRight().Text($"Cód. AFIP {codigoAfip:00}").FontSize(9).FontColor(_theme.TextoSecundario);
-                col.Item().AlignRight().Text($"Nro. {puntoVenta:0000}-{numero:00000000}").FontSize(11).SemiBold();
-            });
-        });
-    }
-
-    private void Cuerpo(IContainer e, Recibo recibo)
-    {
-        e.PaddingVertical(16).Column(col =>
-        {
-            col.Spacing(6);
-            col.Item().Row(r =>
-            {
-                r.RelativeItem().Text(t => { t.Span("Empresa: ").SemiBold(); t.Span(recibo.Empresa?.Nombre ?? $"#{recibo.EmpresaId}"); });
-                r.ConstantItem(220).AlignRight().Text(t => { t.Span("Fecha: ").SemiBold(); t.Span(Formato.Fecha(recibo.FechaEmision)); });
-            });
-            if (recibo.Empresa is not null)
-            {
-                col.Item().Text(t => { t.Span("CUIT: ").SemiBold(); t.Span(Formato.Cuit(recibo.Empresa.Cuit)); });
-                if (!string.IsNullOrWhiteSpace(recibo.Empresa.Domicilio))
-                    col.Item().Text(t => { t.Span("Domicilio: ").SemiBold(); t.Span(recibo.Empresa.Domicilio); });
+                RazonSocial   = receptorNombre,
+                TipoDocumento = tipoDoc,
+                NroDocumento  = nroDoc,
+                Domicilio     = recibo.Empresa?.Domicilio,
+                CondicionIva  = recibo.Empresa?.CondicionIva
             }
-            col.Item().Text(t => { t.Span("Período: ").SemiBold(); t.Span(Formato.Periodo(recibo.PeriodoAnio, recibo.PeriodoMes)); });
+        };
 
-            col.Item().PaddingTop(12).Background("#F5F5F5").Padding(12).Row(r =>
-            {
-                r.RelativeItem().Text(recibo.Detalle).FontColor(_theme.Texto);
-                r.ConstantItem(160).AlignRight().Text(Formato.Moneda(recibo.Importe)).FontSize(16).Bold().FontColor(_theme.Acento);
-            });
-
-            col.Item().PaddingTop(8).Text(t =>
-            {
-                t.Span("Vencimiento del pago: ").SemiBold();
-                t.Span(Formato.Fecha(recibo.FechaVencimientoPago));
-            });
-        });
+        return _documentos.GenerarPdf(doc);
     }
 
-    private void PieCae(IContainer e, string cae, DateTime vto)
+    public async Task<byte[]> GenerarPdfNotaDeCreditoAsync(NotaDeCredito nc, CancellationToken ct = default)
     {
-        e.BorderTop(1).BorderColor(_theme.Borde).PaddingTop(6).Row(row =>
+        var config = await _configProvider.GetAsync(ct);
+        var recibo = nc.ReciboOriginal;
+        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.Empresa?.Cuit);
+        var receptorNombre = recibo?.Empresa?.RazonSocial is { Length: > 0 } rs
+            ? rs
+            : recibo?.Empresa?.Nombre ?? string.Empty;
+
+        var doc = new ComprobanteDocumento
         {
-            row.RelativeItem().Text(t => { t.DefaultTextStyle(s => s.FontSize(9)); t.Span("CAE: ").SemiBold(); t.Span(cae); });
-            row.RelativeItem().AlignRight().Text(t => { t.DefaultTextStyle(s => s.FontSize(9)); t.Span("Vto. CAE: ").SemiBold(); t.Span(Formato.Fecha(vto)); });
-        });
+            CodigoTipo    = nc.CodigoAfip,
+            NombreOverride = "NOTA DE CRÉDITO",
+            PuntoVenta    = nc.PuntoDeVenta,
+            Numero        = nc.NumeroComprobante,
+            FechaEmision  = nc.FechaEmision,
+            Cae           = nc.CAE,
+            FechaVencimientoCae = nc.FechaVencimientoCAE,
+            ImporteTotal  = recibo?.Importe ?? 0,
+            Leyendas      = [$"Anula el recibo original Nro. {nc.ReciboOriginalId}"],
+            ComprobanteAsociado = recibo is not null
+                ? new ComprobanteAsociado(recibo.CodigoAfip, recibo.PuntoDeVenta, recibo.NumeroComprobante)
+                : null,
+            Emisor = new EmisorDocumento
+            {
+                RazonSocial   = RazonSocialEmisor,
+                Cuit          = Formato.ParseCuit(config.CuitEmisor),
+                CondicionIva  = "IVA Exento",
+                ColorAcentoHex = "#1565C0"
+            },
+            Receptor = new ReceptorDocumento
+            {
+                RazonSocial  = receptorNombre,
+                TipoDocumento = tipoDoc,
+                NroDocumento  = nroDoc
+            }
+        };
+
+        return _documentos.GenerarPdf(doc);
     }
 }

@@ -58,8 +58,6 @@ public class EmisionMasivaViewModel : PageViewModel
     public string ResumenPrevia { get => _resumenPrevia; set => SetField(ref _resumenPrevia, value); }
 
     public ICommand EmitirCommand { get; }
-    public ICommand IncrementarAnioCommand { get; }
-    public ICommand DecrementarAnioCommand { get; }
 
     public EmisionMasivaViewModel(
         ICamaraPortuariaReciboService service,
@@ -70,8 +68,6 @@ public class EmisionMasivaViewModel : PageViewModel
         _gruposRepo = gruposRepo;
         _dialog = dialog;
         EmitirCommand = new AsyncRelayCommand(EmitirAsync, () => Grupo is not null);
-        IncrementarAnioCommand = new RelayCommand(_ => Anio++);
-        DecrementarAnioCommand = new RelayCommand(_ => { if (Anio > 2000) Anio--; });
         _ = CargarGruposAsync();
     }
 

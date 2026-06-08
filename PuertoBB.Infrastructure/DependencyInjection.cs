@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddTransient<CpIntf.IEmpresaRepository, CpRepos.EmpresaRepository>();
         services.AddTransient<CpIntf.IGrupoFacturacionRepository, CpRepos.GrupoFacturacionRepository>();
         services.AddTransient<CpIntf.IReciboRepository, CpRepos.ReciboRepository>();
+        services.AddTransient<CpIntf.IConceptoReciboRepository, CpRepos.ConceptoReciboRepository>();
         services.AddTransient<CpIntf.INotaDeCreditoRepository, CpRepos.NotaDeCreditoRepository>();
         services.AddTransient<CpIntf.IConfiguracionRepository, CpRepos.ConfiguracionRepository>();
 
@@ -36,6 +37,7 @@ public static class DependencyInjection
         services.AddTransient<CmIntf.IVoucherRepository, CmRepos.VoucherRepository>();
         services.AddTransient<CmIntf.IContadorVoucherRepository, CmRepos.ContadorVoucherRepository>();
         services.AddTransient<CmIntf.IReciboRepository, CmRepos.ReciboRepository>();
+        services.AddTransient<CmIntf.IConceptoReciboRepository, CmRepos.ConceptoReciboRepository>();
         services.AddTransient<CmIntf.INotaDeCreditoRepository, CmRepos.NotaDeCreditoRepository>();
         services.AddTransient<CmIntf.IConfiguracionRepository, CmRepos.ConfiguracionRepository>();
 

@@ -1,5 +1,6 @@
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CentroMaritimo;
+using PuertoBB.Core.Models.Resultados;
 
 namespace PuertoBB.Core.Interfaces.Services;
 
@@ -17,4 +18,10 @@ public interface IVoucherService
 
     /// <summary>Elimina un voucher pendiente (no consolidado).</summary>
     Task<ServiceResult<bool>> EliminarVoucherAsync(int voucherId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Devuelve el shape de la pantalla de Cierre de Período: una fila por agencia que tuvo vouchers
+    /// en el período, con sus vouchers, total y estado del recibo consolidado (si existe).
+    /// </summary>
+    Task<ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>> GetCierrePeriodoAsync(int anio, int mes, CancellationToken ct = default);
 }

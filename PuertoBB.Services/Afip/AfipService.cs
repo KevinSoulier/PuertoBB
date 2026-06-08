@@ -1,35 +1,27 @@
-using System.Xml.Linq;
+using global::Afip;
+using global::Afip.Wsfe;
 using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Afip;
-using PuertoBB.Services.Afip.Abstractions;
 
 namespace PuertoBB.Services.Afip;
 
 /// <summary>
-/// Servicio AFIP real. Orquesta WSAA (TRA → CMS → ticket cacheado) + WSFE (último número → CAE).
-/// Depende de IWsaaClient / IWsfeClient (clientes SOAP a generar desde WSDL).
+/// Adaptador entre el dominio PuertoBB (<see cref="IAfipService"/>) y la librería neutra Afip.Net
+/// (<see cref="IWsfeService"/>). Traduce los modelos del dominio ↔ los modelos de la librería y
+/// toma la configuración vigente de cada app vía <see cref="IAfipConfigProvider"/>.
 /// </summary>
 public class AfipService : IAfipService
 {
-    private readonly IWsaaClient _wsaa;
-    private readonly IWsfeClient _wsfe;
+    private readonly IWsfeService _wsfe;
     private readonly IAfipConfigProvider _configProvider;
-    private readonly WsaaTokenCache _tokenCache;
     private readonly ILogger<AfipService> _logger;
 
-    public AfipService(
-        IWsaaClient wsaa,
-        IWsfeClient wsfe,
-        IAfipConfigProvider configProvider,
-        WsaaTokenCache tokenCache,
-        ILogger<AfipService> logger)
+    public AfipService(IWsfeService wsfe, IAfipConfigProvider configProvider, ILogger<AfipService> logger)
     {
-        _wsaa = wsaa;
         _wsfe = wsfe;
         _configProvider = configProvider;
-        _tokenCache = tokenCache;
         _logger = logger;
     }
 
@@ -38,44 +30,21 @@ public class AfipService : IAfipService
         try
         {
             var config = await _configProvider.GetAsync(ct);
-            if (string.IsNullOrWhiteSpace(config.CertificadoRuta) || !File.Exists(config.CertificadoRuta))
+            if (!CertificadoDisponible(config))
                 return ServiceResult<CaeResult>.Fail(
                     "No hay certificado AFIP configurado. Cargue el certificado en Configuración o use el modo de prueba.");
 
-            var (token, sign) = await ObtenerTicketAsync(config, ct);
-
-            var numero = await _wsfe.UltimoComprobanteAsync(
-                token, sign, config.CuitEmisor, request.PuntoDeVenta, request.CodigoAfip, config.UsarHomologacion, ct) + 1;
-
-            var wsfeReq = new WsfeCaeRequest
-            {
-                TipoComprobante = request.CodigoAfip,
-                PuntoDeVenta = request.PuntoDeVenta,
-                Numero = numero,
-                Concepto = 2, // Servicios
-                DocTipo = 80, // CUIT
-                DocNro = long.Parse(request.CuitReceptor),
-                FechaComprobante = request.FechaEmision,
-                ImporteTotal = request.ImporteTotal,
-                ServicioDesde = request.PeriodoServicioDesde,
-                ServicioHasta = request.PeriodoServicioHasta,
-                VencimientoPago = request.FechaVencimientoPago,
-                ComprobanteAsociado = request.ComprobanteAsociado is { } a
-                    ? new ComprobanteAsociadoWsfe { Tipo = a.Tipo, PuntoDeVenta = a.PuntoDeVenta, Numero = a.Numero, Cuit = long.Parse(a.CuitEmisor) }
-                    : null
-            };
-
-            var resp = await _wsfe.SolicitarCaeAsync(token, sign, config.CuitEmisor, wsfeReq, config.UsarHomologacion, ct);
+            var resp = await _wsfe.SolicitarCaeAsync(ToOptions(config), ToAfipRequest(request), ct);
             if (!resp.Aprobado || string.IsNullOrWhiteSpace(resp.Cae))
             {
                 _logger.LogError("AFIP rechazó el comprobante PV={PuntoVenta} Tipo={Tipo}: {Obs}",
                     request.PuntoDeVenta, request.CodigoAfip, resp.Observaciones);
-                return ServiceResult<CaeResult>.Fail($"AFIP rechazó el comprobante: {resp.Observaciones}");
+                return ServiceResult<CaeResult>.Fail($"AFIP rechazó el comprobante: {AfipErrores.Describir(resp.Observaciones)}");
             }
 
             return ServiceResult<CaeResult>.Ok(new CaeResult
             {
-                NumeroComprobante = resp.Numero == 0 ? numero : resp.Numero,
+                NumeroComprobante = resp.Numero,
                 Cae = resp.Cae,
                 FechaVencimientoCae = resp.FechaVencimientoCae ?? request.FechaEmision.AddDays(10)
             });
@@ -92,7 +61,7 @@ public class AfipService : IAfipService
         try
         {
             var config = await _configProvider.GetAsync(ct);
-            var ok = await _wsfe.DummyAsync(config.UsarHomologacion, ct);
+            var ok = await _wsfe.VerificarServicioAsync(ToOptions(config), ct);
             return ok ? ServiceResult<bool>.Ok(true) : ServiceResult<bool>.Fail("WSFE no respondió OK.");
         }
         catch (Exception ex)
@@ -102,21 +71,87 @@ public class AfipService : IAfipService
         }
     }
 
-    private Task<(string Token, string Sign)> ObtenerTicketAsync(AfipConfig config, CancellationToken ct)
-        => _tokenCache.GetValidTicketAsync(async () =>
-        {
-            var traXml = TraBuilder.GenerarTraXml("wsfe");
-            var cms = TraBuilder.FirmarCms(traXml, config.CertificadoRuta!, config.CertificadoPassword);
-            var respuestaXml = await _wsaa.LoginCmsAsync(cms, config.UsarHomologacion, ct);
-            return ParsearTicket(respuestaXml);
-        }, ct);
-
-    private static (string Token, string Sign, DateTime Expiration) ParsearTicket(string loginTicketResponseXml)
+    public async Task<ServiceResult<DiagnosticoAfip>> ProbarConexionAsync(int puntoVenta, int codigoComprobante, CancellationToken ct = default)
     {
-        var doc = XDocument.Parse(loginTicketResponseXml);
-        var token = doc.Descendants("token").First().Value;
-        var sign = doc.Descendants("sign").First().Value;
-        var expiration = DateTime.Parse(doc.Descendants("expirationTime").First().Value);
-        return (token, sign, expiration);
+        var config = await _configProvider.GetAsync(ct);
+        var options = ToOptions(config);
+        var detalles = new List<string>();
+
+        bool servicioOk = false;
+        try
+        {
+            servicioOk = await _wsfe.VerificarServicioAsync(options, ct);
+            detalles.Add(servicioOk ? "Servicio WSFE: OK." : "Servicio WSFE: no respondió OK.");
+        }
+        catch (Exception ex)
+        {
+            detalles.Add($"Servicio WSFE: error ({ex.Message}).");
+        }
+
+        if (!CertificadoDisponible(config))
+        {
+            detalles.Add("No hay certificado configurado: no se puede probar la autenticación.");
+            return ServiceResult<DiagnosticoAfip>.Ok(new DiagnosticoAfip
+            {
+                ServicioOk = servicioOk,
+                AutenticacionOk = false,
+                Detalle = string.Join(" · ", detalles)
+            });
+        }
+
+        bool autOk = false;
+        long? ultimo = null;
+        try
+        {
+            ultimo = await _wsfe.UltimoComprobanteAsync(options, puntoVenta, codigoComprobante, ct);
+            autOk = true;
+            detalles.Add($"Autenticación: OK. Último comprobante (PV {puntoVenta}, tipo {codigoComprobante}): {ultimo}.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Diagnóstico AFIP: autenticación falló PV={PuntoVenta} Tipo={Tipo}", puntoVenta, codigoComprobante);
+            detalles.Add($"Autenticación: error ({ex.Message}). Revise el certificado, la contraseña y que el servicio 'wsfe' esté habilitado para el CUIT.");
+        }
+
+        return ServiceResult<DiagnosticoAfip>.Ok(new DiagnosticoAfip
+        {
+            ServicioOk = servicioOk,
+            AutenticacionOk = autOk,
+            UltimoComprobante = ultimo,
+            Detalle = string.Join(" · ", detalles)
+        });
     }
+
+    private static bool CertificadoDisponible(AfipConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.CertificadoRuta) || !File.Exists(config.CertificadoRuta))
+            return false;
+        if (config.CertificadoKeyRuta is not null)
+            return File.Exists(config.CertificadoKeyRuta);
+        return true;
+    }
+
+    private static AfipOptions ToOptions(AfipConfig c) => new()
+    {
+        Cuit = c.CuitEmisor,
+        CertificadoRuta = c.CertificadoRuta,
+        CertificadoPassword = c.CertificadoPassword,
+        CertificadoKeyRuta = c.CertificadoKeyRuta,
+        UsarHomologacion = c.UsarHomologacion
+    };
+
+    private static AfipComprobanteRequest ToAfipRequest(ComprobanteAfipRequest r) => new()
+    {
+        CodigoComprobante = r.CodigoAfip,
+        PuntoDeVenta = r.PuntoDeVenta,
+        DocNroReceptor = long.Parse(r.CuitReceptor),
+        ImporteTotal = r.ImporteTotal,
+        FechaComprobante = r.FechaEmision,
+        ServicioDesde = r.PeriodoServicioDesde,
+        ServicioHasta = r.PeriodoServicioHasta,
+        VencimientoPago = r.FechaVencimientoPago,
+        ComprobanteAsociado = r.ComprobanteAsociado is { } a
+            ? new AfipComprobanteAsociado { Tipo = a.Tipo, PuntoDeVenta = a.PuntoDeVenta, Numero = a.Numero, Cuit = long.Parse(a.CuitEmisor) }
+            : null
+    };
 }

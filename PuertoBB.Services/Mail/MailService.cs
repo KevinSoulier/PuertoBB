@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using MimeKit;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models.Mail;
 
 namespace PuertoBB.Services.Mail;
 
@@ -38,7 +39,7 @@ public class MailService : IMailService
         try
         {
             var mensaje = new MimeMessage();
-            mensaje.From.Add(new MailboxAddress(config.NombreRemitente, config.EmailRemitente!)); // EstaConfigurado garantiza no-null
+            mensaje.From.Add(new MailboxAddress(config.NombreRemitente, config.EmailRemitente!));
             foreach (var d in dest)
                 mensaje.To.Add(MailboxAddress.Parse(d));
             mensaje.Subject = asunto;
@@ -48,11 +49,7 @@ public class MailService : IMailService
             mensaje.Body = builder.ToMessageBody();
 
             using var client = new SmtpClient();
-            var socketOptions = config.SmtpPort == 465
-                ? SecureSocketOptions.SslOnConnect
-                : SecureSocketOptions.StartTlsWhenAvailable;
-
-            await client.ConnectAsync(config.SmtpHost!, config.SmtpPort, socketOptions, ct); // EstaConfigurado garantiza no-null
+            await client.ConnectAsync(config.SmtpHost!, config.SmtpPort, ResolverOpciones(config), ct);
             if (!string.IsNullOrWhiteSpace(config.SmtpUsuario))
                 await client.AuthenticateAsync(config.SmtpUsuario, config.SmtpPassword ?? string.Empty, ct);
             await client.SendAsync(mensaje, ct);
@@ -67,4 +64,36 @@ public class MailService : IMailService
             return ServiceResult<bool>.Fail($"No se pudo enviar el mail: {ex.Message}");
         }
     }
+
+    public async Task<ServiceResult<string>> ProbarConexionAsync(CancellationToken ct = default)
+    {
+        var config = await _configProvider.GetAsync(ct);
+        if (!config.EstaConfigurado)
+            return ServiceResult<string>.Fail("Configure el servidor y el email remitente antes de probar.");
+
+        try
+        {
+            using var client = new SmtpClient();
+            await client.ConnectAsync(config.SmtpHost!, config.SmtpPort, ResolverOpciones(config), ct);
+            var banner = client.Capabilities.ToString();
+            if (!string.IsNullOrWhiteSpace(config.SmtpUsuario))
+                await client.AuthenticateAsync(config.SmtpUsuario, config.SmtpPassword ?? string.Empty, ct);
+            await client.DisconnectAsync(true, ct);
+
+            _logger.LogInformation("Prueba SMTP OK: {Host}:{Port}", config.SmtpHost, config.SmtpPort);
+            return ServiceResult<string>.Ok($"Conexión correcta con {config.SmtpHost}:{config.SmtpPort}.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falló prueba SMTP: {Host}:{Port}", config.SmtpHost, config.SmtpPort);
+            return ServiceResult<string>.Fail($"No se pudo conectar: {ex.Message}");
+        }
+    }
+
+    private static SecureSocketOptions ResolverOpciones(MailConfig config) => config.SmtpSeguridad switch
+    {
+        SmtpSeguridad.SslOnConnect => SecureSocketOptions.SslOnConnect,
+        SmtpSeguridad.None         => SecureSocketOptions.None,
+        _                          => SecureSocketOptions.StartTlsWhenAvailable
+    };
 }

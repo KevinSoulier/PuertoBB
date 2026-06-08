@@ -13,4 +13,10 @@ public interface IAfipService
 
     /// <summary>Healthcheck del servicio WSFE (FEDummy).</summary>
     Task<ServiceResult<bool>> VerificarServicioAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Diagnóstico completo de conexión: verifica el servicio (FEDummy) y la autenticación con el
+    /// certificado consultando el último comprobante para (puntoVenta, codigoComprobante).
+    /// </summary>
+    Task<ServiceResult<DiagnosticoAfip>> ProbarConexionAsync(int puntoVenta, int codigoComprobante, CancellationToken ct = default);
 }

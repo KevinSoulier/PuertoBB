@@ -13,13 +13,6 @@
 
         <TextBlock Grid.Row="0" Text="Barcos" Style="{StaticResource PageTitle}" />
 
-        <Border Grid.Row="1" Margin="0,0,0,12" Padding="12,8"
-                CornerRadius="{StaticResource ControlCornerRadius}"
-                Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
-                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-        </Border>
-
         <!-- Buscador -->
         <ui:TextBox Grid.Row="2" Margin="0,0,0,12"
                  Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
@@ -46,12 +39,18 @@
                     <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                     <TextBox Text="{Binding NombreEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                Style="{StaticResource SecondaryButton}" />
-                        <Button Content="Guardar" Command="{Binding GuardarCommand}"
-                                Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
-                        <Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
+                                   Style="{StaticResource AccionIconButton}">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="Guardar" Command="{Binding GuardarCommand}"
+                                   Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
+                                   Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                        </ui:Button>
                     </StackPanel>
                 </StackPanel>
             </Border>

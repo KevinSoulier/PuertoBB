@@ -9,19 +9,48 @@ public class EstadoReciboToBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        var estado = value?.ToString();
-        var hex = estado switch
-        {
-            "Emitido" => "#E3F2FD",
-            "Enviado" => "#FFF9C4",
-            "Pagado"  => "#E8F5E9",
-            "Vencido" => "#FFEBEE",
-            "Anulado" => "#F5F5F5",
-            _          => "#FFFFFF"
-        };
+        var hex = EstadoReciboColorHelper.Background(value?.ToString());
         return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
+}
+
+/// <summary>Convierte la etiqueta de estado al brush de texto del pill.</summary>
+public class EstadoReciboToFgBrushConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var hex = EstadoReciboColorHelper.Foreground(value?.ToString());
+        return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+internal static class EstadoReciboColorHelper
+{
+    internal static string Background(string? estado) => estado switch
+    {
+        "Emitido"   => "#E3F2FD",
+        "Enviado"   => "#E0F7FA",
+        "Pagado"    => "#E8F5E9",
+        "Vencido"   => "#FFEBEE",
+        "Anulado"   => "#F5F5F5",
+        "Pendiente" => "#FFF3E0",
+        _           => "#FFFFFF"
+    };
+
+    internal static string Foreground(string? estado) => estado switch
+    {
+        "Emitido"   => "#1565C0",
+        "Enviado"   => "#006064",
+        "Pagado"    => "#2E7D32",
+        "Vencido"   => "#C62828",
+        "Anulado"   => "#616161",
+        "Pendiente" => "#E65100",
+        _           => "#212121"
+    };
 }

@@ -14,37 +14,41 @@
 
         <TextBlock Grid.Row="0" Text="Vouchers" Style="{StaticResource PageTitle}" />
 
-        <Border Grid.Row="1" Margin="0,0,0,12" Padding="12,8"
-                CornerRadius="{StaticResource ControlCornerRadius}"
-                Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
-                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-        </Border>
-
         <!-- Barra de búsqueda: período con mes por nombre y año editable -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
-            <StackPanel Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
-                <RepeatButton Content="−" Command="{Binding DecrementarAnioCommand}" Width="28" Height="28"
-                              FontSize="16" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
-                <TextBox Text="{Binding Anio, UpdateSourceTrigger=PropertyChanged}" Width="60"
-                         TextAlignment="Center" VerticalContentAlignment="Center" Margin="4,0" />
-                <RepeatButton Content="+" Command="{Binding IncrementarAnioCommand}" Width="28" Height="28"
-                              FontSize="16" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
-            </StackPanel>
-            <Button Content="Buscar" Command="{Binding BuscarCommand}"
-                    Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
-            <Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                    Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
-            <Button Content="Editar" Command="{Binding EditarCommand}"
-                    Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+            <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
+                          Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
+            <ui:Button Content="Buscar" Command="{Binding BuscarCommand}"
+                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Editar" Command="{Binding EditarCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Previsualizar" Command="{Binding PrevisualizarVoucherCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Abre el PDF del voucher seleccionado en el visor embebido.">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Eye24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Descargar" Command="{Binding DescargarVoucherCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Guarda el PDF del voucher seleccionado en disco.">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
+            </ui:Button>
         </StackPanel>
 
-        <!-- Grilla con columna Emitido/Consolidado (VOU-8) -->
+        <!-- Grilla con columna Emitido/Consolidado (VOU-8). Doble-click en la fila → editar -->
         <DataGrid Grid.Row="3" ItemsSource="{Binding Vouchers}" SelectedItem="{Binding Seleccionado}"
                   AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                  GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                  MouseDoubleClick="VouchersGrid_MouseDoubleClick">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Nro." Binding="{Binding Numero}" Width="80" />
                 <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
@@ -62,59 +66,69 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <TextBlock Text="{Binding TextoBotonGuardar, StringFormat='{}  {0} voucher'}"
                                FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <Button Content="Cancelar" Command="{Binding CancelarEdicionCommand}"
-                            Style="{StaticResource SecondaryButton}" Margin="12,0,0,0"
-                            Visibility="{Binding ModoEdicion, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <ui:Button Content="Cancelar" Command="{Binding CancelarEdicionCommand}"
+                               Style="{StaticResource AccionIconButton}" Margin="12,0,0,0"
+                               Visibility="{Binding ModoEdicion, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                    </ui:Button>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
+                    <!-- Altura uniforme de inputs (32px) provista por los estilos globales en Styles.xaml -->
 
                     <!-- Agencia autocomplete (VOU-3) -->
-                    <StackPanel>
+                    <StackPanel VerticalAlignment="Bottom">
                         <TextBlock Text="Agencia" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    FontSize="11" Margin="0,0,0,2" />
                         <StackPanel Orientation="Horizontal">
-                            <ComboBox IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                            <ComboBox x:Name="AgenciaCombo"
+                                      IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
                                       ItemsSource="{Binding AgenciasFiltradas}"
                                       DisplayMemberPath="Nombre"
                                       Text="{Binding AgenciaTexto, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedItem="{Binding AgenciaSeleccionada}"
+                                      PreviewKeyDown="ComboBox_OpenOnDownKey"
                                       Width="200" />
                             <Button ToolTip="Ir a Agencias" Command="{Binding IrAAgenciasCommand}"
-                                    Width="28" Height="28" Margin="4,0,0,0"
-                                    Style="{StaticResource SecondaryButton}" Padding="2">
+                                    Width="32" Height="32" Margin="4,0,0,0"
+                                    Style="{StaticResource AccentButtonStyle}" Padding="2">
                                 <ui:SymbolIcon Symbol="Add24" FontSize="14" />
                             </Button>
                         </StackPanel>
                     </StackPanel>
 
                     <!-- Barco autocomplete con alta inline (VOU-2) -->
-                    <StackPanel Margin="8,0,0,0">
+                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Bottom">
                         <TextBlock Text="Barco" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    FontSize="11" Margin="0,0,0,2" />
-                        <ComboBox IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                        <ComboBox x:Name="BarcoCombo"
+                                  IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
                                   ItemsSource="{Binding BarcosFiltrados}"
                                   DisplayMemberPath="Nombre"
                                   Text="{Binding BarcoTexto, UpdateSourceTrigger=PropertyChanged}"
                                   SelectedItem="{Binding BarcoSeleccionado}"
+                                  PreviewKeyDown="ComboBox_OpenOnDownKey"
                                   Width="200" />
                     </StackPanel>
 
                     <!-- Fecha -->
-                    <StackPanel Margin="8,0,0,0">
+                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Bottom">
                         <TextBlock Text="Fecha" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    FontSize="11" Margin="0,0,0,2" />
-                        <DatePicker SelectedDate="{Binding FechaNueva}" Width="130" />
+                        <DatePicker SelectedDate="{Binding FechaNueva}" Width="160" />
                     </StackPanel>
 
                     <!-- Importe (VOU-5: autopopulado) -->
-                    <StackPanel Margin="8,0,0,0">
+                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Bottom">
                         <TextBlock Text="Importe" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    FontSize="11" Margin="0,0,0,2" />
                         <TextBox Text="{Binding ImporteNuevo, UpdateSourceTrigger=PropertyChanged}" Width="120" />
                     </StackPanel>
 
-                    <Button Content="{Binding TextoBotonGuardar}" Command="{Binding CrearCommand}"
-                            Style="{StaticResource PrimaryButton}" Margin="8,18,0,0" />
+                    <ui:Button Content="{Binding TextoBotonGuardar}" Command="{Binding CrearCommand}"
+                               Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                               Margin="8,0,0,0" VerticalAlignment="Bottom">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                    </ui:Button>
                 </StackPanel>
                 <TextBlock Text="* Barco nuevo: si el nombre no existe se crea automáticamente."
                            FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}"

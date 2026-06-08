@@ -14,4 +14,10 @@ public interface IDialogService
 
     /// <summary>Captura de texto. Devuelve null si se cancela.</summary>
     Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null);
+
+    /// <summary>
+    /// Previsualiza un PDF en un visor embebido (overlay). Cierra al aceptar.
+    /// <paramref name="nombreArchivo"/> (sin extensión) es el nombre sugerido al guardar desde el visor.
+    /// </summary>
+    Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null);
 }

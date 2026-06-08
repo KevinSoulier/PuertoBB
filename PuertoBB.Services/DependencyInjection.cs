@@ -1,42 +1,53 @@
+using global::Afip;
+using global::Afip.Documentos;
+using global::Afip.Mock;
+using global::Afip.Wsaa;
 using Microsoft.Extensions.DependencyInjection;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Services.Afip;
 using PuertoBB.Services.Mail;
 using PuertoBB.Services.Negocio;
 using PuertoBB.Services.Pdf;
-using QuestPDF.Infrastructure;
 
 namespace PuertoBB.Services;
 
 /// <summary>Registro de los servicios de la capa Services en el contenedor DI.</summary>
 public static class DependencyInjection
 {
-    /// <summary>Servicios compartidos (PDF de ambas apps, QuestPDF license).</summary>
+    /// <summary>Servicios PDF: genera comprobantes AFIP (Afip.Documentos) y los servicios de cada app.</summary>
     public static IServiceCollection AddPuertoBBPdf(this IServiceCollection services)
     {
-        QuestPDF.Settings.License = LicenseType.Community;
-        services.AddSingleton<ICamaraPortuariaPdfService, CamaraPortuariaPdfService>();
-        services.AddSingleton<ICentroMaritimoPdfService, CentroMaritimoPdfService>();
+        services.AddAfipDocumentos();   // fija QuestPDF License + registra IAfipDocumentosService
+        services.AddSingleton<IPdfMerger, PdfMerger>();
+        // Transient (no Singleton): dependen de IAfipConfigProvider que es Transient (arrastra DbContext)
+        services.AddTransient<ICamaraPortuariaPdfService, CamaraPortuariaPdfService>();
+        services.AddTransient<ICentroMaritimoPdfService, CentroMaritimoPdfService>();
         return services;
     }
 
     /// <summary>
-    /// AFIP: real (WSAA/WSFE) si usarFake=false, o FakeAfipService para desarrollo/testing.
-    /// Cuando se usa el real, además hay que registrar IWsaaClient/IWsfeClient (clientes SOAP).
+    /// AFIP real (librería Afip.Net: WSAA/WSFE).
+    /// <paramref name="ticketCacheDir"/> (opcional): carpeta donde persistir el Ticket de Acceso cifrado
+    /// con DPAPI (sobrevive reinicios y evita re-loguear en WSAA). Si es null, el ticket se cachea en memoria.
     /// </summary>
-    public static IServiceCollection AddPuertoBBAfip(this IServiceCollection services, bool usarFake)
+    public static IServiceCollection AddPuertoBBAfip(this IServiceCollection services, string? ticketCacheDir = null)
     {
-        if (usarFake)
-        {
-            services.AddSingleton<IAfipService, FakeAfipService>();
-        }
-        else
-        {
-            services.AddSingleton<WsaaTokenCache>(); // caché del ticket compartido entre llamadas
-            services.AddTransient<Afip.Abstractions.IWsaaClient, Afip.Soap.WsaaSoapClient>();
-            services.AddTransient<Afip.Abstractions.IWsfeClient, Afip.Soap.WsfeSoapClient>();
-            services.AddTransient<IAfipService, AfipService>();
-        }
+        if (!string.IsNullOrWhiteSpace(ticketCacheDir))
+            services.AddSingleton<ITicketStore>(new FileTicketStore(ticketCacheDir));
+
+        services.AddAfip();                                   // Afip.Net: WSAA + WSFE
+        services.AddTransient<IAfipService, AfipService>();   // adaptador dominio ↔ librería
+        return services;
+    }
+
+    /// <summary>
+    /// AFIP mock: stack completo de Afip.Net (mapper, orquestación, caché de tickets) sin red ni
+    /// certificado real. Usar cuando se quiere probar el flujo AFIP end-to-end pero sin conectarse.
+    /// </summary>
+    public static IServiceCollection AddPuertoBBAfipMock(this IServiceCollection services)
+    {
+        services.AddAfipMock();
+        services.AddTransient<IAfipService, AfipService>();
         return services;
     }
 

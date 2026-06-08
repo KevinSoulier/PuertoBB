@@ -1,0 +1,31 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PuertoBB.Core.Entities.CamaraPortuaria;
+
+namespace PuertoBB.Infrastructure.Data.Configurations.CamaraPortuaria;
+
+public class PuntoDeVentaConfiguration : IEntityTypeConfiguration<PuntoDeVenta>
+{
+    public void Configure(EntityTypeBuilder<PuntoDeVenta> b)
+    {
+        b.HasKey(p => p.Id);
+        b.Property(p => p.Nombre).HasMaxLength(100).IsRequired();
+
+        b.HasOne<Configuracion>()
+            .WithMany(c => c.PuntosDeVenta)
+            .HasForeignKey(p => p.ConfiguracionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Punto de venta por defecto (producción), activo, ligado al singleton Id = 1.
+        b.HasData(new PuntoDeVenta
+        {
+            Id = 1,
+            ConfiguracionId = 1,
+            Nombre = "Principal",
+            Numero = 1,
+            UsarHomologacion = false,
+            Activo = true,
+            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+        });
+    }
+}

@@ -34,6 +34,7 @@ public class AgenciasViewModel : PageViewModel
     public string RazonSocialEdit { get; set; } = string.Empty;
     public string CuitEdit { get; set; } = string.Empty;
     public string DomicilioEdit { get; set; } = string.Empty;
+    public string CondicionIvaEdit { get; set; } = string.Empty;
     public string EmailsEdit { get; set; } = string.Empty;
 
     public ICommand NuevoCommand { get; }
@@ -72,7 +73,7 @@ public class AgenciasViewModel : PageViewModel
     private void Nuevo()
     {
         _editId = 0;
-        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
+        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
         _seleccionada = null;
         Notificar();
         LimpiarStatus();
@@ -87,6 +88,7 @@ public class AgenciasViewModel : PageViewModel
         RazonSocialEdit = a.RazonSocial;
         CuitEdit = a.Cuit;
         DomicilioEdit = a.Domicilio ?? string.Empty;
+        CondicionIvaEdit = a.CondicionIva ?? string.Empty;
         EmailsEdit = string.Join(Environment.NewLine, a.Emails.Select(x => x.Email));
         Notificar();
     }
@@ -97,19 +99,22 @@ public class AgenciasViewModel : PageViewModel
         if (string.IsNullOrWhiteSpace(CuitEdit)) { MostrarError("El CUIT es obligatorio."); return; }
 
         var emails = EmailsEdit.Split(['\n', '\r', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().ToList();
+        var esAlta = _editId == 0;
+        var nueva = esAlta ? new Agencia
+        {
+            Nombre = NombreEdit.Trim(),
+            RazonSocial = RazonSocialEdit.Trim(),
+            Cuit = CuitEdit.Trim(),
+            Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
+            CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim(),
+            Activa = true,
+            Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
+        } : null!;
         try
         {
-            if (_editId == 0)
+            if (esAlta)
             {
-                await _repo.AddAsync(new Agencia
-                {
-                    Nombre = NombreEdit.Trim(),
-                    RazonSocial = RazonSocialEdit.Trim(),
-                    Cuit = CuitEdit.Trim(),
-                    Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
-                    Activa = true,
-                    Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
-                });
+                await _repo.AddAsync(nueva);
                 MostrarExito("Agencia creada.");
             }
             else
@@ -120,6 +125,7 @@ public class AgenciasViewModel : PageViewModel
                 existente.RazonSocial = RazonSocialEdit.Trim();
                 existente.Cuit = CuitEdit.Trim();
                 existente.Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim();
+                existente.CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim();
                 existente.Activa = true;
                 existente.Emails.Clear();
                 foreach (var em in emails) existente.Emails.Add(new EmailAgencia { Email = em, AgenciaId = existente.Id });
@@ -127,6 +133,13 @@ public class AgenciasViewModel : PageViewModel
                 MostrarExito("Agencia actualizada.");
             }
             await CargarListaAsync();
+
+            if (esAlta && nueva.Id > 0)
+            {
+                var creada = AgenciasFiltradas.FirstOrDefault(a => a.Id == nueva.Id)
+                             ?? _todasLasAgencias.FirstOrDefault(a => a.Id == nueva.Id);
+                if (creada is not null) Seleccionada = creada;
+            }
         }
         catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
     }
@@ -152,6 +165,7 @@ public class AgenciasViewModel : PageViewModel
         OnPropertyChanged(nameof(RazonSocialEdit));
         OnPropertyChanged(nameof(CuitEdit));
         OnPropertyChanged(nameof(DomicilioEdit));
+        OnPropertyChanged(nameof(CondicionIvaEdit));
         OnPropertyChanged(nameof(EmailsEdit));
     }
 }

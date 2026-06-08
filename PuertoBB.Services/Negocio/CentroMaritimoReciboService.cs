@@ -57,58 +57,108 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         foreach (var grupo in porAgencia)
         {
             ct.ThrowIfCancellationRequested();
-            var agenciaId = grupo.Key;
-            var nombreAgencia = grupo.First().Agencia.Nombre;
-            try
-            {
-                if (await _recibos.ExisteConsolidadoAsync(agenciaId, anio, mes, ct))
-                {
-                    resultados.Add(ResultadoCierrePorAgencia.Omitida(agenciaId, nombreAgencia, "Ya existe un recibo consolidado para este período."));
-                    continue;
-                }
-
-                // Cargar la agencia rastreada (con emails) para evitar reinsertar entidades detached al persistir.
-                var agencia = await _agencias.GetConDetalleAsync(agenciaId, ct);
-                if (agencia is null)
-                {
-                    resultados.Add(ResultadoCierrePorAgencia.Fallo(agenciaId, nombreAgencia, "La agencia no existe."));
-                    continue;
-                }
-
-                var vouchersAgencia = grupo.OrderBy(v => v.Numero).ToList();
-                var importe = vouchersAgencia.Sum(v => v.Importe);
-                var detalle = "Vouchers Nros: " + string.Join(", ", vouchersAgencia.Select(v => v.Numero));
-
-                var recibo = ConstruirRecibo(agencia, null, importe, detalle, anio, mes, config, esConsolidado: true);
-
-                var cae = await EmitirCaeAsync(recibo, agencia, config, ct);
-                if (!cae.Success || cae.Data is null)
-                {
-                    resultados.Add(ResultadoCierrePorAgencia.Fallo(agencia.Id, agencia.Nombre, cae.ErrorMessage ?? "AFIP no devolvió CAE."));
-                    continue;
-                }
-                AplicarCae(recibo, cae.Data);
-
-                await _recibos.AddAsync(recibo, ct);
-                await _vouchers.MarcarConsolidadosAsync(vouchersAgencia.Select(v => v.Id), recibo.Id, ct);
-
-                var errorMail = await EnviarConsolidadoAsync(recibo, vouchersAgencia, agencia, anio, mes, ct);
-                if (errorMail is null)
-                {
-                    recibo.Estado = ReciboEstado.Enviado;
-                    await _recibos.UpdateAsync(recibo, ct);
-                }
-
-                resultados.Add(ResultadoCierrePorAgencia.Ok(agencia.Id, agencia.Nombre, vouchersAgencia.Count, importe, recibo.NumeroComprobante, errorMail));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al cerrar período para Agencia={AgenciaId}", agenciaId);
-                resultados.Add(ResultadoCierrePorAgencia.Fallo(agenciaId, nombreAgencia, ex.Message));
-            }
+            resultados.Add(await ProcesarCierreAgenciaAsync(grupo.Key, grupo.OrderBy(v => v.Numero).ToList(), anio, mes, config, enviarMail: true, ct));
         }
 
         return ServiceResult<IReadOnlyList<ResultadoCierrePorAgencia>>.Ok(resultados);
+    }
+
+    public async Task<ServiceResult<ResultadoCierrePorAgencia>> CerrarPeriodoAgenciaAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
+    {
+        var pendientes = await _vouchers.GetPendientesByPeriodoAsync(anio, mes, ct);
+        var vouchersAgencia = pendientes.Where(v => v.AgenciaId == agenciaId).OrderBy(v => v.Numero).ToList();
+        if (vouchersAgencia.Count == 0)
+            return ServiceResult<ResultadoCierrePorAgencia>.Fail("La agencia no tiene vouchers pendientes en el período.");
+
+        var config = await _config.GetAsync(ct);
+        var resultado = await ProcesarCierreAgenciaAsync(agenciaId, vouchersAgencia, anio, mes, config, enviarMail: true, ct);
+        return resultado.Exito
+            ? ServiceResult<ResultadoCierrePorAgencia>.Ok(resultado)
+            : ServiceResult<ResultadoCierrePorAgencia>.Fail(resultado.ErrorEmision ?? "No se pudo cerrar el período de la agencia.");
+    }
+
+    /// <summary>
+    /// Consolida los vouchers (ya cargados, con Agencia/Barco) de una agencia en un recibo:
+    /// valida duplicado, obtiene CAE, persiste, marca vouchers y envía el PDF único por mail.
+    /// </summary>
+    public async Task<ServiceResult<ResultadoCierrePorAgencia>> EmitirReciboAgenciaAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
+    {
+        var pendientes = await _vouchers.GetPendientesByPeriodoAsync(anio, mes, ct);
+        var vouchersAgencia = pendientes.Where(v => v.AgenciaId == agenciaId).OrderBy(v => v.Numero).ToList();
+        if (vouchersAgencia.Count == 0)
+            return ServiceResult<ResultadoCierrePorAgencia>.Fail("La agencia no tiene vouchers pendientes en el período.");
+
+        var config = await _config.GetAsync(ct);
+        var resultado = await ProcesarCierreAgenciaAsync(agenciaId, vouchersAgencia, anio, mes, config, enviarMail: false, ct);
+        return resultado.Exito
+            ? ServiceResult<ResultadoCierrePorAgencia>.Ok(resultado)
+            : ServiceResult<ResultadoCierrePorAgencia>.Fail(resultado.ErrorEmision ?? "No se pudo emitir el recibo.");
+    }
+
+    public async Task<ServiceResult<IReadOnlyList<ResultadoCierrePorAgencia>>> EmitirRecibosPeriodoAsync(int anio, int mes, CancellationToken ct = default)
+    {
+        var pendientes = await _vouchers.GetPendientesByPeriodoAsync(anio, mes, ct);
+        var config = await _config.GetAsync(ct);
+        var porAgencia = pendientes.GroupBy(v => v.AgenciaId).ToList();
+        var resultados = new List<ResultadoCierrePorAgencia>();
+
+        foreach (var grupo in porAgencia)
+        {
+            ct.ThrowIfCancellationRequested();
+            resultados.Add(await ProcesarCierreAgenciaAsync(grupo.Key, grupo.OrderBy(v => v.Numero).ToList(), anio, mes, config, enviarMail: false, ct));
+        }
+
+        return ServiceResult<IReadOnlyList<ResultadoCierrePorAgencia>>.Ok(resultados);
+    }
+
+    private async Task<ResultadoCierrePorAgencia> ProcesarCierreAgenciaAsync(
+        int agenciaId, IReadOnlyList<Voucher> vouchersAgencia, int anio, int mes, Configuracion config, bool enviarMail, CancellationToken ct)
+    {
+        var nombreAgencia = vouchersAgencia.FirstOrDefault()?.Agencia?.Nombre ?? $"#{agenciaId}";
+        try
+        {
+            if (await _recibos.ExisteConsolidadoAsync(agenciaId, anio, mes, ct))
+                return ResultadoCierrePorAgencia.Omitida(agenciaId, nombreAgencia, "Ya existe un recibo consolidado para este período.");
+
+            // Cargar la agencia rastreada (con emails) para evitar reinsertar entidades detached al persistir.
+            var agencia = await _agencias.GetConDetalleAsync(agenciaId, ct);
+            if (agencia is null)
+                return ResultadoCierrePorAgencia.Fallo(agenciaId, nombreAgencia, "La agencia no existe.");
+
+            var importe = vouchersAgencia.Sum(v => v.Importe);
+            var detalle = "Vouchers Nros: " + string.Join(", ", vouchersAgencia.Select(v => v.Numero));
+
+            var recibo = ConstruirRecibo(agencia, null, importe, detalle, anio, mes, config, esConsolidado: true);
+
+            var cae = await EmitirCaeAsync(recibo, agencia, config, ct);
+            if (!cae.Success || cae.Data is null)
+                return ResultadoCierrePorAgencia.Fallo(agencia.Id, agencia.Nombre, cae.ErrorMessage ?? "AFIP no devolvió CAE.");
+            AplicarCae(recibo, cae.Data);
+
+            await _recibos.AddAsync(recibo, ct);
+            await _vouchers.MarcarConsolidadosAsync(vouchersAgencia.Select(v => v.Id), recibo.Id, ct);
+
+            string? errorMail = null;
+            if (enviarMail)
+            {
+                // Recargar con la agencia rastreada por el contexto de _recibos para que el PDF tenga
+                // los datos del receptor y el UpdateAsync no reinserte la agencia (DbContext transient).
+                var reciboParaEnvio = await _recibos.GetConDetalleAsync(recibo.Id, ct) ?? recibo;
+                errorMail = await EnviarConsolidadoAsync(reciboParaEnvio, vouchersAgencia, agencia, anio, mes, ct);
+                if (errorMail is null)
+                {
+                    reciboParaEnvio.Estado = ReciboEstado.Enviado;
+                    await _recibos.UpdateAsync(reciboParaEnvio, ct);
+                }
+            }
+
+            return ResultadoCierrePorAgencia.Ok(agencia.Id, agencia.Nombre, vouchersAgencia.Count, importe, recibo.NumeroComprobante, errorMail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al cerrar período para Agencia={AgenciaId}", agenciaId);
+            return ResultadoCierrePorAgencia.Fallo(agenciaId, nombreAgencia, ex.Message);
+        }
     }
 
     public async Task<ServiceResult<IReadOnlyList<string>>> GetDuplicadosAsync(int grupoId, int anio, int mes, CancellationToken ct = default)
@@ -135,46 +185,56 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         foreach (var ag in grupo.Agencias)
         {
             ct.ThrowIfCancellationRequested();
-            resultados.Add(await EmitirCuotaAsync(ag.Agencia, grupoId, grupo.Importe, grupo.Nombre, anio, mes, config, ct));
+            resultados.Add(await EmitirOResumirAsync(ag.Agencia, grupoId, grupo.Importe, grupo.Nombre, DateTime.Today, anio, mes, config, enviarMail: true, ct));
         }
 
         return ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>.Ok(resultados);
     }
 
-    public async Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirIndividualAsync(int agenciaId, decimal importe, string detalle, int anio, int mes, CancellationToken ct = default)
+    public async Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirIndividualAsync(int agenciaId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, bool enviarMail, CancellationToken ct = default)
     {
         var agencia = await _agencias.GetConDetalleAsync(agenciaId, ct);
         if (agencia is null) return ServiceResult<ResultadoEmisionPorEntidad>.Fail("La agencia no existe.");
 
         var config = await _config.GetAsync(ct);
-        return ServiceResult<ResultadoEmisionPorEntidad>.Ok(await EmitirCuotaAsync(agencia, null, importe, detalle, anio, mes, config, ct));
+        return ServiceResult<ResultadoEmisionPorEntidad>.Ok(await EmitirOResumirAsync(agencia, null, importe, detalle, fechaEmision, anio, mes, config, enviarMail, ct));
     }
 
-    private async Task<ResultadoEmisionPorEntidad> EmitirCuotaAsync(
-        Agencia agencia, int? grupoId, decimal importe, string detalle, int anio, int mes, Configuracion config, CancellationToken ct)
+    public async Task<ServiceResult<ResultadoEmisionPorEntidad>> ReintentarAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
+    {
+        var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
+        if (recibo is null) return ServiceResult<ResultadoEmisionPorEntidad>.Fail("El recibo no existe.");
+        if (recibo.Estado is ReciboEstado.Pagado or ReciboEstado.Anulado)
+            return ServiceResult<ResultadoEmisionPorEntidad>.Fail("El recibo no admite reintento.");
+
+        var config = await _config.GetAsync(ct);
+        var resultado = await ProcesarReciboAsync(recibo, recibo.Agencia, config, enviarMail, ct);
+        return ServiceResult<ResultadoEmisionPorEntidad>.Ok(resultado);
+    }
+
+    /// <summary>
+    /// Crea (en estado Pendiente, persistido antes del CAE) o resume un recibo de cuota del período, y
+    /// avanza su emisión idempotentemente. Si ya está completo, devuelve "ya existe".
+    /// </summary>
+    private async Task<ResultadoEmisionPorEntidad> EmitirOResumirAsync(
+        Agencia agencia, int? grupoId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, Configuracion config, bool enviarMail, CancellationToken ct)
     {
         try
         {
-            if (await _recibos.ExisteAsync(agencia.Id, grupoId, anio, mes, ct))
-                return ResultadoEmisionPorEntidad.Fallo(agencia.Id, agencia.Nombre, "Ya existe un recibo para este período.");
-
-            var recibo = ConstruirRecibo(agencia, grupoId, importe, detalle, anio, mes, config, esConsolidado: false);
-
-            var cae = await EmitirCaeAsync(recibo, agencia, config, ct);
-            if (!cae.Success || cae.Data is null)
-                return ResultadoEmisionPorEntidad.Fallo(agencia.Id, agencia.Nombre, cae.ErrorMessage ?? "AFIP no devolvió CAE.");
-            AplicarCae(recibo, cae.Data);
-
-            await _recibos.AddAsync(recibo, ct);
-
-            string? errorMail = await EnviarReciboAsync(recibo, agencia, anio, mes, ct);
-            if (errorMail is null)
+            var recibo = await _recibos.GetPorClaveAsync(agencia.Id, grupoId, anio, mes, ct);
+            if (recibo is null)
             {
-                recibo.Estado = ReciboEstado.Enviado;
-                await _recibos.UpdateAsync(recibo, ct);
+                recibo = ConstruirReciboPendiente(agencia, grupoId, importe, detalle, fechaEmision, anio, mes, config);
+                await _recibos.AddAsync(recibo, ct);
+            }
+            else
+            {
+                agencia = recibo.Agencia; // rastreada, con emails
+                if (EsCompleto(recibo))
+                    return ResultadoEmisionPorEntidad.Fallo(agencia.Id, agencia.Nombre, "Ya existe un recibo para este período.");
             }
 
-            return ResultadoEmisionPorEntidad.Ok(agencia.Id, agencia.Nombre, recibo.NumeroComprobante, errorMail);
+            return await ProcesarReciboAsync(recibo, agencia, config, enviarMail, ct);
         }
         catch (Exception ex)
         {
@@ -183,13 +243,73 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         }
     }
 
+    /// <summary>Un recibo está "completo" cuando ya no hay nada que reintentar.</summary>
+    private static bool EsCompleto(Recibo r)
+        => r.Estado is ReciboEstado.Enviado or ReciboEstado.Pagado or ReciboEstado.Anulado
+           || (r.Estado == ReciboEstado.Emitido && r.UltimoErrorMail is null);
+
+    /// <summary>
+    /// Avanza un recibo persistido: pide el CAE solo si falta (idempotente), y manda el mail si
+    /// corresponde. Para recibos consolidados arma el PDF de descarga; para cuotas, el recibo simple.
+    /// </summary>
+    private async Task<ResultadoEmisionPorEntidad> ProcesarReciboAsync(
+        Recibo recibo, Agencia agencia, Configuracion config, bool enviarMail, CancellationToken ct)
+    {
+        // 1. CAE (idempotente: no se vuelve a pedir si ya está).
+        if (string.IsNullOrEmpty(recibo.CAE))
+        {
+            var cae = await EmitirCaeAsync(recibo, agencia, config, ct);
+            if (!cae.Success || cae.Data is null)
+            {
+                recibo.Estado = ReciboEstado.Pendiente;
+                recibo.UltimoErrorCae = cae.ErrorMessage ?? "AFIP no devolvió CAE.";
+                await _recibos.UpdateAsync(recibo, ct);
+                return ResultadoEmisionPorEntidad.Fallo(agencia.Id, agencia.Nombre, recibo.UltimoErrorCae);
+            }
+            AplicarCae(recibo, cae.Data);
+            recibo.UltimoErrorCae = null;
+            recibo.Estado = ReciboEstado.Emitido;
+            await _recibos.UpdateAsync(recibo, ct);
+        }
+
+        // 2. Mail (opcional; un fallo NO revierte la emisión).
+        if (enviarMail && recibo.Estado != ReciboEstado.Enviado)
+        {
+            // Un recibo recién creado no tiene la navegación Agencia cargada (solo el FK). Recargarlo
+            // desde el contexto de _recibos para que el PDF tenga los datos del receptor. GetConDetalle
+            // resuelve a la MISMA instancia rastreada, así que las actualizaciones de estado siguen valiendo.
+            if (recibo.Agencia is null)
+                recibo = await _recibos.GetConDetalleAsync(recibo.Id, ct) ?? recibo;
+
+            var errorMail = recibo.EsConsolidadoVouchers
+                ? await EnviarConsolidadoAsync(recibo, recibo.Vouchers.OrderBy(v => v.Numero).ToList(), agencia, recibo.PeriodoAnio, recibo.PeriodoMes, ct)
+                : await EnviarReciboAsync(recibo, agencia, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
+
+            if (errorMail is null)
+            {
+                recibo.Estado = ReciboEstado.Enviado;
+                recibo.FechaEnvioMail = DateTime.Now;
+                recibo.UltimoErrorMail = null;
+            }
+            else
+            {
+                recibo.UltimoErrorMail = errorMail;
+            }
+            await _recibos.UpdateAsync(recibo, ct);
+        }
+
+        return ResultadoEmisionPorEntidad.Ok(agencia.Id, agencia.Nombre, recibo.NumeroComprobante, recibo.UltimoErrorMail);
+    }
+
     private Recibo ConstruirRecibo(Agencia agencia, int? grupoId, decimal importe, string detalle, int anio, int mes, Configuracion config, bool esConsolidado)
     {
         var hoy = DateTime.Today;
+        // No se asigna la navegación Agencia (solo el FK): el DbContext es transient, así que la agencia
+        // viene de OTRO contexto y EF intentaría reinsertarla al guardar el recibo (UNIQUE Agencias.Id).
+        // Para el PDF se recarga el recibo con su agencia rastreada por el contexto de _recibos.
         return new Recibo
         {
             AgenciaId = agencia.Id,
-            Agencia = agencia,
             GrupoFacturacionId = grupoId,
             PeriodoAnio = anio,
             PeriodoMes = mes,
@@ -199,7 +319,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             EsApoderado = config.UsarApoderado,
             NombreApoderado = config.UsarApoderado ? config.NombreApoderado : null,
             CuitApoderado = config.UsarApoderado ? config.CuitApoderado : null,
-            PuntoDeVenta = config.PuntoDeVenta,
+            PuntoDeVenta = config.PuntoDeVentaActivo?.Numero ?? 0,
             TipoComprobante = TipoComprobante.Recibo,
             CodigoAfip = config.CodigoAfipRecibo,
             FechaEmision = hoy,
@@ -208,12 +328,22 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         };
     }
 
+    /// <summary>Recibo de cuota nuevo en estado Pendiente (sin CAE), con la fecha de emisión indicada.</summary>
+    private Recibo ConstruirReciboPendiente(Agencia agencia, int? grupoId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, Configuracion config)
+    {
+        var recibo = ConstruirRecibo(agencia, grupoId, importe, detalle, anio, mes, config, esConsolidado: false);
+        recibo.FechaEmision = fechaEmision;
+        recibo.FechaVencimientoPago = fechaEmision.AddDays(config.DiasVencimiento);
+        recibo.Estado = ReciboEstado.Pendiente;
+        return recibo;
+    }
+
     private Task<ServiceResult<CaeResult>> EmitirCaeAsync(Recibo recibo, Agencia agencia, Configuracion config, CancellationToken ct)
         => _afip.ObtenerCAEAsync(new ComprobanteAfipRequest
         {
             TipoComprobante = TipoComprobante.Recibo,
-            CodigoAfip = config.CodigoAfipRecibo,
-            PuntoDeVenta = config.PuntoDeVenta,
+            CodigoAfip = recibo.CodigoAfip,
+            PuntoDeVenta = recibo.PuntoDeVenta,
             CuitReceptor = PeriodoHelper.SoloDigitos(agencia.Cuit),
             ImporteTotal = recibo.Importe,
             FechaEmision = recibo.FechaEmision,
@@ -248,7 +378,8 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
     {
         try
         {
-            var pdf = await _pdf.GenerarPdfConsolidadoAsync(recibo, vouchers, ct);
+            // PDF único: recibo (con CAE+QR) + PDFs individuales de cada voucher concatenados.
+            var pdf = await _pdf.GenerarPdfDescargaAsync(vouchers, recibo, ct);
             return await EnviarAsync(agencia, pdf, $"ReciboConsolidado_{agencia.Nombre}_{anio}{mes:00}.pdf",
                 $"Recibo consolidado {Formato.Periodo(anio, mes)} — Centro Marítimo", ct);
         }
@@ -280,7 +411,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         {
             TipoComprobante = TipoComprobante.NotaDeCredito,
             CodigoAfip = config.CodigoAfipNotaDeCredito,
-            PuntoDeVenta = config.PuntoDeVenta,
+            PuntoDeVenta = config.PuntoDeVentaActivo?.Numero ?? 0,
             CuitReceptor = PeriodoHelper.SoloDigitos(recibo.Agencia.Cuit),
             ImporteTotal = recibo.Importe,
             FechaEmision = hoy,
@@ -304,7 +435,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         {
             ReciboOriginalId = recibo.Id,
             ReciboOriginal = recibo,
-            PuntoDeVenta = config.PuntoDeVenta,
+            PuntoDeVenta = config.PuntoDeVentaActivo?.Numero ?? 0,
             TipoComprobante = TipoComprobante.NotaDeCredito,
             CodigoAfip = config.CodigoAfipNotaDeCredito,
             NumeroComprobante = cae.Data.NumeroComprobante,
@@ -339,7 +470,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
 
         byte[] pdf = recibo.EsConsolidadoVouchers
-            ? await _pdf.GenerarPdfConsolidadoAsync(recibo, recibo.Vouchers, ct)
+            ? await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.ToList(), recibo, ct)
             : await _pdf.GenerarPdfReciboAsync(recibo, ct);
 
         var error = await EnviarAsync(recibo.Agencia, pdf,

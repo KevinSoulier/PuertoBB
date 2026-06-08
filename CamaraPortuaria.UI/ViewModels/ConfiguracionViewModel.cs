@@ -1,9 +1,16 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows;
 using System.Windows.Input;
 using CamaraPortuaria.UI.ViewModels.Base;
+using CamaraPortuaria.UI.ViewModels.Items;
 using Microsoft.Win32;
+using PuertoBB.Core.Afip;
 using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models.Mail;
+using PuertoBB.Services.Security;
 
 namespace CamaraPortuaria.UI.ViewModels;
 
@@ -11,76 +18,636 @@ public class ConfiguracionViewModel : PageViewModel
 {
     private readonly IConfiguracionRepository _repo;
     private readonly IBackupService _backup;
+    private readonly IAfipService _afip;
+    private readonly IMailService _mail;
+    private readonly ISecretProtector _protector;
+    private readonly IDialogService _dialog;
     private Configuracion _config = new();
 
+    // ══════════════════════════════════════════
+    // EMISOR
+    // ══════════════════════════════════════════
     public string RazonSocial { get => _config.RazonSocial; set { _config.RazonSocial = value; OnPropertyChanged(); } }
-    public string Cuit { get => _config.Cuit; set { _config.Cuit = value; OnPropertyChanged(); } }
-    public int PuntoDeVenta { get => _config.PuntoDeVenta; set { _config.PuntoDeVenta = value; OnPropertyChanged(); } }
-    public int CodigoAfipRecibo { get => _config.CodigoAfipRecibo; set { _config.CodigoAfipRecibo = value; OnPropertyChanged(); } }
+    public string Cuit        { get => _config.Cuit;        set { _config.Cuit = value; OnPropertyChanged(); } }
+
+    private bool _emisorEditando;
+    public bool EmisorEditando   { get => _emisorEditando;  set { SetField(ref _emisorEditando, value);  OnPropertyChanged(nameof(EmisorNoEditando));  } }
+    public bool EmisorNoEditando => !_emisorEditando;
+
+    private string _snapRazonSocial = string.Empty;
+    private string _snapCuit        = string.Empty;
+
+    public ICommand EditarEmisorCommand   { get; }
+    public ICommand GuardarEmisorCommand  { get; }
+    public ICommand CancelarEmisorCommand { get; }
+
+    private void EditarEmisor()
+    {
+        _snapRazonSocial = RazonSocial;
+        _snapCuit        = Cuit;
+        EmisorEditando   = true;
+    }
+    private void CancelarEmisor()
+    {
+        RazonSocial    = _snapRazonSocial;
+        Cuit           = _snapCuit;
+        EmisorEditando = false;
+    }
+    private async Task GuardarEmisorAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Cuit)) { MostrarError("El CUIT del emisor es obligatorio."); return; }
+        try   { await _repo.SaveAsync(_config); EmisorEditando = false; MostrarExito("Emisor guardado."); }
+        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+    }
+
+    // ══════════════════════════════════════════
+    // CÓDIGOS AFIP
+    // ══════════════════════════════════════════
+    /// <summary>Comprobantes seleccionables en el combo (Recibos + Facturas A/B/C).</summary>
+    public IReadOnlyList<ComprobanteAfipTipo> ComprobantesDisponibles => CatalogoComprobantesAfip.Principales;
+
+    public int CodigoAfipRecibo
+    {
+        get => _config.CodigoAfipRecibo;
+        set
+        {
+            _config.CodigoAfipRecibo = value;
+            // La Nota de Crédito se deriva de la clase fiscal del comprobante elegido.
+            _config.CodigoAfipNotaDeCredito = CatalogoComprobantesAfip.NotaCreditoPara(value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CodigoAfipNotaDeCredito));
+            OnPropertyChanged(nameof(NotaDeCreditoDisplay));
+        }
+    }
     public int CodigoAfipNotaDeCredito { get => _config.CodigoAfipNotaDeCredito; set { _config.CodigoAfipNotaDeCredito = value; OnPropertyChanged(); } }
-    public string? AfipCertificadoRuta { get => _config.AfipCertificadoRuta; set { _config.AfipCertificadoRuta = value; OnPropertyChanged(); } }
-    public string? AfipCertificadoPassword { get => _config.AfipCertificadoPassword; set { _config.AfipCertificadoPassword = value; OnPropertyChanged(); } }
-    public bool AfipUsarHomologacion { get => _config.AfipUsarHomologacion; set { _config.AfipUsarHomologacion = value; OnPropertyChanged(); } }
+
+    /// <summary>Nota de Crédito derivada (solo lectura): "13 — Nota de Crédito C".</summary>
+    public string NotaDeCreditoDisplay =>
+        $"{CodigoAfipNotaDeCredito} — {CatalogoComprobantesAfip.DescripcionNotaCredito(CodigoAfipRecibo)}";
+
+    private bool _codigosAfipEditando;
+    public bool CodigosAfipEditando   { get => _codigosAfipEditando; set { SetField(ref _codigosAfipEditando, value); OnPropertyChanged(nameof(CodigosAfipNoEditando)); } }
+    public bool CodigosAfipNoEditando => !_codigosAfipEditando;
+
+    private int _snapCodigoRecibo;
+    private int _snapCodigoNC;
+
+    public ICommand EditarCodigosAfipCommand   { get; }
+    public ICommand GuardarCodigosAfipCommand  { get; }
+    public ICommand CancelarCodigosAfipCommand { get; }
+
+    private void EditarCodigosAfip()
+    {
+        _snapCodigoRecibo   = CodigoAfipRecibo;
+        _snapCodigoNC       = CodigoAfipNotaDeCredito;
+        CodigosAfipEditando = true;
+    }
+    private void CancelarCodigosAfip()
+    {
+        CodigoAfipRecibo        = _snapCodigoRecibo;
+        CodigoAfipNotaDeCredito = _snapCodigoNC;
+        CodigosAfipEditando     = false;
+    }
+    private async Task GuardarCodigosAfipAsync()
+    {
+        try   { await _repo.SaveAsync(_config); CodigosAfipEditando = false; MostrarExito("Códigos AFIP guardados."); }
+        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+    }
+
+    // ══════════════════════════════════════════
+    // PUNTOS DE VENTA — lista
+    // ══════════════════════════════════════════
+    public ObservableCollection<PuntoDeVentaItem> PuntosDeVenta { get; } = new();
+
+    private PuntoDeVentaItem? _puntoSeleccionado;
+    public PuntoDeVentaItem? PuntoSeleccionado
+    {
+        get => _puntoSeleccionado;
+        set { if (SetField(ref _puntoSeleccionado, value) && value is not null) CargarEnEdicion(value); }
+    }
+
+    // Formulario de edición del punto de venta.
+    private int     _edId;
+    private bool    _edActivo;
+    private string  _edNombre              = string.Empty;
+    private int     _edNumero              = 1;
+    private bool    _edUsarHomologacion;
+    private string? _edCertificadoRuta;
+    private string? _edCertificadoPassword;
+    private string? _edCertificadoKeyRuta;
+    private bool    _edUsarModoCrtKey;
+    private bool    _edMostrarPassword;
+
+    public string  EdNombre              { get => _edNombre;              set => SetField(ref _edNombre, value); }
+    public int     EdNumero              { get => _edNumero;              set => SetField(ref _edNumero, value); }
+    public bool    EdUsarHomologacion    { get => _edUsarHomologacion;    set { if (SetField(ref _edUsarHomologacion, value)) OnPropertyChanged(nameof(AmbienteEdicion)); } }
+    public string? EdCertificadoRuta     { get => _edCertificadoRuta;     set => SetField(ref _edCertificadoRuta, value); }
+    public string? EdCertificadoPassword { get => _edCertificadoPassword; set => SetField(ref _edCertificadoPassword, value); }
+    public string? EdCertificadoKeyRuta  { get => _edCertificadoKeyRuta;  set => SetField(ref _edCertificadoKeyRuta, value); }
+    public bool    EdUsarModoCrtKey
+    {
+        get => _edUsarModoCrtKey;
+        set
+        {
+            if (!SetField(ref _edUsarModoCrtKey, value)) return;
+            OnPropertyChanged(nameof(EdUsarModoP12));
+            if (value) EdCertificadoPassword = null;
+            else       EdCertificadoKeyRuta  = null;
+        }
+    }
+    public bool EdUsarModoP12 { get => !_edUsarModoCrtKey; set => EdUsarModoCrtKey = !value; }
+
+    public bool EdMostrarPassword
+    {
+        get => _edMostrarPassword;
+        set { SetField(ref _edMostrarPassword, value); OnPropertyChanged(nameof(EdOcultarPassword)); }
+    }
+    public bool EdOcultarPassword => !_edMostrarPassword;
+
+    private bool _pvFormEditando;
+    public bool PvFormEditando   { get => _pvFormEditando; set { SetField(ref _pvFormEditando, value); OnPropertyChanged(nameof(PvFormNoEditando)); } }
+    public bool PvFormNoEditando => !_pvFormEditando;
+
+    // Snapshot para revert
+    private int     _snapEdId;
+    private string  _snapEdNombre              = string.Empty;
+    private int     _snapEdNumero              = 1;
+    private bool    _snapEdUsarHomologacion;
+    private string? _snapEdCertificadoRuta;
+    private string? _snapEdCertificadoPassword;
+    private string? _snapEdCertificadoKeyRuta;
+    private bool    _snapEdUsarModoCrtKey;
+
+    public string TituloEdicion => _edId == 0 ? "Nuevo punto de venta" : $"Editando: {EdNombre}";
+    public string AmbienteEdicion => EdUsarHomologacion
+        ? "⚠ Homologación (pruebas). Los comprobantes no tienen validez fiscal."
+        : "Producción. Los comprobantes tienen validez fiscal.";
+
+    private string _estadoConexion = string.Empty;
+    public string EstadoConexion { get => _estadoConexion; set => SetField(ref _estadoConexion, value); }
+
+    public ICommand NuevoPuntoCommand             { get; }
+    public ICommand EditarPuntoCommand            { get; }
+    public ICommand GuardarPuntoCommand           { get; }
+    public ICommand CancelarPuntoCommand          { get; }
+    public ICommand EliminarPuntoCommand          { get; }
+    public ICommand MarcarActivoCommand           { get; }
+    public ICommand SeleccionarCertificadoCommand { get; }
+    public ICommand SeleccionarClaveKeyCommand    { get; }
+    public ICommand ProbarConexionCommand         { get; }
+    public ICommand ToggleMostrarPasswordCommand  { get; }
+
+    private void NuevoPunto()
+    {
+        _edId                 = 0;
+        _edActivo             = false;
+        EdNombre              = string.Empty;
+        EdNumero              = 1;
+        EdUsarHomologacion    = false;
+        EdCertificadoRuta     = null;
+        EdCertificadoPassword = null;
+        EdCertificadoKeyRuta  = null;
+        EdUsarModoCrtKey      = false;
+        EdMostrarPassword     = false;
+        CapturaSnapshotPv();   // snapshot vacío → Cancelar limpia el form
+        PvFormEditando = true;
+        OnPropertyChanged(nameof(TituloEdicion));
+    }
+
+    private void EditarPunto()
+    {
+        CapturaSnapshotPv();
+        PvFormEditando = true;
+    }
+
+    private void CancelarPunto()
+    {
+        _edId                 = _snapEdId;
+        EdNombre              = _snapEdNombre;
+        EdNumero              = _snapEdNumero;
+        EdUsarHomologacion    = _snapEdUsarHomologacion;
+        EdCertificadoRuta     = _snapEdCertificadoRuta;
+        EdCertificadoPassword = _snapEdCertificadoPassword;
+        EdCertificadoKeyRuta  = _snapEdCertificadoKeyRuta;
+        EdUsarModoCrtKey      = _snapEdUsarModoCrtKey;
+        EdMostrarPassword     = false;
+        PvFormEditando = false;
+        OnPropertyChanged(nameof(TituloEdicion));
+    }
+
+    private void CapturaSnapshotPv()
+    {
+        _snapEdId                  = _edId;
+        _snapEdNombre              = EdNombre;
+        _snapEdNumero              = EdNumero;
+        _snapEdUsarHomologacion    = EdUsarHomologacion;
+        _snapEdCertificadoRuta     = EdCertificadoRuta;
+        _snapEdCertificadoPassword = EdCertificadoPassword;
+        _snapEdCertificadoKeyRuta  = EdCertificadoKeyRuta;
+        _snapEdUsarModoCrtKey      = EdUsarModoCrtKey;
+    }
+
+    private void CargarEnEdicion(PuntoDeVentaItem item)
+    {
+        _edId                 = item.Id;
+        _edActivo             = item.Activo;
+        EdNombre              = item.Nombre;
+        EdNumero              = item.Numero;
+        EdUsarHomologacion    = item.UsarHomologacion;
+        EdCertificadoRuta     = item.CertificadoRuta;
+        EdCertificadoPassword = _protector.Unprotect(item.CertificadoPassword);
+        EdCertificadoKeyRuta  = item.CertificadoKeyRuta;
+        EdUsarModoCrtKey      = item.CertificadoKeyRuta is not null;
+        EdMostrarPassword     = false;
+        // NO habilitar: solo el botón Editar habilita el formulario
+        OnPropertyChanged(nameof(TituloEdicion));
+    }
+
+    // ══════════════════════════════════════════
+    // PAGOS
+    // ══════════════════════════════════════════
     public int DiasVencimiento { get => _config.DiasVencimiento; set { _config.DiasVencimiento = value; OnPropertyChanged(); } }
-    public string? SmtpHost { get => _config.SmtpHost; set { _config.SmtpHost = value; OnPropertyChanged(); } }
-    public int SmtpPort { get => _config.SmtpPort; set { _config.SmtpPort = value; OnPropertyChanged(); } }
-    public string? SmtpUsuario { get => _config.SmtpUsuario; set { _config.SmtpUsuario = value; OnPropertyChanged(); } }
-    public string? SmtpPassword { get => _config.SmtpPassword; set { _config.SmtpPassword = value; OnPropertyChanged(); } }
+
+    private bool _pagosEditando;
+    public bool PagosEditando   { get => _pagosEditando; set { SetField(ref _pagosEditando, value); OnPropertyChanged(nameof(PagosNoEditando)); } }
+    public bool PagosNoEditando => !_pagosEditando;
+
+    private int _snapDiasVencimiento;
+
+    public ICommand EditarPagosCommand   { get; }
+    public ICommand GuardarPagosCommand  { get; }
+    public ICommand CancelarPagosCommand { get; }
+
+    private void EditarPagos()
+    {
+        _snapDiasVencimiento = DiasVencimiento;
+        PagosEditando        = true;
+    }
+    private void CancelarPagos()
+    {
+        DiasVencimiento = _snapDiasVencimiento;
+        PagosEditando   = false;
+    }
+    private async Task GuardarPagosAsync()
+    {
+        try   { await _repo.SaveAsync(_config); PagosEditando = false; MostrarExito("Configuración de pagos guardada."); }
+        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+    }
+
+    // ══════════════════════════════════════════
+    // CORREO
+    // ══════════════════════════════════════════
+    public string? SmtpHost       { get => _config.SmtpHost;       set { _config.SmtpHost = value; OnPropertyChanged(); } }
+    public int     SmtpPort       { get => _config.SmtpPort;       set { _config.SmtpPort = value; OnPropertyChanged(); } }
+    public int     SmtpSeguridad  { get => _config.SmtpSeguridad;  set { _config.SmtpSeguridad = value; OnPropertyChanged(); } }
+    public string? SmtpUsuario    { get => _config.SmtpUsuario;    set { _config.SmtpUsuario = value; OnPropertyChanged(); } }
+    public string? SmtpPassword   { get => _config.SmtpPassword;   set { _config.SmtpPassword = value; OnPropertyChanged(); } }
     public string? EmailRemitente { get => _config.EmailRemitente; set { _config.EmailRemitente = value; OnPropertyChanged(); } }
 
-    public ICommand GuardarCommand { get; }
-    public ICommand SeleccionarCertificadoCommand { get; }
-    public ICommand BackupCommand { get; }
+    private bool _correoEditando;
+    public bool CorreoEditando   { get => _correoEditando; set { SetField(ref _correoEditando, value); OnPropertyChanged(nameof(CorreoNoEditando)); } }
+    public bool CorreoNoEditando => !_correoEditando;
 
-    public ConfiguracionViewModel(IConfiguracionRepository repo, IBackupService backup)
+    private string _estadoCorreo = string.Empty;
+    public string EstadoCorreo { get => _estadoCorreo; set => SetField(ref _estadoCorreo, value); }
+
+    private string? _snapSmtpHost;
+    private int     _snapSmtpPort;
+    private int     _snapSmtpSeguridad;
+    private string? _snapSmtpUsuario;
+    private string? _snapSmtpPassword;
+    private string? _snapEmailRemitente;
+
+    public ICommand EditarCorreoCommand   { get; }
+    public ICommand GuardarCorreoCommand  { get; }
+    public ICommand CancelarCorreoCommand { get; }
+    public ICommand ProbarMailCommand     { get; }
+
+    private void EditarCorreo()
     {
-        _repo = repo;
-        _backup = backup;
-        GuardarCommand = new AsyncRelayCommand(GuardarAsync);
+        _snapSmtpHost       = SmtpHost;
+        _snapSmtpPort       = SmtpPort;
+        _snapSmtpSeguridad  = SmtpSeguridad;
+        _snapSmtpUsuario    = SmtpUsuario;
+        _snapSmtpPassword   = SmtpPassword;
+        _snapEmailRemitente = EmailRemitente;
+        CorreoEditando      = true;
+    }
+    private void CancelarCorreo()
+    {
+        SmtpHost       = _snapSmtpHost;
+        SmtpPort       = _snapSmtpPort;
+        SmtpSeguridad  = _snapSmtpSeguridad;
+        SmtpUsuario    = _snapSmtpUsuario;
+        SmtpPassword   = _snapSmtpPassword;   // code-behind sincroniza el PasswordBox
+        EmailRemitente = _snapEmailRemitente;
+        CorreoEditando = false;
+    }
+    private async Task GuardarCorreoAsync()
+    {
+        try   { await _repo.SaveAsync(_config); CorreoEditando = false; MostrarExito("Configuración de correo guardada."); }
+        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+    }
+    private async Task ProbarMailAsync()
+    {
+        try
+        {
+            EstadoCorreo = "Probando conexión…";
+            var res = await _mail.ProbarConexionAsync();
+            EstadoCorreo = res.Success ? res.Data! : res.ErrorMessage ?? "Error desconocido.";
+            if (res.Success) MostrarExito(EstadoCorreo);
+            else             MostrarError(EstadoCorreo);
+        }
+        catch (Exception ex)
+        {
+            EstadoCorreo = ex.Message;
+            MostrarError($"Error al probar el correo: {ex.Message}");
+        }
+    }
+
+    // ══════════════════════════════════════════
+    // OTROS COMANDOS
+    // ══════════════════════════════════════════
+    public ICommand BackupCommand              { get; }
+    public ICommand RestaurarCommand           { get; }
+    public ICommand VerificarIntegridadCommand { get; }
+    public ICommand VacuumCommand              { get; }
+    public ICommand OptimizarCommand           { get; }
+
+    // ══════════════════════════════════════════
+    // CONSTRUCTOR
+    // ══════════════════════════════════════════
+    public ConfiguracionViewModel(
+        IConfiguracionRepository repo,
+        IBackupService backup,
+        IAfipService afip,
+        IMailService mail,
+        ISecretProtector protector,
+        IDialogService dialog)
+    {
+        _repo      = repo;
+        _backup    = backup;
+        _afip      = afip;
+        _mail      = mail;
+        _protector = protector;
+        _dialog    = dialog;
+
+        // Emisor
+        EditarEmisorCommand   = new RelayCommand(_ => EditarEmisor());
+        GuardarEmisorCommand  = new AsyncRelayCommand(GuardarEmisorAsync);
+        CancelarEmisorCommand = new RelayCommand(_ => CancelarEmisor());
+
+        // Códigos AFIP
+        EditarCodigosAfipCommand   = new RelayCommand(_ => EditarCodigosAfip());
+        GuardarCodigosAfipCommand  = new AsyncRelayCommand(GuardarCodigosAfipAsync);
+        CancelarCodigosAfipCommand = new RelayCommand(_ => CancelarCodigosAfip());
+
+        // Puntos de venta
+        NuevoPuntoCommand             = new RelayCommand(_ => NuevoPunto());
+        EditarPuntoCommand            = new RelayCommand(_ => EditarPunto());
+        GuardarPuntoCommand           = new AsyncRelayCommand(GuardarPuntoAsync);
+        CancelarPuntoCommand          = new RelayCommand(_ => CancelarPunto());
+        EliminarPuntoCommand          = new AsyncRelayCommand(EliminarPuntoAsync);
+        MarcarActivoCommand           = new AsyncRelayCommand(MarcarActivoAsync);
         SeleccionarCertificadoCommand = new RelayCommand(_ => SeleccionarCertificado());
-        BackupCommand = new AsyncRelayCommand(BackupAsync);
+        SeleccionarClaveKeyCommand    = new RelayCommand(_ => SeleccionarClaveKey());
+        ProbarConexionCommand         = new AsyncRelayCommand(ProbarConexionAsync);
+        ToggleMostrarPasswordCommand  = new RelayCommand(_ => EdMostrarPassword = !EdMostrarPassword);
+
+        // Pagos
+        EditarPagosCommand   = new RelayCommand(_ => EditarPagos());
+        GuardarPagosCommand  = new AsyncRelayCommand(GuardarPagosAsync);
+        CancelarPagosCommand = new RelayCommand(_ => CancelarPagos());
+
+        // Correo
+        EditarCorreoCommand   = new RelayCommand(_ => EditarCorreo());
+        GuardarCorreoCommand  = new AsyncRelayCommand(GuardarCorreoAsync);
+        CancelarCorreoCommand = new RelayCommand(_ => CancelarCorreo());
+        ProbarMailCommand     = new AsyncRelayCommand(ProbarMailAsync);
+
+        // Otros
+        BackupCommand              = new AsyncRelayCommand(BackupAsync);
+        RestaurarCommand           = new AsyncRelayCommand(RestaurarAsync);
+        VerificarIntegridadCommand = new AsyncRelayCommand(VerificarIntegridadAsync);
+        VacuumCommand              = new AsyncRelayCommand(VacuumAsync);
+        OptimizarCommand           = new AsyncRelayCommand(OptimizarAsync);
+
         _ = CargarAsync();
+    }
+
+    // ══════════════════════════════════════════
+    // CARGA INICIAL
+    // ══════════════════════════════════════════
+    private async Task CargarAsync()
+    {
+        _config = await _repo.GetAsync();
+        foreach (var p in new[] { nameof(RazonSocial), nameof(Cuit), nameof(CodigoAfipRecibo), nameof(CodigoAfipNotaDeCredito),
+                                   nameof(DiasVencimiento), nameof(SmtpHost), nameof(SmtpPort), nameof(SmtpSeguridad),
+                                   nameof(SmtpUsuario), nameof(SmtpPassword), nameof(EmailRemitente) })
+            OnPropertyChanged(p);
+        await RecargarPuntosAsync();
+    }
+
+    private async Task RecargarPuntosAsync()
+    {
+        var puntos = await _repo.GetPuntosDeVentaAsync();
+        PuntosDeVenta.Clear();
+        foreach (var p in puntos) PuntosDeVenta.Add(PuntoDeVentaItem.From(p));
+    }
+
+    // ══════════════════════════════════════════
+    // OPERACIONES DE PUNTOS DE VENTA
+    // ══════════════════════════════════════════
+    private void SeleccionarCertificado()
+    {
+        var filter = _edUsarModoCrtKey
+            ? "Certificado PEM (*.crt;*.pem)|*.crt;*.pem|Todos|*.*"
+            : "Certificado PKCS#12 (*.p12;*.pfx)|*.p12;*.pfx|Todos|*.*";
+        var dlg = new OpenFileDialog { Filter = filter };
+        if (dlg.ShowDialog() != true) return;
+        try   { EdCertificadoRuta = ImportarArchivoCertificado(dlg.FileName); }
+        catch (Exception ex)
+        {
+            EdCertificadoRuta = dlg.FileName;
+            MostrarError($"No se pudo copiar el certificado al almacén local: {ex.Message}");
+        }
+    }
+
+    private void SeleccionarClaveKey()
+    {
+        var dlg = new OpenFileDialog { Filter = "Clave privada PEM (*.key;*.pem)|*.key;*.pem|Todos|*.*" };
+        if (dlg.ShowDialog() != true) return;
+        try   { EdCertificadoKeyRuta = ImportarArchivoCertificado(dlg.FileName); }
+        catch (Exception ex)
+        {
+            EdCertificadoKeyRuta = dlg.FileName;
+            MostrarError($"No se pudo copiar la clave privada al almacén local: {ex.Message}");
+        }
+    }
+
+    private static string ImportarArchivoCertificado(string origen)
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PuertoBB", "CamaraPortuaria", "Certificados");
+        Directory.CreateDirectory(dir);
+        var destino = Path.Combine(dir, Path.GetFileName(origen));
+        if (!string.Equals(Path.GetFullPath(origen), Path.GetFullPath(destino), StringComparison.OrdinalIgnoreCase))
+            File.Copy(origen, destino, overwrite: true);
+        return destino;
+    }
+
+    private async Task GuardarPuntoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(EdNombre)) { MostrarError("Indique un nombre para el punto de venta."); return; }
+        if (EdNumero <= 0) { MostrarError("El número de punto de venta debe ser mayor a cero."); return; }
+        try
+        {
+            var esPrimero = PuntosDeVenta.Count == 0;
+            var pv = new PuntoDeVenta
+            {
+                Id                  = _edId,
+                Nombre              = EdNombre.Trim(),
+                Numero              = EdNumero,
+                UsarHomologacion    = EdUsarHomologacion,
+                CertificadoRuta     = EdCertificadoRuta,
+                CertificadoPassword = _edUsarModoCrtKey ? null : _protector.Protect(EdCertificadoPassword),
+                CertificadoKeyRuta  = EdCertificadoKeyRuta,
+                Activo              = _edId == 0 ? esPrimero : _edActivo
+            };
+            var guardado = await _repo.GuardarPuntoDeVentaAsync(pv);
+            await RecargarPuntosAsync();
+            // Limpiar form y deshabilitar sin entrar en modo Nuevo
+            _edId                 = 0;
+            EdNombre              = string.Empty;
+            EdNumero              = 1;
+            EdUsarHomologacion    = false;
+            EdCertificadoRuta     = null;
+            EdCertificadoPassword = null;
+            EdCertificadoKeyRuta  = null;
+            EdUsarModoCrtKey      = false;
+            EdMostrarPassword     = false;
+            PvFormEditando        = false;
+            OnPropertyChanged(nameof(TituloEdicion));
+            MostrarExito($"Punto de venta «{guardado.Nombre}» guardado.");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo guardar el punto de venta: {ex.Message}"); }
+    }
+
+    private async Task EliminarPuntoAsync()
+    {
+        if (PuntoSeleccionado is not { } sel) { MostrarError("Seleccione un punto de venta de la lista."); return; }
+        try
+        {
+            await _repo.EliminarPuntoDeVentaAsync(sel.Id);
+            await RecargarPuntosAsync();
+            _edId                 = 0;
+            EdNombre              = string.Empty;
+            EdNumero              = 1;
+            EdUsarHomologacion    = false;
+            EdCertificadoRuta     = null;
+            EdCertificadoPassword = null;
+            EdCertificadoKeyRuta  = null;
+            EdUsarModoCrtKey      = false;
+            PvFormEditando        = false;
+            OnPropertyChanged(nameof(TituloEdicion));
+            MostrarExito("Punto de venta eliminado.");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo eliminar: {ex.Message}"); }
+    }
+
+    private async Task MarcarActivoAsync()
+    {
+        if (PuntoSeleccionado is not { } sel) { MostrarError("Seleccione un punto de venta de la lista."); return; }
+        var confirm = await _dialog.ShowConfirmAsync(
+            "Confirmar activación",
+            $"¿Activar «{sel.Nombre}» como punto de venta activo?",
+            confirmText: "Activar");
+        if (!confirm) return;
+        try
+        {
+            await _repo.MarcarPuntoDeVentaActivoAsync(sel.Id);
+            await RecargarPuntosAsync();
+            MostrarExito($"«{sel.Nombre}» quedó como punto de venta activo.");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo activar: {ex.Message}"); }
+    }
+
+    private async Task ProbarConexionAsync()
+    {
+        var activo = PuntosDeVenta.FirstOrDefault(p => p.Activo);
+        if (activo is null) { MostrarError("No hay punto de venta activo. Marcá uno como activo y probá de nuevo."); return; }
+        try
+        {
+            EstadoConexion = $"Probando conexión con AFIP (punto de venta activo: {activo.Nombre})…";
+            var res = await _afip.ProbarConexionAsync(activo.Numero, CodigoAfipRecibo);
+            if (res.Success && res.Data is { } d)
+            {
+                EstadoConexion = d.Detalle ?? (d.AutenticacionOk ? "Conexión OK." : "Revise la configuración.");
+                if (d.AutenticacionOk) MostrarExito("Conexión con AFIP correcta.");
+                else MostrarError(d.Detalle ?? "No se pudo autenticar con AFIP.");
+            }
+            else
+            {
+                EstadoConexion = res.ErrorMessage ?? "Error al probar la conexión.";
+                MostrarError(EstadoConexion);
+            }
+        }
+        catch (Exception ex)
+        {
+            EstadoConexion = ex.Message;
+            MostrarError($"Error al probar la conexión: {ex.Message}");
+        }
     }
 
     private async Task BackupAsync()
     {
-        var dlg = new SaveFileDialog
-        {
-            Filter = "Base SQLite (*.db)|*.db",
-            FileName = _backup.NombreSugerido()
-        };
+        var dlg = new SaveFileDialog { Filter = "Base SQLite (*.db)|*.db", FileName = _backup.NombreSugerido() };
         if (dlg.ShowDialog() != true) return;
-
         var res = await _backup.BackupAsync(dlg.FileName);
         if (res.Success) MostrarExito($"Backup generado en {dlg.FileName}");
         else MostrarError(res.ErrorMessage ?? "No se pudo generar el backup.");
     }
 
-    private async Task CargarAsync()
+    private async Task RestaurarAsync()
     {
-        _config = await _repo.GetAsync();
-        foreach (var p in GetType().GetProperties())
-            if (p.CanRead && p.Name is not (nameof(GuardarCommand) or nameof(SeleccionarCertificadoCommand)))
-                OnPropertyChanged(p.Name);
+        var dlg = new OpenFileDialog { Filter = "Base SQLite (*.db)|*.db", Title = "Seleccioná el backup a restaurar" };
+        if (dlg.ShowDialog() != true) return;
+        var confirmado = await _dialog.ShowConfirmAsync(
+            "Restaurar backup",
+            "Esto reemplazará TODA la base de datos actual con el backup seleccionado.\n\nLa aplicación se cerrará al finalizar y deberás reabrirla para continuar.\n\n¿Querés continuar?",
+            "Restaurar", "Cancelar");
+        if (!confirmado) return;
+        var res = await _backup.RestaurarAsync(dlg.FileName);
+        if (res.Success)
+        {
+            MostrarExito("Backup restaurado correctamente. La aplicación se cerrará ahora.");
+            await Task.Delay(1500);
+            Application.Current.Shutdown();
+        }
+        else MostrarError(res.ErrorMessage ?? "No se pudo restaurar el backup.");
     }
 
-    private void SeleccionarCertificado()
+    private async Task VerificarIntegridadAsync()
     {
-        var dlg = new OpenFileDialog { Filter = "Certificado PKCS#12 (*.p12;*.pfx)|*.p12;*.pfx|Todos|*.*" };
-        if (dlg.ShowDialog() == true) AfipCertificadoRuta = dlg.FileName;
+        var res = await _backup.VerificarIntegridadAsync();
+        if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo verificar la integridad."); return; }
+        if (res.Data == "ok")
+            MostrarExito("La base de datos está en buen estado.");
+        else
+            await _dialog.ShowAlertAsync("Problemas encontrados", res.Data ?? "Se encontraron errores en la base de datos.");
     }
 
-    private async Task GuardarAsync()
+    private async Task VacuumAsync()
     {
-        if (string.IsNullOrWhiteSpace(Cuit)) { MostrarError("El CUIT del emisor es obligatorio."); return; }
-        try
-        {
-            await _repo.SaveAsync(_config);
-            MostrarExito("Configuración guardada.");
-        }
-        catch (Exception ex)
-        {
-            MostrarError($"No se pudo guardar: {ex.Message}");
-        }
+        var res = await _backup.VacuumAsync();
+        if (res.Success) MostrarExito("Base de datos compactada correctamente.");
+        else MostrarError(res.ErrorMessage ?? "No se pudo compactar la base de datos.");
+    }
+
+    private async Task OptimizarAsync()
+    {
+        var res = await _backup.OptimizarAsync();
+        if (res.Success) MostrarExito("Estadísticas del optimizador actualizadas.");
+        else MostrarError(res.ErrorMessage ?? "No se pudo optimizar la base de datos.");
     }
 }

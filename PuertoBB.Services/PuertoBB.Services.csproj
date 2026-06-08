@@ -7,16 +7,21 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PuertoBB.Core\PuertoBB.Core.csproj" />
+    <ProjectReference Include="..\Afip.Net\Afip.Net.csproj" />
+    <ProjectReference Include="..\Afip.Net.Mock\Afip.Net.Mock.csproj" />
+    <ProjectReference Include="..\Afip.Documentos\Afip.Documentos.csproj" />
+  </ItemGroup>
+  <!-- Logo del Centro Marítimo embebido para los PDFs (voucher/comprobante) -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\CMBB_Logo.png" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="QuestPDF" Version="2026.5.0" />
+    <PackageReference Include="PdfSharp" Version="6.2.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
-  </ItemGroup>
-  <!-- Clientes SOAP de AFIP (WSAA/WSFE) generados con dotnet-svcutil -->
-  <ItemGroup>
-    <PackageReference Include="System.ServiceModel.Http" Version="4.10.*" />
-    <PackageReference Include="System.ServiceModel.Primitives" Version="4.10.*" />
+    <!-- DPAPI para proteger en reposo la contraseña del certificado (Windows) -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
   </ItemGroup>
 </Project>

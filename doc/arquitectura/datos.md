@@ -118,8 +118,10 @@ public class Configuracion : BaseEntity
     public string Cuit         { get; set; } = string.Empty;
     public int    PuntoDeVenta { get; set; }
 
-    // Tipos AFIP (configurables; default = Exento IVA)
-    public int CodigoAfipRecibo          { get; set; } = 11; // Recibo C
+    // Tipos AFIP (configurables; default = clase C / Exento IVA).
+    // En la UI se elige el comprobante por su clase (Recibo/Factura A·B·C); la Nota de
+    // Crédito se deriva de la clase (ver Core/Afip/CatalogoComprobantesAfip).
+    public int CodigoAfipRecibo          { get; set; } = 15; // Recibo C
     public int CodigoAfipNotaDeCredito   { get; set; } = 13; // Nota de Crédito C
 
     // Certificado AFIP/WSAA
@@ -309,8 +311,8 @@ public class Configuracion : BaseEntity
     public string Cuit         { get; set; } = string.Empty;
     public int    PuntoDeVenta { get; set; }
 
-    // Tipos AFIP (configurables; default = Exento IVA)
-    public int CodigoAfipRecibo        { get; set; } = 11;
+    // Tipos AFIP (configurables; default = clase C / Exento IVA). NC derivada de la clase.
+    public int CodigoAfipRecibo        { get; set; } = 15;
     public int CodigoAfipNotaDeCredito { get; set; } = 13;
 
     // Certificado AFIP/WSAA
@@ -346,6 +348,8 @@ public enum ReciboEstado    { Emitido, Enviado, Pagado, Anulado }
 
 public enum TipoComprobante { Recibo, NotaDeCredito }
 // Los códigos AFIP numéricos van en Configuracion.CodigoAfipRecibo / CodigoAfipNotaDeCredito
+// La tabla oficial (FEParamGetTiposCbte) vive en Core/Afip/CatalogoComprobantesAfip:
+//   Recibo  A=4  B=9  C=15   Factura A=1 B=6 C=11   Nota de Crédito A=3 B=8 C=13
 ```
 
 ---

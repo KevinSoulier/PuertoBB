@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using PuertoBB.Core.Exceptions;
-using PuertoBB.Services.Afip;
 using PuertoBB.Tests.TestSupport;
 using Xunit;
 using Cp = PuertoBB.Core.Entities.CamaraPortuaria;
@@ -9,31 +8,6 @@ using CpRepos = PuertoBB.Infrastructure.Repositories.CamaraPortuaria;
 using CmRepos = PuertoBB.Infrastructure.Repositories.CentroMaritimo;
 
 namespace PuertoBB.Tests;
-
-public class FakeAfipServiceTests
-{
-    [Fact]
-    public async Task ObtenerCAE_NumeraSecuencialmentePorPuntoYTipo()
-    {
-        var afip = new FakeAfipService(NullLogger<FakeAfipService>.Instance);
-        var req = new Core.Models.Afip.ComprobanteAfipRequest
-        {
-            TipoComprobante = Core.Enums.TipoComprobante.Recibo,
-            CodigoAfip = 11, PuntoDeVenta = 1, CuitReceptor = "30711234561",
-            ImporteTotal = 1000, FechaEmision = DateTime.Today,
-            PeriodoServicioDesde = 20260601, PeriodoServicioHasta = 20260630,
-            FechaVencimientoPago = DateTime.Today.AddDays(30)
-        };
-
-        var r1 = await afip.ObtenerCAEAsync(req);
-        var r2 = await afip.ObtenerCAEAsync(req);
-
-        Assert.True(r1.Success);
-        Assert.Equal(1, r1.Data!.NumeroComprobante);
-        Assert.Equal(2, r2.Data!.NumeroComprobante);
-        Assert.False(string.IsNullOrWhiteSpace(r1.Data.Cae));
-    }
-}
 
 public class CamaraRepositorioTests
 {

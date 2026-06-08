@@ -22,7 +22,7 @@ public partial class ConfiguracionPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        CertPasswordBox.Password = _vm.AfipCertificadoPassword ?? string.Empty;
+        CertPasswordBox.Password = _vm.EdCertificadoPassword ?? string.Empty;
         SmtpPasswordBox.Password = _vm.SmtpPassword ?? string.Empty;
         ThemeSelector.SelectedIndex = PreferenciasUsuario.GetTema() switch
         {
@@ -30,11 +30,28 @@ public partial class ConfiguracionPage : Page
             "Dark"  => 1,
             _        => 2
         };
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
         _cargando = false;
     }
 
+    // PasswordBox no soporta binding: sincroniza desde VM → UI cuando cambia EdCertificadoPassword
+    // (al cargar un punto en edición, revertir con Cancelar) o SmtpPassword (al revertir Correo).
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(_vm.EdCertificadoPassword))
+        {
+            var actual = _vm.EdCertificadoPassword ?? string.Empty;
+            if (CertPasswordBox.Password != actual) CertPasswordBox.Password = actual;
+        }
+        else if (e.PropertyName == nameof(_vm.SmtpPassword))
+        {
+            var actual = _vm.SmtpPassword ?? string.Empty;
+            if (SmtpPasswordBox.Password != actual) SmtpPasswordBox.Password = actual;
+        }
+    }
+
     private void CertPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-        => _vm.AfipCertificadoPassword = CertPasswordBox.Password;
+        => _vm.EdCertificadoPassword = CertPasswordBox.Password;
 
     private void SmtpPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         => _vm.SmtpPassword = SmtpPasswordBox.Password;
@@ -52,7 +69,7 @@ public partial class ConfiguracionPage : Page
         var window = Window.GetWindow(this);
         if (persist == "System")
         {
-            // Seguir el tema y el acento del SO en vivo.
+            ApplicationThemeManager.ApplySystemTheme();
             SystemThemeWatcher.Watch(window, WindowBackdropType.Mica);
         }
         else

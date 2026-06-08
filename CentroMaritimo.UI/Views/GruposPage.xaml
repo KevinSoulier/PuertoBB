@@ -12,13 +12,6 @@
 
         <TextBlock Grid.Row="0" Text="Grupos de facturación" Style="{StaticResource PageTitle}" />
 
-        <Border Grid.Row="1" Margin="0,0,0,12" Padding="12,8"
-                CornerRadius="{StaticResource ControlCornerRadius}"
-                Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
-                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-        </Border>
-
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="260" />
@@ -66,12 +59,18 @@
                     </ListBox>
 
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                Style="{StaticResource SecondaryButton}" />
-                        <Button Content="Guardar" Command="{Binding GuardarCommand}"
-                                Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
-                        <Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
+                                   Style="{StaticResource AccionIconButton}">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="Guardar" Command="{Binding GuardarCommand}"
+                                   Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
+                                   Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                        </ui:Button>
                     </StackPanel>
                 </Grid>
             </Border>

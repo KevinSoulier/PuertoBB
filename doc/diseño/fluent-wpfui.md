@@ -200,5 +200,84 @@ Se mantiene el sistema por overlay (`Dialogs/ConfirmDialog|AlertDialog|InputDial
 - `*/App.xaml.cs` — `AddNavigationViewPageProvider`, `INavigationService` de WPF-UI, `ApplicationThemeManager`, acento de marca.
 - `*/MainWindow.xaml(.cs)` — `FluentWindow` + `TitleBar` + `NavigationView`; `SetNavigationControl`, `SystemThemeWatcher`.
 - `*/ViewModels/MainWindowViewModel.cs` — items `NavigationViewItem` + `SymbolIcon`.
-- `*/Resources/Styles.xaml` — `AccentButtonStyle` propio.
+- `*/Resources/Styles.xaml` — `AccentButtonStyle` propio + estilo `ui:Snackbar` con `ContentTemplate`.
+- `*/Services/SnackbarHost.cs` — acceso global al `ISnackbarService`.
 - `*/Views/ConfiguracionPage.xaml.cs` — cambio de tema con `ApplicationThemeManager`/`SystemThemeWatcher`.
+
+## 10. Snackbar (toasts efímeros)
+
+Los mensajes de éxito/error se muestran como toasts Fluent vía `ui:Snackbar` de WPF-UI.
+
+### Setup en MainWindow
+
+```xml
+<!-- MainWindow.xaml — dentro del Grid principal, Grid.Row="1" -->
+<ui:SnackbarPresenter x:Name="RootSnackbar"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                      MaxWidth="580" Margin="0,0,24,24" Panel.ZIndex="500" />
+```
+
+```csharp
+// MainWindow.xaml.cs
+snackbarService.SetSnackbarPresenter(RootSnackbar);
+SnackbarHost.Service = snackbarService;
+```
+
+### `SnackbarHost` — acceso global sin inyección
+
+`*/Services/SnackbarHost.cs` (igual en ambas apps) expone dos métodos estáticos:
+
+```csharp
+SnackbarHost.Exito("Grupo creado.");          // verde, 4 s
+SnackbarHost.Error("Campo obligatorio.");     // rojo, 6 s
+```
+
+Los ViewModels los consumen vía `PageViewModel`:
+
+```csharp
+// PageViewModel.cs — base para todas las páginas
+protected void MostrarExito(string mensaje) => SnackbarHost.Exito(mensaje);
+protected void MostrarError(string mensaje) => SnackbarHost.Error(mensaje);
+```
+
+### Quirk del template de WPF-UI — centrado vertical
+
+El `ControlTemplate` interno de `ui:Snackbar` usa un Grid de **2 filas** en la columna de texto:
+
+- **Row 0** (`Height="Auto"`): `TitleContentPresenter` — muestra `{TemplateBinding Title}`
+- **Row 1** (`Height="*"`): `ContentPresenter` — muestra `{TemplateBinding Content}` (el mensaje)
+
+Un `ContentPresenter` con `Content=""` (string vacío) renderiza un `TextBlock` vacío que ocupa ~21 px (altura de línea a 16 pt). Eso empujaba el mensaje hacia abajo.
+
+**Solución aplicada (dos piezas):**
+
+1. `SnackbarHost` pasa `null` como título (`title!` para silenciar el warning de nullable) → Row 0 colapsa a 0 px.
+2. El estilo en `Styles.xaml` define un `ContentTemplate` con `VerticalAlignment="Center"` → el texto queda centrado en el área disponible.
+
+```xaml
+<!-- Resources/Styles.xaml -->
+<Style TargetType="{x:Type ui:Snackbar}" BasedOn="{StaticResource {x:Type ui:Snackbar}}">
+    <Setter Property="MinWidth" Value="440" />
+    <Setter Property="ContentTemplate">
+        <Setter.Value>
+            <DataTemplate>
+                <TextBlock Text="{Binding}" VerticalAlignment="Center" TextWrapping="WrapWithOverflow" />
+            </DataTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
+```
+
+> ⚠️ El `Border` interno del template tiene `Padding="12"` **hardcodeado** (no usa `{TemplateBinding Padding}`).
+> Cualquier setter `Padding` en el estilo propio es ignorado silenciosamente.
+
+### Parámetros vigentes
+
+| Parámetro | Valor |
+|---|---|
+| `MinWidth` del snackbar | 440 px |
+| `MaxWidth` del `SnackbarPresenter` | 580 px |
+| Tamaño del ícono (`FontSize`) | 26 |
+| `VerticalAlignment` del ícono | `Center` |
+| Timeout éxito | 4 s |
+| Timeout error | 6 s |

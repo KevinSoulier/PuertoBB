@@ -182,7 +182,7 @@ El texto sobre el smoke overlay puede ser `Foreground="White"` porque `SmokeFill
 ## Estados de carga y mensajes de resultado
 
 - Overlays `ProgressBar` durante operaciones asíncronas (`IsBusy`)
-- Mensajes de error/éxito en **status bar superior de la vista** (no en dialogs)
+- Mensajes de error/éxito vía **Snackbar toast** (`MostrarError` / `MostrarExito` en `PageViewModel`) — no en dialogs ni en status bars estáticas
 - Confirmaciones destructivas (eliminar, anular) **siempre en dialog modal** via `IDialogService`
 
 ---

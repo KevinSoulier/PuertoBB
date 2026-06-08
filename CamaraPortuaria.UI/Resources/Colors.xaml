@@ -8,10 +8,19 @@
     <SolidColorBrush x:Key="AccentLightBrush" Color="{StaticResource AccentLightColor}" />
 
     <!-- Estados de recibo (colores de dominio, el tema no los provee) -->
+    <SolidColorBrush x:Key="EstadoPendienteBrush">#FFF3E0</SolidColorBrush>
     <SolidColorBrush x:Key="EstadoEmitidoBrush">#E3F2FD</SolidColorBrush>
-    <SolidColorBrush x:Key="EstadoEnviadoBrush">#FFF9C4</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoEnviadoBrush">#E0F7FA</SolidColorBrush>
     <SolidColorBrush x:Key="EstadoPagadoBrush">#E8F5E9</SolidColorBrush>
     <SolidColorBrush x:Key="EstadoVencidoBrush">#FFEBEE</SolidColorBrush>
     <SolidColorBrush x:Key="EstadoAnuladoBrush">#F5F5F5</SolidColorBrush>
+
+    <!-- Foregrounds para pills de estado -->
+    <SolidColorBrush x:Key="EstadoPendienteFgBrush">#E65100</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoEmitidoFgBrush">#1565C0</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoEnviadoFgBrush">#006064</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoPagadoFgBrush">#2E7D32</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoVencidoFgBrush">#C62828</SolidColorBrush>
+    <SolidColorBrush x:Key="EstadoAnuladoFgBrush">#616161</SolidColorBrush>
 
 </ResourceDictionary>

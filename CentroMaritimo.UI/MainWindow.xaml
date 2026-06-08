@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-        Title="Centro Marítimo" Height="720" Width="1180"
+        Title="Centro Marítimo" Height="820" Width="1320"
         WindowStartupLocation="CenterScreen"
         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         ExtendsContentIntoTitleBar="True"
@@ -47,6 +47,11 @@
                            IsBackButtonVisible="Collapsed"
                            MenuItemsSource="{Binding NavigationItems}"
                            FooterMenuItemsSource="{Binding NavigationFooter}" />
+
+        <!-- Toaster Fluent: notificaciones efímeras (bajo el overlay modal) -->
+        <ui:SnackbarPresenter x:Name="RootSnackbar" Grid.Row="1"
+                              HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                              MaxWidth="580" Margin="0,0,24,24" Panel.ZIndex="500" />
 
         <!-- Overlay de diálogos modales (sobre todo el contenido) -->
         <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Panel.ZIndex="999" Visibility="Collapsed">

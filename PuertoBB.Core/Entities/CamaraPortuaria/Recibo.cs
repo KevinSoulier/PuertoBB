@@ -30,6 +30,11 @@ public class Recibo : BaseEntity
 
     public ReciboEstado Estado { get; set; } = ReciboEstado.Emitido;
 
+    // Trazabilidad de emisión (para mostrar estado y permitir reintento idempotente).
+    public string?   UltimoErrorCae  { get; set; } // null = CAE OK; con texto = por qué quedó Pendiente
+    public string?   UltimoErrorMail { get; set; } // null = el mail no falló; con texto = por qué no se envió
+    public DateTime? FechaEnvioMail  { get; set; } // null = mail no enviado
+
     // Control de pagos
     public DateTime  FechaVencimientoPago { get; set; } // = FechaEmision + Configuracion.DiasVencimiento
     public DateTime? FechaPago            { get; set; } // null hasta marcar como pagado

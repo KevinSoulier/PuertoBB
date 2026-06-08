@@ -1,4 +1,8 @@
 <Solution>
+  <Project Path="Afip.Documentos.Tests/Afip.Documentos.Tests.csproj" />
+  <Project Path="Afip.Documentos/Afip.Documentos.csproj" />
+  <Project Path="Afip.Net/Afip.Net.csproj" />
+  <Project Path="Afip.Net.Mock/Afip.Net.Mock.csproj" />
   <Project Path="CamaraPortuaria.UI/CamaraPortuaria.UI.csproj" />
   <Project Path="CentroMaritimo.UI/CentroMaritimo.UI.csproj" />
   <Project Path="PuertoBB.Core/PuertoBB.Core.csproj" />

@@ -21,4 +21,20 @@ public interface ICentroMaritimoPdfService
     Task<byte[]> GenerarPdfConsolidadoAsync(CentroMaritimo.Recibo recibo, IEnumerable<CentroMaritimo.Voucher> vouchers, CancellationToken ct = default);
     Task<byte[]> GenerarPdfReciboAsync(CentroMaritimo.Recibo recibo, CancellationToken ct = default);
     Task<byte[]> GenerarPdfNotaDeCreditoAsync(CentroMaritimo.NotaDeCredito nc, CancellationToken ct = default);
+
+    /// <summary>
+    /// PDF único de descarga: si <paramref name="recibo"/> no es null, concatena PDF del recibo
+    /// (con CAE+QR) seguido de los PDFs individuales de cada voucher. Si es null, concatena solo
+    /// los PDFs de vouchers (vista previa antes de cerrar el período).
+    /// </summary>
+    Task<byte[]> GenerarPdfDescargaAsync(
+        IReadOnlyList<CentroMaritimo.Voucher> vouchers,
+        CentroMaritimo.Recibo? recibo,
+        CancellationToken ct = default);
+}
+
+/// <summary>Concatena múltiples PDFs en uno solo, preservando el orden.</summary>
+public interface IPdfMerger
+{
+    byte[] Merge(IEnumerable<byte[]> pdfs);
 }

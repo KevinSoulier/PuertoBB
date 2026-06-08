@@ -1,6 +1,6 @@
 # Integración AFIP/ARCA — WSAA + WSFE
 
-Investigación técnica para PuertoBB. Entidades exentas de IVA, emiten Recibo C (tipo 11) y Nota de Crédito C (tipo 13).
+Investigación técnica para PuertoBB. Entidades exentas de IVA, emiten Recibo C (tipo 15) y Nota de Crédito C (tipo 13).
 
 ---
 
@@ -133,7 +133,7 @@ El margen de 10 minutos antes del vencimiento evita race conditions en el límit
 |---|---|
 | `CantReg` | Cantidad de comprobantes en el request (1 para emisión individual) |
 | `PtoVta` | Punto de venta configurado para "Factura Electrónica - Exento en IVA - WS" |
-| `CbteTipo` | `11` (Recibo C) |
+| `CbteTipo` | `15` (Recibo C) |
 
 > El punto de venta debe estar habilitado en AFIP como **"Exento en IVA - Web Services"** (RG3749/2015).
 
@@ -270,42 +270,64 @@ PuertoBB.Infrastructure/
 
 ---
 
-## Estado de implementación (2026-06-05) — ✅ implementado
+## Estado de implementación (2026-06-06) — ✅ extraído a librería reutilizable `Afip.Net`
 
-Los clientes SOAP se generaron con `dotnet-svcutil` desde los WSDL de **homologación** y viven en
-`PuertoBB.Services` (no en Infrastructure — ver decisión D-13 en `doc/decisiones/registro-decisiones.md`).
+Todo el cliente AFIP se movió de `PuertoBB.Services/Afip/` a un **proyecto independiente y neutro
+`Afip.Net`** (namespace raíz `Afip`, sin dependencias de PuertoBB), reutilizable en otras soluciones.
+Ver decisión **D-14** en `doc/decisiones/registro-decisiones.md` y la guía de desarrollador en
+`Afip.Net/README.md`. Para el usuario final: `doc/usuario/afip-configuracion.md`.
 
 ```
-PuertoBB.Services/
-└── Afip/
-    ├── Soap/
-    │   ├── Generated/
-    │   │   ├── WsaaReference.cs   ← LoginCMSClient (autogenerado, no editar)
-    │   │   └── WsfeReference.cs   ← ServiceSoapClient (autogenerado, no editar)
-    │   ├── WsaaSoapClient.cs      ← IWsaaClient real
-    │   ├── WsfeSoapClient.cs      ← IWsfeClient real
-    │   └── WsfeMapper.cs          ← mapeo neutro ↔ contratos WSFE (testeado)
-    ├── Abstractions/IWsaaClient.cs, IWsfeClient.cs
-    ├── TraBuilder.cs              ← TRA + firma CMS PKCS#7
-    ├── WsaaTokenCache.cs          ← caché del ticket (12 hs)
-    ├── AfipService.cs             ← orquesta WSAA + WSFE (IAfipService)
-    └── FakeAfipService.cs         ← CAE simulado para dev/testing
+Afip.Net/                         ← librería neutra reutilizable (net10.0, namespace Afip)
+├── AfipOptions.cs                ← CUIT + cert (ruta/clave) + UsarHomologacion (por llamada)
+├── Wsaa/                         ← autenticación, COMPARTIDA por todos los web services
+│   ├── ITicketProvider / TicketProvider   ← TRA → firma → loginCms → cache (por servicio)
+│   ├── TraBuilder.cs             ← TRA + firma CMS PKCS#7 (uniqueId monótono)
+│   ├── TicketCache.cs            ← cache thread-safe keyed por (CUIT, servicio)
+│   ├── ITicketStore / InMemoryTicketStore / FileTicketStore (DPAPI, cifrado a disco)
+│   └── Soap/ (WsaaReference.cs, WsaaSoapClient.cs, IWsaaClient.cs)
+├── Wsfe/                         ← facturación electrónica (recibos)
+│   ├── IWsfeService / WsfeService          ← fachada de alto nivel (usa servicio "wsfe")
+│   ├── Models/ (AfipComprobanteRequest, AfipCaeResult, AfipComprobanteAsociado)
+│   └── Soap/ (WsfeReference.cs, WsfeSoapClient.cs, IWsfeClient.cs, WsfeMapper.cs)
+├── Wsrem/ (README.md)            ← punto de extensión documentado para Remito Electrónico (futuro)
+└── DependencyInjection.cs        ← AddAfip()
+
+PuertoBB.Services/Afip/           ← capa de dominio (sí depende de PuertoBB)
+├── AfipService.cs                ← ADAPTADOR IAfipService → Afip.Net (IWsfeService)
+├── AfipErrores.cs                ← traduce observaciones de AFIP a mensajes accionables
+└── FakeAfipService.cs            ← CAE simulado para dev/testing (modo demo)
 ```
 
-Paquetes: `System.ServiceModel.Http` + `System.ServiceModel.Primitives` (4.10.*).
+Mejoras de robustez incorporadas:
+- **Cache del TA keyed por (CUIT, servicio)** y **persistido cifrado a disco** (DPAPI) → sobrevive
+  reinicios y evita el rechazo de AFIP por logins frecuentes. Carpeta: `…/PuertoBB/<App>/afip-ticket-cache`.
+- **Contraseña del certificado cifrada en reposo** (DPAPI, `ISecretProtector` en `PuertoBB.Services/Security`).
+- **Importación del `.p12`** a `…/PuertoBB/<App>/Certificados` al seleccionarlo (mover el original no rompe la config).
+- **Botón "Probar conexión"** en Configuración: login WSAA + FEDummy + FECompUltimoAutorizado, sin emitir.
 
-**Regenerar el cliente (p. ej. para producción):**
+Paquetes de `Afip.Net`: `System.ServiceModel.Http` + `System.ServiceModel.Primitives` (4.10.*),
+`Microsoft.Extensions.DependencyInjection.Abstractions`, `System.Security.Cryptography.ProtectedData`,
+`System.Security.Cryptography.Pkcs` (override de la transitiva vulnerable).
+
+**Regenerar los clientes SOAP (p. ej. para producción):**
 ```bash
 dotnet tool install --global dotnet-svcutil   # una vez
-cd PuertoBB.Services
-dotnet-svcutil "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?wsdl" -n "*,PuertoBB.Services.Afip.Soap.Wsaa" -o Afip/Soap/Generated/WsaaReference.cs
-dotnet-svcutil "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"   -n "*,PuertoBB.Services.Afip.Soap.Wsfe" -o Afip/Soap/Generated/WsfeReference.cs
+cd Afip.Net
+dotnet-svcutil "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?wsdl" -n "*,Afip.Soap.Wsaa" -o Soap/Generated/WsaaReference.cs
+dotnet-svcutil "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"   -n "*,Afip.Soap.Wsfe" -o Soap/Generated/WsfeReference.cs
 ```
 
-**Activar AFIP real:** poner `App.ModoDemo = false` en cada `App.xaml.cs`. Eso registra
-`WsaaSoapClient`/`WsfeSoapClient` reales (vía `AddPuertoBBAfip(usarFake:false)`). Luego, en
-Configuración, cargar el certificado `.p12`, su contraseña, el CUIT emisor y el punto de venta
-habilitado como "Exento en IVA - Web Services".
+**Selector de modo AFIP:** cada `App.xaml.cs` define `public const AfipModo Afip = AfipModo.Mock` y el enum:
 
-> Falta solo la prueba end-to-end con certificado real (no disponible en la sesión de implementación).
-> El mapeo WSFE y la firma TRA están cubiertos por tests; las URLs homo/prod ya están parametrizadas.
+| Valor | Servicio registrado | Requiere cert | Llama a AFIP |
+|---|---|---|---|
+| `Mock` | `Afip.Net.Mock` (mapper/WsfeService/caché reales, clientes SOAP simulados) | No | No |
+| `Real` | `AfipService` → WSAA + WSFE | Sí | Sí |
+
+**Activar AFIP real:** cambiar `Afip = AfipModo.Real` en cada `App.xaml.cs`.
+Luego, en Configuración: cargar el `.p12`, su contraseña, el CUIT emisor y el punto de venta habilitado
+como "Exento en IVA - Web Services", elegir ambiente y usar **Probar conexión**.
+
+> Falta solo la prueba end-to-end con certificado real. El mapeo WSFE, la firma TRA, el cache por
+> servicio y la persistencia cifrada están cubiertos por tests; las URLs homo/prod están parametrizadas.

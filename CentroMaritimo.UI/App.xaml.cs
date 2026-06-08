@@ -1,17 +1,19 @@
 using System.IO;
 using System.Windows;
 using CentroMaritimo.UI.Data;
+using CentroMaritimo.UI.Logging;
 using CentroMaritimo.UI.Services;
 using CentroMaritimo.UI.ViewModels;
 using CentroMaritimo.UI.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Infrastructure;
 using PuertoBB.Infrastructure.Data;
 using PuertoBB.Services;
-using Serilog;
+using PuertoBB.Services.Security;
 using Wpf.Ui;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -19,12 +21,31 @@ using Wpf.Ui.DependencyInjection;
 
 namespace CentroMaritimo.UI;
 
+/// <summary>Modo de integración AFIP para esta app.</summary>
+public enum AfipModo
+{
+    /// <summary>Afip.Net.Mock — mapper/WsfeService/caché reales, sin red ni certificado.</summary>
+    Mock,
+    /// <summary>WSAA + WSFE reales. Requiere certificado .p12 configurado.</summary>
+    Real,
+}
+
 public partial class App : Application
 {
     private IHost _host = null!;
+    private ILogger<App>? _logger;
 
-    /// <summary>Modo desarrollo/demo: servicios falsos de AFIP/Mail y datos sembrados.</summary>
+    /// <summary>
+    /// Modo desarrollo/demo: usa servicio de Mail falso y siembra datos de ejemplo.
+    /// En producción poner en false.
+    /// </summary>
     public const bool ModoDemo = true;
+
+    /// <summary>
+    /// Modo de integración AFIP. Cambiar aquí para alternar entre Fake, Mock y Real.
+    /// Fake = sin red (default). Mock = stack Afip.Net completo sin red ni cert. Real = WSAA+WSFE reales.
+    /// </summary>
+    public const AfipModo Afip = AfipModo.Mock;
 
     private static string AppDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PuertoBB", "CentroMaritimo");
@@ -34,13 +55,19 @@ public partial class App : Application
         base.OnStartup(e);
 
         Directory.CreateDirectory(AppDataDir);
-        ConfigurarSerilog();
         ConfigurarManejadoresGlobales();
 
         _host = Host.CreateDefaultBuilder()
-            .UseSerilog()
+            .ConfigureLogging(logging =>
+            {
+                logging.ClearProviders();
+                logging.SetMinimumLevel(LogLevel.Debug);
+                logging.AddProvider(new FileLoggerProvider(Path.Combine(AppDataDir, "Logs")));
+            })
             .ConfigureServices(ConfigureServices)
             .Build();
+
+        _logger = _host.Services.GetRequiredService<ILogger<App>>();
 
         await InicializarBaseDeDatosAsync();
         RestaurarTema();
@@ -56,9 +83,15 @@ public partial class App : Application
         services.AddCentroMaritimoInfrastructure(dbPath);
         services.AddCentroMaritimoServices();
         services.AddPuertoBBPdf();
-        services.AddPuertoBBAfip(usarFake: ModoDemo);
+#pragma warning disable CS0162 // rama inalcanzable por diseño — cambiar la constante Afip para activar otro modo
+        if (Afip == AfipModo.Real)
+            services.AddPuertoBBAfip(ticketCacheDir: Path.Combine(AppDataDir, "afip-ticket-cache"));
+        else
+            services.AddPuertoBBAfipMock();
+#pragma warning restore CS0162
         services.AddPuertoBBMail(usarFake: ModoDemo);
 
+        services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddTransient<IAfipConfigProvider, AfipConfigProvider>();
         services.AddTransient<IMailConfigProvider, MailConfigProvider>();
         services.AddTransient<IBackupService, BackupService>();
@@ -67,6 +100,7 @@ public partial class App : Application
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<DialogService>();
         services.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
+        services.AddSingleton<ISnackbarService, SnackbarService>();
 
         services.AddSingleton<MainWindow>();
         services.AddSingleton<MainWindowViewModel>();
@@ -79,23 +113,9 @@ public partial class App : Application
         services.AddTransient<EmisionMasivaPage>();  services.AddTransient<EmisionMasivaViewModel>();
         services.AddTransient<AgenciasPage>();       services.AddTransient<AgenciasViewModel>();
         services.AddTransient<BarcosPage>();         services.AddTransient<BarcosViewModel>();
+        services.AddTransient<ConceptosReciboPage>(); services.AddTransient<ConceptosReciboViewModel>();
         services.AddTransient<GruposPage>();         services.AddTransient<GruposViewModel>();
         services.AddTransient<ConfiguracionPage>();  services.AddTransient<ConfiguracionViewModel>();
-    }
-
-    private void ConfigurarSerilog()
-    {
-        var logPath = Path.Combine(AppDataDir, "Logs", "app-.log");
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
-            .WriteTo.File(
-                path: logPath,
-                rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 30,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
-            .Enrich.FromLogContext()
-            .Enrich.WithMachineName()
-            .CreateLogger();
     }
 
     private async Task InicializarBaseDeDatosAsync()
@@ -121,20 +141,19 @@ public partial class App : Application
     {
         DispatcherUnhandledException += (s, e) =>
         {
-            Log.Fatal(e.Exception, "Excepción no manejada en hilo UI");
+            _logger?.LogCritical(e.Exception, "Excepción no manejada en hilo UI");
             MostrarErrorCritico(e.Exception.Message);
             e.Handled = true;
         };
 
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            Log.Fatal(e.ExceptionObject as Exception, "Excepción no manejada en hilo background");
-            Log.CloseAndFlush();
+            _logger?.LogCritical(e.ExceptionObject as Exception, "Excepción no manejada en hilo background");
         };
 
         TaskScheduler.UnobservedTaskException += (s, e) =>
         {
-            Log.Error(e.Exception, "Task exception no observada");
+            _logger?.LogError(e.Exception, "Task exception no observada");
             e.SetObserved();
         };
     }
@@ -156,7 +175,6 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
-        Log.CloseAndFlush();
         if (_host is not null) await _host.StopAsync();
         base.OnExit(e);
     }

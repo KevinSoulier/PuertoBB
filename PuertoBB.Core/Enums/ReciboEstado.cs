@@ -10,5 +10,12 @@ public enum ReciboEstado
     Emitido,
     Enviado,
     Pagado,
-    Anulado
+    Anulado,
+
+    /// <summary>
+    /// Recibo creado pero sin CAE todavía (la solicitud a AFIP falló o no se intentó).
+    /// Se persiste antes de pedir el CAE para que la emisión sea idempotente y reintentable.
+    /// Va al final del enum para no renumerar los valores ya guardados.
+    /// </summary>
+    Pendiente
 }

@@ -11,6 +11,9 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>True si ya existe un recibo para (empresa, grupo, período).</summary>
     Task<bool> ExisteAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default);
 
+    /// <summary>Recibo rastreado (con Empresa+Emails) para (empresa, grupo, período), o null. Para crear-o-resumir.</summary>
+    Task<Recibo?> GetPorClaveAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default);
+
     /// <summary>Recibos que matchean el filtro del dashboard (con Empresa/Grupo cargados).</summary>
     Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
 

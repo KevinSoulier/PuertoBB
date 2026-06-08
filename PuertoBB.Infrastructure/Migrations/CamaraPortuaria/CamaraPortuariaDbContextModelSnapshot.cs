@@ -17,19 +17,35 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ConceptoRecibo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AfipCertificadoPassword")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AfipCertificadoRuta")
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("AfipUsarHomologacion")
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("ConceptosRecibo");
+                });
+
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("CodigoAfipNotaDeCredito")
@@ -51,9 +67,6 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Property<string>("EmailRemitente")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("PuntoDeVenta")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("RazonSocial")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -65,6 +78,9 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .HasColumnType("TEXT");
 
                     b.Property<int>("SmtpPort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SmtpSeguridad")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SmtpUsuario")
@@ -81,15 +97,14 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         new
                         {
                             Id = 1,
-                            AfipUsarHomologacion = false,
                             CodigoAfipNotaDeCredito = 13,
                             CodigoAfipRecibo = 11,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 30,
-                            PuntoDeVenta = 1,
                             RazonSocial = "",
-                            SmtpPort = 587
+                            SmtpPort = 587,
+                            SmtpSeguridad = 0
                         });
                 });
 
@@ -131,6 +146,9 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 
                     b.Property<bool>("Activa")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("CondicionIva")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -272,6 +290,63 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.ToTable("NotasDeCredito");
                 });
 
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.PuntoDeVenta", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CertificadoKeyRuta")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CertificadoPassword")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CertificadoRuta")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ConfiguracionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("UsarHomologacion")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConfiguracionId");
+
+                    b.ToTable("PuntosDeVenta");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Activo = true,
+                            ConfiguracionId = 1,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Principal",
+                            Numero = 1,
+                            UsarHomologacion = false
+                        });
+                });
+
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", b =>
                 {
                     b.Property<int>("Id")
@@ -305,6 +380,9 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Property<DateTime>("FechaEmision")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("FechaEnvioMail")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("FechaPago")
                         .HasColumnType("TEXT");
 
@@ -335,6 +413,12 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Property<string>("TipoComprobante")
                         .IsRequired()
                         .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UltimoErrorCae")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UltimoErrorMail")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -391,6 +475,15 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Navigation("ReciboOriginal");
                 });
 
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.PuntoDeVenta", b =>
+                {
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", null)
+                        .WithMany("PuntosDeVenta")
+                        .HasForeignKey("ConfiguracionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", b =>
                 {
                     b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", "Empresa")
@@ -407,6 +500,11 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Navigation("Empresa");
 
                     b.Navigation("Grupo");
+                });
+
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
+                {
+                    b.Navigation("PuntosDeVenta");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", b =>

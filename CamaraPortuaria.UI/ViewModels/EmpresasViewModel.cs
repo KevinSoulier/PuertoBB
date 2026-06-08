@@ -34,6 +34,7 @@ public class EmpresasViewModel : PageViewModel
     public string RazonSocialEdit { get; set; } = string.Empty;
     public string CuitEdit { get; set; } = string.Empty;
     public string DomicilioEdit { get; set; } = string.Empty;
+    public string CondicionIvaEdit { get; set; } = string.Empty;
     public string EmailsEdit { get; set; } = string.Empty;
 
     public ICommand NuevoCommand { get; }
@@ -72,7 +73,7 @@ public class EmpresasViewModel : PageViewModel
     private void Nuevo()
     {
         _editId = 0;
-        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
+        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
         _seleccionada = null;
         NotificarEdicion();
         LimpiarStatus();
@@ -87,6 +88,7 @@ public class EmpresasViewModel : PageViewModel
         RazonSocialEdit = e.RazonSocial;
         CuitEdit = e.Cuit;
         DomicilioEdit = e.Domicilio ?? string.Empty;
+        CondicionIvaEdit = e.CondicionIva ?? string.Empty;
         EmailsEdit = string.Join(Environment.NewLine, e.Emails.Select(x => x.Email));
         NotificarEdicion();
     }
@@ -107,6 +109,7 @@ public class EmpresasViewModel : PageViewModel
                     RazonSocial = RazonSocialEdit.Trim(),
                     Cuit = CuitEdit.Trim(),
                     Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
+                    CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim(),
                     Activa = true,
                     Emails = emails.Select(em => new EmailEmpresa { Email = em }).ToList()
                 });
@@ -120,6 +123,7 @@ public class EmpresasViewModel : PageViewModel
                 existente.RazonSocial = RazonSocialEdit.Trim();
                 existente.Cuit = CuitEdit.Trim();
                 existente.Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim();
+                existente.CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim();
                 existente.Activa = true;
                 existente.Emails.Clear();
                 foreach (var em in emails) existente.Emails.Add(new EmailEmpresa { Email = em, EmpresaId = existente.Id });
@@ -162,6 +166,7 @@ public class EmpresasViewModel : PageViewModel
         OnPropertyChanged(nameof(RazonSocialEdit));
         OnPropertyChanged(nameof(CuitEdit));
         OnPropertyChanged(nameof(DomicilioEdit));
+        OnPropertyChanged(nameof(CondicionIvaEdit));
         OnPropertyChanged(nameof(EmailsEdit));
     }
 }

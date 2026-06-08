@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Windows.Input;
 using CentroMaritimo.UI.ViewModels.Base;
 using CentroMaritimo.UI.ViewModels.Items;
 using CentroMaritimo.UI.Views;
+using Microsoft.Win32;
 using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Services.Common;
 using Wpf.Ui;
 
 namespace CentroMaritimo.UI.ViewModels;
@@ -22,6 +25,7 @@ public class VouchersViewModel : PageViewModel
     private readonly IConfiguracionRepository _configRepo;
     private readonly IDialogService _dialog;
     private readonly INavigationService _nav;
+    private readonly ICentroMaritimoPdfService _pdf;
 
     // Listas fuentes (no filtradas)
     private List<Barco> _todosBarcos = [];
@@ -130,9 +134,9 @@ public class VouchersViewModel : PageViewModel
     public ICommand EliminarCommand { get; }
     public ICommand EditarCommand { get; }
     public ICommand CancelarEdicionCommand { get; }
-    public ICommand IncrementarAnioCommand { get; }
-    public ICommand DecrementarAnioCommand { get; }
     public ICommand IrAAgenciasCommand { get; }
+    public ICommand DescargarVoucherCommand { get; }
+    public ICommand PrevisualizarVoucherCommand { get; }
 
     public VouchersViewModel(
         IVoucherService service,
@@ -141,7 +145,8 @@ public class VouchersViewModel : PageViewModel
         IBarcoRepository barcosRepo,
         IConfiguracionRepository configRepo,
         IDialogService dialog,
-        INavigationService nav)
+        INavigationService nav,
+        ICentroMaritimoPdfService pdf)
     {
         _service = service;
         _repo = repo;
@@ -150,18 +155,60 @@ public class VouchersViewModel : PageViewModel
         _configRepo = configRepo;
         _dialog = dialog;
         _nav = nav;
+        _pdf = pdf;
 
         BuscarCommand = new AsyncRelayCommand(BuscarAsync);
         CrearCommand = new AsyncRelayCommand(CrearOActualizarAsync);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is { Consolidado: false });
         EditarCommand = new AsyncRelayCommand(CargarEdicionAsync, () => Seleccionado is { Consolidado: false });
         CancelarEdicionCommand = new RelayCommand(_ => CancelarEdicion());
-        IncrementarAnioCommand = new RelayCommand(_ => Anio++);
-        DecrementarAnioCommand = new RelayCommand(_ => { if (Anio > 2000) Anio--; });
         IrAAgenciasCommand = new RelayCommand(_ => _nav.Navigate(typeof(AgenciasPage)));
+        DescargarVoucherCommand    = new AsyncRelayCommand(DescargarVoucherAsync,    () => Seleccionado is not null);
+        PrevisualizarVoucherCommand = new AsyncRelayCommand(PrevisualizarVoucherAsync, () => Seleccionado is not null);
 
         _ = InicializarAsync();
     }
+
+    private async Task DescargarVoucherAsync()
+    {
+        if (Seleccionado is null) return;
+        var voucher = await _repo.GetByIdConDetalleAsync(Seleccionado.Id);
+        if (voucher is null) { MostrarError("El voucher no existe."); return; }
+
+        var nombre = NombreArchivoVoucher(voucher);
+        var dlg = new SaveFileDialog
+        {
+            Filter = "PDF (*.pdf)|*.pdf",
+            FileName = $"{nombre}.pdf"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var bytes = await _pdf.GenerarPdfVoucherAsync(voucher);
+            await File.WriteAllBytesAsync(dlg.FileName, bytes);
+            MostrarExito($"PDF generado: {Path.GetFileName(dlg.FileName)}");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo generar el PDF: {ex.Message}"); }
+    }
+
+    private async Task PrevisualizarVoucherAsync()
+    {
+        if (Seleccionado is null) return;
+        var voucher = await _repo.GetByIdConDetalleAsync(Seleccionado.Id);
+        if (voucher is null) { MostrarError("El voucher no existe."); return; }
+
+        try
+        {
+            var bytes = await _pdf.GenerarPdfVoucherAsync(voucher);
+            await _dialog.ShowPdfAsync(bytes, $"Voucher N° {voucher.Numero}", NombreArchivoVoucher(voucher));
+        }
+        catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
+    }
+
+    // Nombre de archivo consistente para descarga y guardado desde el visor: "Nro - Agencia - Barco".
+    private static string NombreArchivoVoucher(Voucher voucher)
+        => Formato.NombreArchivoSeguro($"{voucher.Numero} - {voucher.Agencia?.Nombre} - {voucher.Barco?.Nombre}");
 
     private async Task InicializarAsync()
     {
@@ -268,8 +315,19 @@ public class VouchersViewModel : PageViewModel
 
     private async Task ActualizarAsync()
     {
+        if (_agenciaSeleccionada is null && string.IsNullOrWhiteSpace(_agenciaTexto))
+        { MostrarError("Seleccione o escriba una agencia."); return; }
         if (string.IsNullOrWhiteSpace(_barcoTexto)) { MostrarError("El barco es obligatorio."); return; }
         if (ImporteNuevo <= 0) { MostrarError("El importe debe ser mayor a cero."); return; }
+
+        // Resolver agencia por texto si no quedó seleccionada en el combo
+        if (_agenciaSeleccionada is null)
+        {
+            var agenciaEncontrada = _todasAgencias.FirstOrDefault(a =>
+                a.Nombre.Equals(_agenciaTexto.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (agenciaEncontrada is null) { MostrarError("La agencia no existe. Creela en la sección Agencias."); return; }
+            _agenciaSeleccionada = agenciaEncontrada;
+        }
 
         var barcoId = _barcoSeleccionado?.Id ?? 0;
         if (barcoId == 0)
@@ -286,7 +344,7 @@ public class VouchersViewModel : PageViewModel
             BarcoId = barcoId,
             Importe = ImporteNuevo,
             Fecha = FechaNueva,
-            AgenciaId = _agenciaSeleccionada?.Id ?? 0
+            AgenciaId = _agenciaSeleccionada.Id
         };
         var res = await _service.ActualizarVoucherAsync(voucher);
         if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo actualizar."); return; }

@@ -46,5 +46,11 @@ public class FakeMailService : IMailService
         return ServiceResult<bool>.Ok(true);
     }
 
+    public Task<ServiceResult<string>> ProbarConexionAsync(CancellationToken ct = default)
+    {
+        _logger.LogInformation("[FAKE] Prueba de conexión SMTP simulada: OK");
+        return Task.FromResult(ServiceResult<string>.Ok("Conexión simulada correctamente (modo demo)."));
+    }
+
     public record EnvioSimulado(IReadOnlyList<string> Destinatarios, string Adjunto, string Asunto, int Bytes);
 }

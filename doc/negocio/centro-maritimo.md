@@ -43,11 +43,12 @@ Al igual que en Cámara Portuaria, las agencias se organizan en **Grupos de Fact
 
 ## Flujo de emisión masiva
 
-1. Laura selecciona período (mes/año)
-2. El sistema consolida los vouchers por agencia en un único recibo
-3. Bloqueo de duplicados por período
-4. Cada recibo obtiene CAE via AFIP/ARCA WSFE
-5. Se genera PDF y se envía por mail automáticamente
+Resumen: Laura selecciona período → se consolidan los vouchers por agencia → cada recibo
+obtiene CAE vía AFIP/ARCA WSFE → se arma un PDF único con el recibo + los vouchers
+concatenados → se envía por mail. Bloqueo de duplicados por período.
+
+Detalle completo del proceso, estados de la UI, mapeo del flag y plan de iteraciones en
+**[cierre-periodo.md](cierre-periodo.md)**.
 
 ## Notas de crédito
 

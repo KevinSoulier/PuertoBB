@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CentroMaritimo;
+using PuertoBB.Core.Enums;
 using PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models.Resultados;
 
 namespace PuertoBB.Services.Negocio;
 
@@ -63,6 +65,7 @@ public class VoucherService : IVoucherService
         if (existente is null) return ServiceResult<bool>.Fail("El voucher no existe.");
         if (existente.ReciboId is not null) return ServiceResult<bool>.Fail("El voucher ya fue consolidado y no puede editarse.");
 
+        if (voucher.AgenciaId > 0) existente.AgenciaId = voucher.AgenciaId;
         existente.BarcoId = voucher.BarcoId;
         existente.Importe = voucher.Importe;
         existente.Fecha = voucher.Fecha;
@@ -81,4 +84,59 @@ public class VoucherService : IVoucherService
         await _vouchers.DeleteAsync(voucherId, ct);
         return ServiceResult<bool>.Ok(true);
     }
+
+    public async Task<ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>> GetCierrePeriodoAsync(int anio, int mes, CancellationToken ct = default)
+    {
+        var todos = await _vouchers.GetTodosByPeriodoAsync(anio, mes, ct);
+
+        var agencias = todos
+            .GroupBy(v => v.AgenciaId)
+            .Select(g =>
+            {
+                var primero = g.First();
+                var nombre = primero.Agencia?.Nombre ?? $"#{g.Key}";
+
+                // Si todos comparten un mismo Recibo consolidado, ese es el recibo de la agencia.
+                var recibos = g.Where(v => v.Recibo is not null && v.Recibo.EsConsolidadoVouchers)
+                               .Select(v => v.Recibo!)
+                               .DistinctBy(r => r.Id)
+                               .ToList();
+                var reciboConsolidado = recibos.Count == 1 ? recibos[0] : null;
+
+                var estado = MapEstado(reciboConsolidado?.Estado);
+
+                var vouchers = g.OrderBy(v => v.Numero)
+                                .Select(v => new VoucherCierreVm(
+                                    v.Id, v.Numero,
+                                    v.Barco?.Nombre ?? $"#{v.BarcoId}",
+                                    v.Fecha, v.Importe))
+                                .ToList();
+
+                return new AgenciaCierrePeriodoVm
+                {
+                    AgenciaId = g.Key,
+                    AgenciaNombre = nombre,
+                    Vouchers = vouchers,
+                    Total = vouchers.Sum(v => v.Importe),
+                    Estado = estado,
+                    NumeroComprobante = reciboConsolidado?.NumeroComprobante,
+                    ReciboId = reciboConsolidado?.Id
+                };
+            })
+            .OrderBy(a => a.AgenciaNombre)
+            .ToList();
+
+        return ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>.Ok(agencias);
+    }
+
+    private static EstadoCierreAgencia MapEstado(ReciboEstado? estadoRecibo) => estadoRecibo switch
+    {
+        null                  => EstadoCierreAgencia.Pendiente,
+        ReciboEstado.Emitido  => EstadoCierreAgencia.Emitido,
+        ReciboEstado.Enviado  => EstadoCierreAgencia.Completo,
+        ReciboEstado.Pagado   => EstadoCierreAgencia.Completo,
+        // Anulado: se trata como Pendiente para permitir reemisión (TODO: chip "Anulado" en iter siguiente).
+        ReciboEstado.Anulado  => EstadoCierreAgencia.Pendiente,
+        _                     => EstadoCierreAgencia.Pendiente
+    };
 }
