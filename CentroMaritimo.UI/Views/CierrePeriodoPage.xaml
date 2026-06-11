@@ -16,11 +16,12 @@
         <!-- Barra de período + acciones globales -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
             <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox ItemsSource="{Binding Meses}" SelectedItem="{Binding Mes}" Width="70" />
+            <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
             <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
                           Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
             <ui:Button Content="Refrescar" Command="{Binding CargarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Recargar las agencias con vouchers pendientes del período">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Emitir recibos" Command="{Binding EmitirRecibosCommand}"
@@ -82,7 +83,7 @@
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}"
                                                ToolTip="Previsualizar PDF">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Eye24" /></ui:Button.Icon>
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Command="{Binding DataContext.DescargarPdfCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
@@ -125,7 +126,8 @@
                                           Background="Transparent"
                                           RowHeight="36"
                                           MinColumnWidth="60"
-                                          HorizontalScrollBarVisibility="Disabled">
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          SelectionMode="Single">
                                     <DataGrid.Resources>
                                         <Style x:Key="CeldaVoucher" TargetType="TextBlock">
                                             <Setter Property="Margin" Value="8,0" />

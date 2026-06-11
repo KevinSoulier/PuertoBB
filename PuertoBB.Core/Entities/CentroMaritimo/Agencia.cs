@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using PuertoBB.Core.Entities.Common;
 
 namespace PuertoBB.Core.Entities.CentroMaritimo;
@@ -10,9 +11,14 @@ public class Agencia : BaseEntity
     public string? Domicilio     { get; set; }
     public string? CondicionIva  { get; set; }  // ej. "IVA Responsable Inscripto", "Monotributista"
     public bool    Activa        { get; set; } = true;
+    public bool    EsMoroso      { get; set; } = false;
 
     public ICollection<EmailAgencia> Emails   { get; set; } = [];
     public ICollection<AgenciaGrupo> Grupos   { get; set; } = [];
     public ICollection<Voucher>      Vouchers { get; set; } = [];
     public ICollection<Recibo>       Recibos  { get; set; } = [];
+
+    /// <summary>Emails concatenados para mostrar en grillas (no se persiste).</summary>
+    [NotMapped]
+    public string EmailsTexto => string.Join("; ", Emails.Select(e => e.Email));
 }

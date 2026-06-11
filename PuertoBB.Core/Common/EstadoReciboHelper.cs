@@ -22,4 +22,12 @@ public static class EstadoReciboHelper
     /// <summary>Etiqueta de presentación: el estado persistido, salvo que esté visualmente vencido.</summary>
     public static string EtiquetaEstado(ReciboEstado estado, DateTime fechaVencimientoPago, DateTime hoy)
         => EstaVencido(estado, fechaVencimientoPago, hoy) ? "Vencido" : estado.ToString();
+
+    /// <summary>
+    /// Un recibo está "completo" (no hay nada que reintentar) cuando ya está Enviado/Pagado/Anulado,
+    /// o quedó Emitido con el mail OK. Compartido por los servicios de emisión de CP y CM.
+    /// </summary>
+    public static bool EsCompleto(ReciboEstado estado, string? ultimoErrorMail)
+        => estado is ReciboEstado.Enviado or ReciboEstado.Pagado or ReciboEstado.Anulado
+           || (estado == ReciboEstado.Emitido && ultimoErrorMail is null);
 }

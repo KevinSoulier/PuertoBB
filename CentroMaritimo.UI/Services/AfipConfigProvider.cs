@@ -31,7 +31,9 @@ public class AfipConfigProvider : IAfipConfigProvider
             CertificadoRuta = pv?.CertificadoRuta,
             CertificadoPassword = _protector.Unprotect(pv?.CertificadoPassword),
             CertificadoKeyRuta = pv?.CertificadoKeyRuta,
-            UsarHomologacion = pv?.UsarHomologacion ?? false
+            UsarHomologacion = pv?.UsarHomologacion ?? false,
+            IngresosBrutos = c.IngresosBrutos,
+            InicioActividades = c.InicioActividades
         };
     }
 }

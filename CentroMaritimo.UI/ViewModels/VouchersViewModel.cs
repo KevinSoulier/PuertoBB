@@ -250,7 +250,7 @@ public class VouchersViewModel : PageViewModel
         LimpiarStatus();
         try
         {
-            var res = await _service.GetPendientesAsync(_anio, _mes);
+            var res = await _service.GetDelPeriodoAsync(_anio, _mes);
             Vouchers.Clear();
             if (res.Success && res.Data is not null)
                 foreach (var v in res.Data) Vouchers.Add(new VoucherItem(v));

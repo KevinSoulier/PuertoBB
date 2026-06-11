@@ -8,61 +8,97 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="Emisión masiva por grupo" Style="{StaticResource PageTitle}" />
 
-        <!-- Controles de selección: mes por nombre, año con +/- -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBlock Text="Grupo:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox ItemsSource="{Binding Grupos}" SelectedItem="{Binding Grupo}" DisplayMemberPath="Nombre" Width="240" />
-            <TextBlock Text="Período:" VerticalAlignment="Center" Margin="16,0,8,0" />
-            <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
-            <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
-                          Style="{StaticResource YearNumberBox}" Margin="8,0,8,0" />
-            <ui:Button Content="Emitir" Command="{Binding EmitirCommand}"
-                       Style="{StaticResource AccionIconButton}" Appearance="Primary">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
-            </ui:Button>
-        </StackPanel>
-
-        <!-- Previa del estado antes de emitir (EMI-1) -->
-        <Border Grid.Row="3" Margin="0,0,0,12" Padding="12" CornerRadius="8"
-                Background="{DynamicResource LayerFillColorDefaultBrush}"
-                Visibility="{Binding HayPrevia, Converter={StaticResource BoolToVisibilityConverter}}">
-            <StackPanel>
-                <TextBlock Text="{Binding ResumenPrevia}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                <DataGrid ItemsSource="{Binding PreviaItems}" AutoGenerateColumns="False" IsReadOnly="True"
-                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                          CanUserAddRows="False" MaxHeight="200">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
-                        <DataGridTextColumn Header="Estado" Binding="{Binding Estado}" Width="120" />
-                    </DataGrid.Columns>
-                    <DataGrid.RowStyle>
-                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding YaEmitido}" Value="True">
-                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.RowStyle>
-                </DataGrid>
+        <!-- Selección de grupo/período + acciones masivas: Emitir, Enviar, Emitir y enviar -->
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
+            <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                <TextBlock Text="Grupo:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox ItemsSource="{Binding Grupos}" SelectedItem="{Binding Grupo}" DisplayMemberPath="Nombre" Width="240" />
+                <TextBlock Text="Período:" VerticalAlignment="Center" Margin="16,0,8,0" />
+                <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
+                <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
             </StackPanel>
-        </Border>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <ui:Button Content="Emitir" Command="{Binding EmitirTodosCommand}"
+                           Style="{StaticResource AccionIconButton}"
+                           ToolTip="Emitir (obtener CAE) los recibos pendientes del grupo, sin enviar mail">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
+                </ui:Button>
+                <ui:Button Content="Enviar" Command="{Binding EnviarTodosCommand}"
+                           Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                           ToolTip="Enviar por mail los recibos ya emitidos que aún no se enviaron">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
+                </ui:Button>
+                <ui:Button Content="Emitir y enviar" Command="{Binding EmitirYEnviarTodosCommand}"
+                           Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0"
+                           ToolTip="Emitir y enviar por mail en un solo paso">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
+                </ui:Button>
+            </StackPanel>
+        </WrapPanel>
 
-        <Grid Grid.Row="4">
-            <DataGrid ItemsSource="{Binding Resultados}" AutoGenerateColumns="False" IsReadOnly="True"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+        <TextBlock Grid.Row="2" Text="{Binding Resumen}" FontWeight="SemiBold" Margin="0,0,0,8"
+                   Visibility="{Binding HayItems, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+        <Grid Grid.Row="3">
+            <DataGrid ItemsSource="{Binding Items}" SelectedItem="{Binding Seleccionado}"
+                      AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal" CanUserAddRows="False" SelectionMode="Single">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Agencia" Binding="{Binding EntidadNombre}" Width="*" />
-                    <DataGridTextColumn Header="Nro." Binding="{Binding NumeroComprobante}" Width="100" />
-                    <DataGridCheckBoxColumn Header="Éxito" Binding="{Binding Exito}" Width="70" />
-                    <DataGridTextColumn Header="Error emisión" Binding="{Binding ErrorEmision}" Width="*" />
-                    <DataGridTextColumn Header="Error mail" Binding="{Binding ErrorMail}" Width="*" />
+                    <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
+                    <DataGridTextColumn Header="Comprobante" Binding="{Binding Comprobante}" Width="120" />
+                    <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="110" />
+                    <DataGridTemplateColumn Header="Estado" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Estado, Converter={StaticResource EstadoReciboToBrushConverter}}"
+                                        CornerRadius="10" Padding="10,3" HorizontalAlignment="Left" Margin="4,0">
+                                    <TextBlock Text="{Binding Estado}"
+                                               FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{Binding Estado, Converter={StaticResource EstadoReciboToFgBrushConverter}}" />
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Estado envío" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding EstadoEnvio}" ToolTip="{Binding Error}"
+                                           VerticalAlignment="Center" Margin="4,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Acciones" Width="150" CanUserResize="False" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
+                                    <ui:Button IsEnabled="{Binding EsEmitible}"
+                                               Style="{StaticResource AccionIconButtonCompact}"
+                                               Click="Emitir_Click"
+                                               ToolTip="Emitir / reintentar (obtener CAE)">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button IsEnabled="{Binding EsEnviable}"
+                                               Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
+                                               Click="Enviar_Click"
+                                               ToolTip="Enviar por correo">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button IsEnabled="{Binding EsPrevisualizable}"
+                                               Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
+                                               Click="Previsualizar_Click"
+                                               ToolTip="Abrir PDF">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -70,7 +106,7 @@
                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                     <ProgressBar IsIndeterminate="True" Width="220" Height="6" />
-                    <TextBlock Text="Emitiendo recibos…" Foreground="White"
+                    <TextBlock Text="Procesando…" Foreground="White"
                                HorizontalAlignment="Center" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>

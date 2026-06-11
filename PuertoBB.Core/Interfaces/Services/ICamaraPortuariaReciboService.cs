@@ -1,5 +1,6 @@
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CamaraPortuaria;
+using PuertoBB.Core.Models;
 using PuertoBB.Core.Models.Resultados;
 
 namespace PuertoBB.Core.Interfaces.Services;
@@ -10,15 +11,31 @@ public interface ICamaraPortuariaReciboService
     /// <summary>Empresas del grupo que YA tienen recibo en el período (para advertir antes de emitir).</summary>
     Task<ServiceResult<IReadOnlyList<string>>> GetDuplicadosAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
 
-    /// <summary>Emite un recibo por cada empresa del grupo en el período.</summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
+    /// <summary>
+    /// Estado de cada empresa del grupo en el período (alimenta la tabla de emisión masiva):
+    /// el recibo es null si la empresa aún no fue emitida.
+    /// </summary>
+    Task<ServiceResult<IReadOnlyList<EstadoEmisionEntidad<Recibo>>>> GetEstadoMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
+
+    /// <summary>
+    /// Emite un recibo por cada empresa pendiente del grupo en el período. Si <paramref name="enviarMail"/>
+    /// es false solo obtiene el CAE ("Emitir"); si es true además envía el mail ("Emitir y enviar").
+    /// </summary>
+    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, CancellationToken ct = default);
+
+    /// <summary>Envía por mail los recibos del grupo que ya tienen CAE y aún no fueron enviados ("Enviar").</summary>
+    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EnviarMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
+
+    /// <summary>Emite/continúa el recibo de UNA empresa del grupo en el período (acción por fila).</summary>
+    Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirDeGrupoAsync(int grupoId, int empresaId, int anio, int mes, bool enviarMail, CancellationToken ct = default);
 
     /// <summary>
     /// Emite un recibo individual a una empresa (fuera del ciclo masivo).
     /// Persiste el recibo antes de pedir el CAE (idempotente). Si <paramref name="enviarMail"/>
     /// es false solo genera el CAE; el mail se manda luego con <see cref="ReintentarAsync"/>.
+    /// Si <paramref name="lineas"/> trae ítems, el recibo es multi-ítem (total = suma) y <paramref name="importe"/>/<paramref name="detalle"/> se ignoran.
     /// </summary>
-    Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirIndividualAsync(int empresaId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, bool enviarMail, CancellationToken ct = default);
+    Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirIndividualAsync(int empresaId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, bool enviarMail, IReadOnlyList<ReciboLineaInput>? lineas = null, CancellationToken ct = default);
 
     /// <summary>
     /// Reintenta/continúa la emisión de un recibo existente de forma idempotente: pide el CAE solo si

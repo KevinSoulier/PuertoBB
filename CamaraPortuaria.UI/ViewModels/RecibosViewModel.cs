@@ -1,10 +1,13 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Input;
 using CamaraPortuaria.UI.ViewModels.Base;
 using CamaraPortuaria.UI.ViewModels.Items;
 using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models;
+using PuertoBB.Services.Common;
 
 namespace CamaraPortuaria.UI.ViewModels;
 
@@ -19,68 +22,42 @@ public class RecibosViewModel : PageViewModel
 
     private List<ConceptoRecibo> _todosConceptos = [];
 
-    public ObservableCollection<ReciboItem> Recibos { get; } = [];
+    private static readonly CultureInfo _es = new("es-AR");
+
+    public ObservableCollection<ReciboItem> Recibos { get; private set; } = [];
     public ObservableCollection<Empresa> Empresas { get; } = [];
-    public ObservableCollection<ConceptoRecibo> DetallesFiltrados { get; } = [];
-    public IReadOnlyList<int> Meses { get; } = Enumerable.Range(1, 12).ToList();
+    public IReadOnlyList<string> MesesNombres { get; } =
+        Enumerable.Range(1, 12)
+            .Select(m => _es.DateTimeFormat.GetMonthName(m))
+            .Select(n => char.ToUpper(n[0]) + n[1..])
+            .ToList();
 
     private int _anio = DateTime.Today.Year;
-    public int Anio { get => _anio; set => SetField(ref _anio, value); }
+    public int Anio { get => _anio; set { if (SetField(ref _anio, value)) _ = BuscarAsync(); } }
+
+    private int _mesIndex = DateTime.Today.Month - 1;
+    public int MesIndex
+    {
+        get => _mesIndex;
+        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; _ = BuscarAsync(); } }
+    }
 
     private int _mes = DateTime.Today.Month;
-    public int Mes { get => _mes; set => SetField(ref _mes, value); }
+
+    private List<ReciboItem> _todosRecibos = [];
+
+    private string _textoBusqueda = string.Empty;
+    public string TextoBusqueda
+    {
+        get => _textoBusqueda;
+        set { if (SetField(ref _textoBusqueda, value)) AplicarFiltro(); }
+    }
 
     private ReciboItem? _seleccionado;
     public ReciboItem? Seleccionado { get => _seleccionado; set => SetField(ref _seleccionado, value); }
 
-    // Emisión individual
-    private Empresa? _empresaEmision;
-    public Empresa? EmpresaEmision { get => _empresaEmision; set => SetField(ref _empresaEmision, value); }
-
-    private int _anioEmision = DateTime.Today.Year;
-    public int AnioEmision { get => _anioEmision; set => SetField(ref _anioEmision, value); }
-
-    private int _mesEmision = DateTime.Today.Month;
-    public int MesEmision { get => _mesEmision; set => SetField(ref _mesEmision, value); }
-
-    private DateTime _fechaEmision = DateTime.Today;
-    public DateTime FechaEmision { get => _fechaEmision; set => SetField(ref _fechaEmision, value); }
-
-    private decimal _importeEmision;
-    public decimal ImporteEmision { get => _importeEmision; set => SetField(ref _importeEmision, value); }
-
-    // Autocomplete de detalle (concepto reutilizable, estilo "Barco" en Vouchers)
-    private string _detalleTexto = string.Empty;
-    public string DetalleTexto
-    {
-        get => _detalleTexto;
-        set
-        {
-            if (SetField(ref _detalleTexto, value))
-            {
-                if (_detalleSeleccionado?.Nombre != value) _detalleSeleccionado = null;
-                FiltrarDetalles();
-            }
-        }
-    }
-
-    private ConceptoRecibo? _detalleSeleccionado;
-    public ConceptoRecibo? DetalleSeleccionado
-    {
-        get => _detalleSeleccionado;
-        set
-        {
-            if (SetField(ref _detalleSeleccionado, value) && value is not null)
-            {
-                _detalleTexto = value.Nombre;
-                OnPropertyChanged(nameof(DetalleTexto));
-            }
-        }
-    }
-
     public ICommand BuscarCommand { get; }
-    public ICommand EmitirCommand { get; }
-    public ICommand EmitirYEnviarCommand { get; }
+    public ICommand AbrirEmisionIndividualCommand { get; }
     public ICommand ReintentarCommand { get; }
     public ICommand AnularCommand { get; }
     public ICommand ReenviarCommand { get; }
@@ -103,10 +80,9 @@ public class RecibosViewModel : PageViewModel
         _pdf = pdf;
 
         BuscarCommand = new AsyncRelayCommand(BuscarAsync);
-        EmitirCommand = new AsyncRelayCommand(() => EmitirAsync(enviarMail: false));
-        EmitirYEnviarCommand = new AsyncRelayCommand(() => EmitirAsync(enviarMail: true));
+        AbrirEmisionIndividualCommand = new AsyncRelayCommand(AbrirEmisionIndividualAsync);
         ReintentarCommand = new AsyncRelayCommand(ReintentarAsync, () => Seleccionado?.EsReintentable == true);
-        AnularCommand = new AsyncRelayCommand(AnularAsync, () => Seleccionado is { } s && s.Estado != "Anulado");
+        AnularCommand = new AsyncRelayCommand(AnularAsync, () => Seleccionado?.EsAnulable == true);
         ReenviarCommand = new AsyncRelayCommand(ReenviarAsync, () => Seleccionado?.EsReenviable == true);
         MarcarPagadoCommand = new AsyncRelayCommand(MarcarPagadoAsync, () => Seleccionado?.EsPagable == true);
         PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarAsync, () => Seleccionado is not null);
@@ -125,17 +101,6 @@ public class RecibosViewModel : PageViewModel
     private async Task RecargarConceptosAsync()
     {
         _todosConceptos = (await _conceptosRepo.GetAllAsync()).OrderBy(c => c.Nombre).ToList();
-        FiltrarDetalles();
-    }
-
-    private void FiltrarDetalles()
-    {
-        DetallesFiltrados.Clear();
-        var texto = _detalleTexto.Trim();
-        var lista = string.IsNullOrEmpty(texto)
-            ? _todosConceptos
-            : _todosConceptos.Where(c => c.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase));
-        foreach (var c in lista) DetallesFiltrados.Add(c);
     }
 
     private async Task BuscarAsync()
@@ -144,51 +109,64 @@ public class RecibosViewModel : PageViewModel
         LimpiarStatus();
         try
         {
-            var lista = await _recibosRepo.GetPorPeriodoAsync(Anio, Mes);
-            Recibos.Clear();
-            foreach (var r in lista) Recibos.Add(new ReciboItem(r));
+            _todosRecibos = (await _recibosRepo.GetPorPeriodoAsync(Anio, _mes))
+                .Select(r => new ReciboItem(r))
+                .ToList();
+            AplicarFiltro();
         }
         finally { IsBusy = false; }
     }
 
-    private async Task EmitirAsync(bool enviarMail)
+    private void AplicarFiltro()
     {
-        if (EmpresaEmision is null) { MostrarError("Seleccione una empresa."); return; }
-        if (ImporteEmision <= 0) { MostrarError("El importe debe ser mayor a cero."); return; }
-        var detalle = DetalleTexto.Trim();
-        if (string.IsNullOrWhiteSpace(detalle)) { MostrarError("Ingrese un detalle."); return; }
-        if (FechaEmision.Date > DateTime.Today) { MostrarError("La fecha de emisión no puede ser futura."); return; }
+        var texto = _textoBusqueda.Trim();
+        var lista = string.IsNullOrEmpty(texto)
+            ? _todosRecibos
+            : _todosRecibos.Where(r =>
+                r.Empresa.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.Comprobante.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.Periodo.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.Importe.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.Estado.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.EstadoEnvio.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.FechaEmision.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                (r.Error ?? "").Contains(texto, StringComparison.OrdinalIgnoreCase));
+        Recibos = new ObservableCollection<ReciboItem>(lista);
+        OnPropertyChanged(nameof(Recibos));
+    }
 
-        var accion = enviarMail ? "Emitir y enviar" : "Emitir (sin enviar mail)";
-        if (!await _dialog.ShowConfirmAsync(accion,
-                $"¿Emitir recibo a {EmpresaEmision.Nombre}?\n\n" +
-                $"Período: {MesEmision:00}/{AnioEmision}\n" +
-                $"Fecha de emisión: {FechaEmision:dd/MM/yyyy}\n" +
-                $"Importe: {ImporteEmision:C2}\n" +
-                $"Detalle: {detalle}")) return;
+    private async Task AbrirEmisionIndividualAsync()
+    {
+        var entidades = Empresas.Select(e => new EntidadEmisionItem(e.Id, e.Nombre)).ToList();
+        var conceptos = _todosConceptos.Select(c => c.Nombre).ToList();
+
+        var result = await _dialog.ShowEmisionIndividualAsync("Empresa", entidades, conceptos);
+        if (result is null) return;
+
+        var empresa = Empresas.FirstOrDefault(e => e.Id == result.EntidadId);
+        if (empresa is null) { MostrarError("No se encontró la empresa seleccionada."); return; }
+
+        var mes  = result.FechaEmision.Month;
+        var anio = result.FechaEmision.Year;
+        var detalleResumen = $"{result.Lineas.Count} ítem(s)";
 
         IsBusy = true;
         try
         {
-            var res = await _service.EmitirIndividualAsync(EmpresaEmision.Id, ImporteEmision, detalle, FechaEmision, AnioEmision, MesEmision, enviarMail);
+            var res = await _service.EmitirIndividualAsync(empresa.Id, result.Lineas.Sum(l => l.Importe), detalleResumen, result.FechaEmision, anio, mes, result.EnviarMail, result.Lineas);
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo emitir."); return; }
 
             var r = res.Data!;
             if (r.Exito)
             {
-                MostrarExito(MensajeExito(r.NumeroComprobante, enviarMail, r.ErrorMail));
-                await GuardarConceptoAsync(detalle);
-                ImporteEmision = 0;
-                DetalleTexto = string.Empty;
-                DetalleSeleccionado = null;
-                // Mostrar la grilla en el período recién emitido.
-                Anio = AnioEmision; Mes = MesEmision;
+                MostrarExito(MensajeExito(r.NumeroComprobante, result.EnviarMail, r.ErrorMail));
+                Anio = anio; MesIndex = mes - 1;
                 await BuscarAsync();
+                await GuardarConceptosAsync(result.Lineas);
             }
             else
             {
-                // Falló (p. ej. CAE rechazado): el recibo queda Pendiente. Mostrarlo para poder reintentar.
-                Anio = AnioEmision; Mes = MesEmision;
+                Anio = anio; MesIndex = mes - 1;
                 await BuscarAsync();
                 MostrarError(r.ErrorEmision ?? "No se pudo emitir.");
             }
@@ -205,7 +183,12 @@ public class RecibosViewModel : PageViewModel
             : $"Recibo emitido (Nro. {numero}). El mail no se pudo enviar: {errorMail}";
     }
 
-    /// <summary>Guarda el detalle como concepto reutilizable si todavía no existe.</summary>
+    private async Task GuardarConceptosAsync(IEnumerable<ReciboLineaInput> lineas)
+    {
+        foreach (var linea in lineas)
+            await GuardarConceptoAsync(linea.Descripcion);
+    }
+
     private async Task GuardarConceptoAsync(string detalle)
     {
         if (_todosConceptos.Any(c => c.Nombre.Equals(detalle, StringComparison.OrdinalIgnoreCase))) return;
@@ -214,7 +197,7 @@ public class RecibosViewModel : PageViewModel
             await _conceptosRepo.AddAsync(new ConceptoRecibo { Nombre = detalle });
             await RecargarConceptosAsync();
         }
-        catch { /* no bloquear la emisión por el catálogo de conceptos */ }
+        catch { /* no bloquear por el catálogo de conceptos */ }
     }
 
     private async Task ReintentarAsync()
@@ -223,14 +206,12 @@ public class RecibosViewModel : PageViewModel
         IsBusy = true;
         try
         {
-            var res = await _service.ReintentarAsync(Seleccionado.Id, enviarMail: true);
+            var res = await _service.ReintentarAsync(Seleccionado.Id, enviarMail: false);
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo reintentar."); return; }
 
             var r = res.Data!;
             if (r.Exito)
-                MostrarExito(r.ErrorMail is null
-                    ? $"Recibo completado (Nro. {r.NumeroComprobante})."
-                    : $"CAE OK (Nro. {r.NumeroComprobante}), pero el mail no se pudo enviar: {r.ErrorMail}");
+                MostrarExito($"CAE obtenido. Recibo completado (Nro. {r.NumeroComprobante}).");
             else MostrarError(r.ErrorEmision ?? "No se pudo reintentar.");
             await BuscarAsync();
         }

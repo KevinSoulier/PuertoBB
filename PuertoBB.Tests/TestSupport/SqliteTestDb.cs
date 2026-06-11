@@ -18,6 +18,9 @@ public sealed class SqliteTestDb : IDisposable
         _connection.Open();
     }
 
+    /// <summary>Conexión abierta compartida; usar solo para construir contextos adicionales en tests de aislamiento.</summary>
+    public SqliteConnection Connection => _connection;
+
     public static SqliteTestDb CreateCamara(out CamaraPortuariaDbContext db)
     {
         var fixture = new SqliteTestDb();

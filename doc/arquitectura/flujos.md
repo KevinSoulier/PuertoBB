@@ -17,39 +17,38 @@ ViewModel:
   CierrePeriodoViewModel.EjecutarCierreAsync(anio, mes, ct)
   1. Llama IVoucherService.GetAgenciasConVouchersPendientesAsync(anio, mes)
   2. Muestra resumen al usuario (N agencias, M vouchers)
-  3. Confirma via IDialogService.ConfirmarAsync("¿Generar recibos para N agencias?")
+  3. Confirma via IDialogService.ConfirmarAsync
   4. Llama ICentroMaritimoReciboService.CerrarPeriodoAsync(anio, mes, ct)
   5. Muestra resultado (éxitos / errores por agencia)
 
 Service (ICentroMaritimoReciboService.CerrarPeriodoAsync):
+  Guard: si config.PuntoDeVentaActivo es null → error "Configure un punto de venta activo"
   Para cada Agencia con vouchers pendientes en (anio, mes):
-    a. Verificar que no exista ya un Recibo consolidado para (AgenciaId, anio, mes)
-       → si existe: skip con warning "ya cerrado"
-    b. Calcular:
-         importe = vouchers.Sum(v => v.Importe)
-         detalle = "Vouchers Nros: " + string.Join(", ", vouchers.OrderBy(v => v.Numero).Select(v => v.Numero))
-    c. Construir Recibo (EsConsolidadoVouchers=true, Importe=importe, Detalle=detalle)
-       Copiar datos de apoderado desde Configuracion si UsarApoderado=true
-    d. IAfipService.ObtenerCAEAsync(recibo) → recibo.CAE, recibo.FechaVencimientoCAE
-    e. ICentroMaritimoPdfService.GenerarPdfConsolidadoAsync(recibo, vouchers)
-       → PDF = [página recibo AFIP] + [página(s) por cada voucher]
-    f. IMailService.EnviarReciboAsync(agencia.Email, adjunto=pdfConsolidado, ct)
-    g. recibo.Estado = ReciboEstado.Enviado  (porque el mail se envió)
-    h. Asignar vouchers.ReciboId = recibo.Id
-    i. Persistir: IReciboRepository.AddAsync(recibo) + IVoucherRepository.MarcarConsolidadosAsync(...)
+    Flujo Pendiente-first (idempotente):
+    a. GetConsolidadoAsync(agenciaId, anio, mes):
+       → si existe y EsCompleto → skip ("Ya existe recibo consolidado")
+       → si existe Pendiente → re-sincronizar (vincular nuevos vouchers, recalcular importe/líneas)
+         → goto ProcesarReciboAsync(existente, ...)
+       → si null → construir Recibo con Estado=Pendiente, EsConsolidadoVouchers=true
+         → poblar Lineas: una por voucher ("Voucher {n} — {barco} — {fecha}")
+         → copiar snapshot Receptor* desde agencia
+         → copiar apoderado desde config si UsarApoderado=true
+         → AddConVouchersAsync(recibo, voucherIds) [atómico: recibo + FK de vouchers]
+    b. ProcesarReciboAsync(recibo, agencia, config, enviarMail, ct):
+       → si string.IsNullOrEmpty(recibo.CAE): IAfipService.ObtenerCAEAsync → recibo.CAE, FechaVencimientoCAE
+       → generar PDF consolidado (recibo + vouchers)
+       → si enviarMail: IMailService.EnviarReciboAsync → recibo.Estado = Enviado / FechaEnvioMail
+       → IReciboRepository.UpdateAsync(recibo)
 
   Return ServiceResult<List<ResultadoCierrePorAgencia>>
-  (ResultadoCierrePorAgencia = { Agencia, Exito, ErrorMessage? })
 
 Infrastructure:
-  IVoucherRepository.GetPendientesByPeriodoAsync(anio, mes)
-    → vouchers WHERE ReciboId IS NULL AND PeriodoAnio=anio AND PeriodoMes=mes
-  IReciboRepository.ExisteConsolidadoAsync(agenciaId, anio, mes) → bool
-  IReciboRepository.AddAsync(recibo)
-  IVoucherRepository.MarcarConsolidadosAsync(IEnumerable<int> voucherIds, int reciboId)
+  IReciboRepository.GetConsolidadoAsync(agenciaId, anio, mes) — excluye Anulados
+  IReciboRepository.AddConVouchersAsync(recibo, voucherIds)   — un único SaveChanges atómico
+  IReciboRepository.ExisteConsolidadoAsync                    — excluye Anulados (para index check)
 
 Core (estado final):
-  - Recibo creado: Estado=Enviado, EsConsolidadoVouchers=true, CAE asignado
+  - Recibo: Estado=Enviado, EsConsolidadoVouchers=true, CAE asignado, Lineas pobladas
   - Vouchers: ReciboId apuntando al recibo
 ```
 
@@ -67,31 +66,38 @@ UI:
 
 ViewModel:
   EmisionMasivaViewModel.EmitirAsync(grupoId, anio, mes, ct)
-  1. Llama IReciboService.GetDuplicadosAsync(grupoId, anio, mes)
-     → si ya existen: advertir "N empresas ya tienen recibo en este período"
+  1. Muestra estado por entidad (ya emitido / pendiente)
   2. Confirma via IDialogService
   3. Llama IReciboService.EmitirMasivoAsync(grupoId, anio, mes, ct)
-  4. Muestra resultado por empresa
+  4. Muestra resultado por empresa/agencia
 
 Service (IReciboService.EmitirMasivoAsync):
-  Obtener grupo con empresas/agencias
+  Guard: si config.PuntoDeVentaActivo es null → error
+  Obtener grupo con empresas/agencias y sus Lineas
   Para cada Empresa/Agencia del grupo:
-    a. Verificar no duplicado: (EntidadId, GrupoId, anio, mes)
-    b. Construir Recibo (Importe=grupo.Importe, Detalle=grupo.Nombre, EsConsolidadoVouchers=false)
-    c. IAfipService.ObtenerCAEAsync(recibo) → recibo.Estado = Emitido
-    d. IReciboRepository.AddAsync(recibo)
-    e. IPdfService.GenerarPdfReciboAsync(recibo) → pdf (regenerado a demanda, no se persiste)
-    f. IMailService.EnviarReciboAsync(entidad.Emails, pdf, ct)
-       → éxito:  recibo.Estado = Enviado
-       → fallo:  recibo.Estado queda Emitido; se registra en ResultadoEmisionPorEntidad.ErrorMail
-    g. IReciboRepository.UpdateAsync(recibo)
+    EmitirOResumirAsync(entidadId, grupo, anio, mes, config, enviarMail, ct):
+      a. Anti-duplicado por EmisionGrupo (índice único GrupoId+EntidadId+PeriodoAnio+PeriodoMes)
+         → si ya existe completo: skip
+         → si existe Pendiente: retomar (re-sync + obtener CAE)
+      b. Construir Recibo con Estado=Pendiente
+         → poblar Lineas desde grupo.Lineas
+         → copiar snapshot Receptor* (desde empresa/agencia: Nombre, RazonSocial, Cuit, ...)
+      c. Crear EmisionGrupo + AddAsync(recibo) — persiste antes de pedir CAE
+      d. IAfipService.ObtenerCAEAsync → recibo.Estado = Emitido
+         → si falla: recibo.UltimoErrorCae = mensaje; queda Pendiente (reintentable)
+      e. IPdfService.GenerarPdfReciboAsync(recibo) → pdf (regenerado a demanda, no se persiste)
+      f. IMailService.EnviarReciboAsync(entidad.Emails, pdf, ct)
+         → éxito:  recibo.Estado = Enviado; FechaEnvioMail = DateTime.Now
+         → fallo:  recibo.UltimoErrorMail = mensaje; Estado queda Emitido
+      g. UpdateAsync(recibo)
 
   Return ServiceResult<List<ResultadoEmisionPorEntidad>>
 
 Infrastructure:
   IGrupoFacturacionRepository.GetConMiembrosAsync(grupoId)
-  IReciboRepository.ExisteAsync(entidadId, grupoId, anio, mes) → bool
-  IReciboRepository.AddAsync(recibo)
+  IReciboRepository.GetPorClaveAsync(entidadId, grupoId, anio, mes)
+    → retorna recibo Pendiente si existe (permite reintento); null si no hay ninguno Pendiente
+  IReciboRepository.AddAsync(recibo)   (implica también AddEmisionGrupoAsync)
 ```
 
 ---
@@ -99,20 +105,24 @@ Infrastructure:
 ## 3. Emisión individual — fuera del ciclo masivo
 
 El destinatario siempre debe existir en el sistema (Empresa en CP, Agencia en CM).
-Cubre tanto cobros puntuales como cobros extraordinarios de una sola entidad.
+Se permiten N recibos individuales por (entidad, período) — no hay restricción de uno por período.
 
 ```
-Trigger: Laura selecciona empresa/agencia, completa importe y detalle, pulsa "Emitir"
+Trigger: Laura selecciona empresa/agencia, completa importe y líneas, pulsa "Emitir"
 
-ViewModel → IReciboService.EmitirIndividualAsync(entidadId, importe, detalle, anio, mes, ct)
-  a. Construir Recibo (GrupoFacturacionId=null, Detalle=ingresado por Laura)
-  b. IAfipService.ObtenerCAEAsync(recibo)        → recibo.Estado = Emitido
-  c. IReciboRepository.AddAsync(recibo)
-  d. IPdfService.GenerarPdfReciboAsync(recibo)   → pdf (regenerado a demanda, no se persiste)
-  e. IMailService.EnviarReciboAsync(emails, pdf, ct)
+ViewModel → IReciboService.EmitirOResumirAsync(entidadId, grupoId=null, ...)
+  a. GetPorClaveAsync(entidadId, grupoId=null, anio, mes)
+     → si existe Pendiente individual (sin EmisionGrupo, sin EsConsolidadoVouchers): retomar
+     → si no: construir nuevo Recibo con Estado=Pendiente, EmisionGrupo=null
+  b. Poblar Lineas (concepto/importe ingresados por Laura)
+  c. Copiar snapshot Receptor* desde la entidad
+  d. AddAsync(recibo) → persistir Pendiente
+  e. IAfipService.ObtenerCAEAsync → recibo.Estado = Emitido
+  f. IPdfService.GenerarPdfReciboAsync(recibo)
+  g. IMailService.EnviarReciboAsync(emails, pdf, ct)
      → éxito:  recibo.Estado = Enviado
-     → fallo:  recibo.Estado queda Emitido; se muestra advertencia; Laura puede reenviar desde dashboard
-  f. IReciboRepository.UpdateAsync(recibo)
+     → fallo:  recibo.Estado queda Emitido; mostrar advertencia
+  h. UpdateAsync(recibo)
 ```
 
 ---
@@ -123,18 +133,20 @@ ViewModel → IReciboService.EmitirIndividualAsync(entidadId, importe, detalle, 
 Trigger: Laura selecciona un recibo emitido y pulsa "Anular"
 
 ViewModel → dialog con:
-  - Confirmación: "¿Anular recibo Nro X de [Empresa] período MM/YYYY?"
+  - Confirmación: "¿Anular recibo Nro X de [Empresa/Agencia] período MM/YYYY?"
   - Checkbox: "Enviar notificación por mail a [email(s)]" (default: true)
 
 ViewModel → IReciboService.AnularReciboAsync(reciboId, enviarMail, ct)
+  Guard: si config.PuntoDeVentaActivo es null → error
   a. Construir NotaDeCredito referenciando el Recibo original
+     → CodigoAfip = CatalogoComprobantesAfip.NcPara(recibo.CodigoAfip)
   b. IAfipService.ObtenerCAEAsync(notaDeCredito)
   c. IPdfService.GenerarPdfNotaDeCreditoAsync(notaDeCredito) → pdf
+     → el PDF incluye sección "Comprobante asociado: Recibo C XXXX-XXXXXXXX"
   d. Si enviarMail=true:
        IMailService.EnviarReciboAsync(emails, pdf, ct)
-  e. recibo.Estado = ReciboEstado.Anulado
-  f. IReciboRepository.UpdateAsync(recibo)
-  g. INotaDeCreditoRepository.AddAsync(notaDeCredito)
+  e. IReciboRepository.AnularConNotaAsync(recibo, nota, ct) [atómico: estado+NC en un SaveChanges]
+     → CM además desvincula vouchers del consolidado (v.ReciboId = null) para permitir reemisión
 ```
 
 ---
@@ -162,9 +174,10 @@ Para recibos en estado Emitido (mail falló o Laura quiere reenviar).
 Trigger: Laura selecciona recibo con Estado=Emitido y pulsa "Reenviar mail"
 
 ViewModel → IReciboService.ReenviarMailAsync(reciboId, ct)
+  Guard: si recibo.CAE vacío → error "El recibo no tiene CAE: emítalo antes de reenviar"
   a. IPdfService.GenerarPdfReciboAsync(recibo)  → pdf (regenerado a demanda)
   b. IMailService.EnviarReciboAsync(emails, pdf, ct)
-     → éxito: recibo.Estado = Enviado; IReciboRepository.UpdateAsync(recibo)
+     → éxito: recibo.Estado = Enviado; FechaEnvioMail = DateTime.Now; UpdateAsync
      → fallo: mostrar error; estado no cambia
 ```
 
@@ -192,8 +205,7 @@ ViewModel → IReciboService.GetPendientesAsync(filtros, ct)
 
 Filtros disponibles:
   - Por período (PeriodoAnio + PeriodoMes)
-  - Por grupo/generación (GrupoFacturacionId)
-  - Por estado persistido (Emitido / Enviado)
+  - Solo vencidos (FechaVencimientoPago < hoy && Estado != Pagado/Anulado)
   - Por empresa/agencia
 
 Datos mostrados por fila:
@@ -201,10 +213,14 @@ Datos mostrados por fila:
 
 "Días de atraso" = max(0, (DateTime.Today - FechaVencimientoPago).Days)
   → calculado en ViewModel al cargar, no persistido en DB
-  → fila se destaca en rojo si FechaVencimientoPago < DateTime.Today && Estado != Pagado/Anulado
+  → fila destacada en naranja (#FFF3E0) si vencida, en verde suave si pagada
 
-Nota: "Vencido" no es un estado persistido — es un estado visual derivado de FechaVencimientoPago.
-El enum ReciboEstado solo tiene: Emitido, Enviado, Pagado, Anulado.
+Estados del recibo (persistidos):
+  Emitido → Enviado → Pagado (flujo normal)
+             ↓
+           Anulado (vía NC)
+  Pendiente → Emitido (reintento exitoso de CAE)
+"Vencido" NO es un estado: se calcula en presentación a partir de FechaVencimientoPago.
 ```
 
 ---
@@ -219,27 +235,30 @@ interface ICamaraPortuariaPdfService
 {
     Task<byte[]> GenerarPdfReciboAsync(CamaraPortuaria.Recibo recibo, CancellationToken ct = default);
     Task<byte[]> GenerarPdfNotaDeCreditoAsync(CamaraPortuaria.NotaDeCredito nc, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfDescargaAsync(CamaraPortuaria.Recibo recibo, CancellationToken ct = default); // preview/consolidado
 }
 
 interface ICentroMaritimoPdfService
 {
+    Task<byte[]> GenerarPdfReciboAsync(CentroMaritimo.Recibo recibo, CancellationToken ct = default);
     Task<byte[]> GenerarPdfVoucherAsync(Voucher voucher, CancellationToken ct = default);
-    Task<byte[]> GenerarPdfConsolidadoAsync(CentroMaritimo.Recibo recibo, IEnumerable<Voucher> vouchers, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfConsolidadoAsync(CentroMaritimo.Recibo recibo, CancellationToken ct = default);
     Task<byte[]> GenerarPdfNotaDeCreditoAsync(CentroMaritimo.NotaDeCredito nc, CancellationToken ct = default);
 }
 
-// Mail — compartido (solo varía el contenido del adjunto)
+// Mail — compartido
 interface IMailService
 {
-    Task<ServiceResult<bool>> EnviarReciboAsync(string destinatario, byte[] pdfAdjunto, string asunto, CancellationToken ct = default);
+    Task<ServiceResult<bool>> EnviarReciboAsync(IEnumerable<string> destinatarios, byte[] pdfAdjunto, string asunto, CancellationToken ct = default);
 }
 
 // AFIP — compartido
 interface IAfipService
 {
     Task<ServiceResult<CaeResult>> ObtenerCAEAsync(ComprobanteAfipRequest request, CancellationToken ct = default);
+    Task<ServiceResult<DiagnosticoAfip>> ProbarConexionAsync(int puntoVenta, int codigoComprobante, CancellationToken ct = default);
 }
 ```
 
 > **Decisión de diseño — IPdfService dividido:**
-> La interfaz de PDF se divide en dos (`ICamaraPortuariaPdfService` / `ICentroMaritimoPdfService`) porque los documentos son estructuralmente distintos: Centro Marítimo necesita `GenerarPdfConsolidadoAsync` que no existe en Cámara Portuaria. Mantenerlos separados evita métodos vacíos/no implementados y deja cada contrato expresivo.
+> La interfaz de PDF se divide en dos porque los documentos son estructuralmente distintos: Centro Marítimo necesita `GenerarPdfConsolidadoAsync` que no existe en Cámara Portuaria. Mantenerlos separados deja cada contrato expresivo y evita métodos vacíos.

@@ -127,7 +127,12 @@ UI (ViewModel)
 - **Services:** siempre devuelven `ServiceResult<T>`. Nunca propagan excepciones al ViewModel.  
   Todo `try/catch` de I/O externo (AFIP, mail, PDF) se hace en la capa Service.
 - **Repositories:** pueden lanzar excepciones; envuelven `DbUpdateException` en `ReciboException` con mensaje legible.
-- **ViewModels:** nunca tienen `try/catch`. Evalúan `result.Success` y muestran `result.ErrorMessage` en la UI.
+- **ViewModels:** **no usan `try/catch` para flujo de negocio.** Cuando llaman a un Service evalúan `result.Success`
+  y muestran `result.ErrorMessage` (nunca envuelven una llamada de Service en `try/catch`).
+  **Excepción permitida:** un ViewModel sí puede usar `try/catch` para errores de **infraestructura/IO sin capa Service**
+  intermedia — concretamente: (a) CRUD simple que va directo a un repositorio (Agencias, Barcos, Conceptos), donde el
+  repo puede lanzar (p. ej. `DbUpdateException`/FK), y (b) operaciones de UI como generar/guardar/previsualizar un PDF
+  o escribir un archivo. En esos casos el `catch` solo traduce el error a un mensaje vía `MostrarError`, no contiene lógica.
 
 ### Handler global de excepciones no manejadas
 

@@ -2,6 +2,7 @@ using Afip.Documentos;
 using Afip.Documentos.Pdf;
 using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Services;
+using AfipConfig = PuertoBB.Core.Models.Afip.AfipConfig;
 using PuertoBB.Services.Common;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -55,10 +56,16 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
     {
         var config = await _configProvider.GetAsync(ct);
         var recibo = nc.ReciboOriginal;
-        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.Agencia?.Cuit);
-        var receptorNombre = recibo?.Agencia?.RazonSocial is { Length: > 0 } rs
+        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.ReceptorCuit);
+        var receptorNombre = recibo?.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
-            : recibo?.Agencia?.Nombre ?? string.Empty;
+            : recibo?.ReceptorNombre ?? string.Empty;
+
+        // Anulación total: la NC replica el detalle (líneas) del recibo original.
+        var items = (recibo?.Lineas ?? [])
+            .OrderBy(l => l.Orden)
+            .Select(l => new ItemDocumento { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Subtotal = l.Importe })
+            .ToList();
 
         var doc = new ComprobanteDocumento
         {
@@ -70,11 +77,12 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
             Cae           = nc.CAE,
             FechaVencimientoCae = nc.FechaVencimientoCAE,
             ImporteTotal  = recibo?.Importe ?? 0,
+            Items         = items.Count > 0 ? items : [],
             Leyendas      = [$"Anula el recibo original Nro. {nc.ReciboOriginalId}"],
             ComprobanteAsociado = recibo is not null
                 ? new ComprobanteAsociado(recibo.CodigoAfip, recibo.PuntoDeVenta, recibo.NumeroComprobante)
                 : null,
-            Emisor  = BuildEmisor(config.CuitEmisor, recibo),
+            Emisor  = BuildEmisor(config, recibo),
             Receptor = new ReceptorDocumento
             {
                 RazonSocial  = receptorNombre,
@@ -127,17 +135,23 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
         CancellationToken ct)
     {
         var config = await _configProvider.GetAsync(ct);
-        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.Agencia?.Cuit);
-        var receptorNombre = recibo.Agencia?.RazonSocial is { Length: > 0 } rs
+        // Datos del receptor desde el snapshot fiscal del recibo (inmutable), no por navegación.
+        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.ReceptorCuit);
+        var receptorNombre = recibo.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
-            : recibo.Agencia?.Nombre ?? $"#{recibo.AgenciaId}";
+            : recibo.ReceptorNombre is { Length: > 0 } n ? n : $"#{recibo.AgenciaId}";
 
-        var items = vouchers.Select(v => new ItemDocumento
-        {
-            Descripcion   = $"Voucher {v.Numero} — {v.Barco?.Nombre ?? $"#{v.BarcoId}"} — {Formato.Fecha(v.Fecha)}",
-            PrecioUnitario = v.Importe,
-            Subtotal       = v.Importe
-        }).ToList();
+        // El detalle sale SIEMPRE del snapshot de líneas persistido en el recibo (no se deriva de los
+        // vouchers al mostrar), para que el comprobante se vea idéntico desde cualquier pantalla/PDF/mail.
+        var items = recibo.Lineas
+            .OrderBy(l => l.Orden)
+            .Select(l => new ItemDocumento
+            {
+                Descripcion    = l.Descripcion,
+                Cantidad       = l.Cantidad,
+                PrecioUnitario = l.PrecioUnitario,
+                Subtotal       = l.Importe
+            }).ToList();
 
         var leyendas = new List<string>();
         if (recibo.EsApoderado && !string.IsNullOrWhiteSpace(recibo.NombreApoderado))
@@ -156,38 +170,40 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
             Cae           = recibo.CAE,
             FechaVencimientoCae = recibo.FechaVencimientoCAE,
             ImporteTotal  = recibo.Importe,
-            ConceptoGeneral = vouchers.Count == 0 ? recibo.Detalle : null,
+            ConceptoGeneral = items.Count > 0 ? null : recibo.Detalle,
             Items         = items.Count > 0 ? items : [],
             Leyendas      = leyendas,
             PeriodoServicioDesde = periodoDesde,
             PeriodoServicioHasta = periodoHasta,
             FechaVencimientoPago = recibo.FechaVencimientoPago,
-            Emisor  = BuildEmisor(config.CuitEmisor, recibo),
+            Emisor  = BuildEmisor(config, recibo),
             Receptor = new ReceptorDocumento
             {
                 RazonSocial   = receptorNombre,
                 TipoDocumento = tipoDoc,
                 NroDocumento  = nroDoc,
-                Domicilio     = recibo.Agencia?.Domicilio,
-                CondicionIva  = recibo.Agencia?.CondicionIva
+                Domicilio     = recibo.ReceptorDomicilio,
+                CondicionIva  = recibo.ReceptorCondicionIva
             }
         };
     }
 
-    private EmisorDocumento BuildEmisor(string cuitEmisorConfig, Recibo? recibo)
+    private EmisorDocumento BuildEmisor(AfipConfig config, Recibo? recibo)
     {
         // Si el recibo fue emitido por un apoderado, el QR debe llevar el CUIT del apoderado.
         var (razonSocial, cuitStr) = recibo is { EsApoderado: true, NombreApoderado: { Length: > 0 } nombre }
-            ? (nombre, recibo.CuitApoderado ?? cuitEmisorConfig)
-            : (RazonSocialEmisor, cuitEmisorConfig);
+            ? (nombre, recibo.CuitApoderado ?? config.CuitEmisor)
+            : (RazonSocialEmisor, config.CuitEmisor);
 
         return new EmisorDocumento
         {
-            RazonSocial    = razonSocial,
-            Cuit           = Formato.ParseCuit(cuitStr),
-            CondicionIva   = "IVA Exento",
-            ColorAcentoHex = "#00695C",
-            LogoPng        = LogoBytes is { Length: > 0 } ? LogoBytes : null
+            RazonSocial       = razonSocial,
+            Cuit              = Formato.ParseCuit(cuitStr),
+            CondicionIva      = "IVA Exento",
+            ColorAcentoHex    = _theme.AcentoHex,
+            LogoPng           = LogoBytes is { Length: > 0 } ? LogoBytes : null,
+            IngresosBrutos    = config.IngresosBrutos,
+            InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
         };
     }
 

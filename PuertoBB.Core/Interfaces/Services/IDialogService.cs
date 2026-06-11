@@ -1,3 +1,5 @@
+using PuertoBB.Core.Models;
+
 namespace PuertoBB.Core.Interfaces.Services;
 
 /// <summary>
@@ -20,4 +22,10 @@ public interface IDialogService
     /// <paramref name="nombreArchivo"/> (sin extensión) es el nombre sugerido al guardar desde el visor.
     /// </summary>
     Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null);
+
+    /// <summary>Formulario de emisión individual. Devuelve null si el usuario canceló.</summary>
+    Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
+        string labelEntidad,
+        IReadOnlyList<EntidadEmisionItem> entidades,
+        IReadOnlyList<string> conceptos);
 }

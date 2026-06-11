@@ -13,6 +13,12 @@ public interface IVoucherService
     /// <summary>Vouchers pendientes de consolidar en un período.</summary>
     Task<ServiceResult<IReadOnlyList<Voucher>>> GetPendientesAsync(int anio, int mes, CancellationToken ct = default);
 
+    /// <summary>
+    /// Todos los vouchers de un período (pendientes + consolidados), con su recibo cargado
+    /// para mostrar el estado. El voucher queda como referencia aunque ya esté consolidado.
+    /// </summary>
+    Task<ServiceResult<IReadOnlyList<Voucher>>> GetDelPeriodoAsync(int anio, int mes, CancellationToken ct = default);
+
     /// <summary>Actualiza un voucher pendiente (no consolidado).</summary>
     Task<ServiceResult<bool>> ActualizarVoucherAsync(Voucher voucher, CancellationToken ct = default);
 

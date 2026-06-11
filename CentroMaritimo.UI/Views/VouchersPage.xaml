@@ -21,21 +21,24 @@
             <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
                           Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
             <ui:Button Content="Buscar" Command="{Binding BuscarCommand}"
-                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
+                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0"
+                       ToolTip="Buscar vouchers del período seleccionado">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Eliminar el voucher seleccionado">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Editar" Command="{Binding EditarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Editar el voucher seleccionado">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Previsualizar" Command="{Binding PrevisualizarVoucherCommand}"
                        Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
                        ToolTip="Abre el PDF del voucher seleccionado en el visor embebido.">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="Eye24" /></ui:Button.Icon>
+                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Descargar" Command="{Binding DescargarVoucherCommand}"
                        Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
@@ -44,10 +47,11 @@
             </ui:Button>
         </StackPanel>
 
-        <!-- Grilla con columna Emitido/Consolidado (VOU-8). Doble-click en la fila → editar -->
+        <!-- Grilla: los vouchers consolidados quedan como referencia con su estado (VOU-8). Doble-click en la fila → editar -->
         <DataGrid Grid.Row="3" ItemsSource="{Binding Vouchers}" SelectedItem="{Binding Seleccionado}"
                   AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                  SelectionMode="Single"
                   MouseDoubleClick="VouchersGrid_MouseDoubleClick">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Nro." Binding="{Binding Numero}" Width="80" />
@@ -55,7 +59,18 @@
                 <DataGridTextColumn Header="Barco" Binding="{Binding Barco}" Width="*" />
                 <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha}" Width="100" />
                 <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="120" />
-                <DataGridTextColumn Header="Estado" Binding="{Binding EstadoTexto}" Width="100" />
+                <DataGridTemplateColumn Header="Estado" Width="110">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding EstadoTexto, Converter={StaticResource EstadoReciboToBrushConverter}}"
+                                    CornerRadius="10" Padding="10,3" HorizontalAlignment="Left" Margin="4,0">
+                                <TextBlock Text="{Binding EstadoTexto}"
+                                           FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{Binding EstadoTexto, Converter={StaticResource EstadoReciboToFgBrushConverter}}" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 
@@ -68,6 +83,7 @@
                                FontWeight="SemiBold" VerticalAlignment="Center" />
                     <ui:Button Content="Cancelar" Command="{Binding CancelarEdicionCommand}"
                                Style="{StaticResource AccionIconButton}" Margin="12,0,0,0"
+                               ToolTip="Cancelar la edición en curso"
                                Visibility="{Binding ModoEdicion, Converter={StaticResource BoolToVisibilityConverter}}">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                     </ui:Button>
@@ -121,12 +137,15 @@
                     <StackPanel Margin="8,0,0,0" VerticalAlignment="Bottom">
                         <TextBlock Text="Importe" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    FontSize="11" Margin="0,0,0,2" />
-                        <TextBox Text="{Binding ImporteNuevo, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                        <ui:NumberBox Value="{Binding ImporteNuevo, UpdateSourceTrigger=PropertyChanged}"
+                                      Minimum="0" Maximum="1000000000" ClearButtonEnabled="False"
+                                      SpinButtonPlacementMode="Hidden" Width="120" />
                     </StackPanel>
 
                     <ui:Button Content="{Binding TextoBotonGuardar}" Command="{Binding CrearCommand}"
                                Style="{StaticResource AccionIconButton}" Appearance="Primary"
-                               Margin="8,0,0,0" VerticalAlignment="Bottom">
+                               Margin="8,0,0,0" VerticalAlignment="Bottom"
+                               ToolTip="Guardar el voucher">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                     </ui:Button>
                 </StackPanel>

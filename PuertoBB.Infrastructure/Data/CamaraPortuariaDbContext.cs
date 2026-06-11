@@ -9,9 +9,12 @@ public class CamaraPortuariaDbContext : DbContext
 
     public DbSet<Empresa>          Empresas        => Set<Empresa>();
     public DbSet<EmailEmpresa>     EmailsEmpresa   => Set<EmailEmpresa>();
-    public DbSet<GrupoFacturacion> Grupos          => Set<GrupoFacturacion>();
-    public DbSet<EmpresaGrupo>     EmpresasGrupos  => Set<EmpresaGrupo>();
+    public DbSet<GrupoFacturacion>      Grupos          => Set<GrupoFacturacion>();
+    public DbSet<GrupoFacturacionLinea> GruposLineas    => Set<GrupoFacturacionLinea>();
+    public DbSet<EmpresaGrupo>          EmpresasGrupos  => Set<EmpresaGrupo>();
+    public DbSet<EmisionGrupo>          EmisionesGrupo  => Set<EmisionGrupo>();
     public DbSet<Recibo>           Recibos         => Set<Recibo>();
+    public DbSet<ReciboLinea>      RecibosLineas   => Set<ReciboLinea>();
     public DbSet<ConceptoRecibo>   ConceptosRecibo => Set<ConceptoRecibo>();
     public DbSet<NotaDeCredito>    NotasDeCredito  => Set<NotaDeCredito>();
     public DbSet<Configuracion>    Configuraciones => Set<Configuracion>();

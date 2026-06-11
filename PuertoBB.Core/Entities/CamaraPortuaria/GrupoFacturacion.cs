@@ -6,9 +6,13 @@ public class GrupoFacturacion : BaseEntity
 {
     public string  Nombre      { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
+    /// <summary>Total denormalizado: suma de los <see cref="GrupoFacturacionLinea.Importe"/> (se recalcula al guardar).</summary>
     public decimal Importe     { get; set; }
     public bool    Activo      { get; set; } = true;
 
-    public ICollection<EmpresaGrupo> Empresas { get; set; } = [];
-    public ICollection<Recibo>       Recibos  { get; set; } = [];
+    /// <summary>Ítems a facturar a cada miembro del grupo.</summary>
+    public ICollection<GrupoFacturacionLinea> Lineas   { get; set; } = [];
+    public ICollection<EmpresaGrupo>          Empresas { get; set; } = [];
+    /// <summary>Emisiones realizadas con este grupo (relación grupo + período + recibo).</summary>
+    public ICollection<EmisionGrupo>          Emisiones { get; set; } = [];
 }

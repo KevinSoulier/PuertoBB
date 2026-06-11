@@ -110,10 +110,10 @@ rediseño correcto**, integrándolo al plan de corrección y a la documentación
     - La **NC también es un comprobante autocontenido**: debe **persistir su propio snapshot de ítems/detalle e
       importe**, copiado del recibo original al momento de emitirla (no recalculado al abrirla). Así la NC se ve y
       se emite igual desde cualquier pantalla, PDF y mail.
-    - **Anulación total** = NC por el **total** del recibo, replicando **todos los ítems** del snapshot del recibo;
-      al confirmarse, el recibo pasa a `Estado = Anulado`. Definí (y documentá) si existe **NC parcial**
-      (acreditar solo algunos ítems / un importe menor): si aplica, la NC copia el subconjunto de ítems y el
-      recibo **no** queda Anulado (o pasa a un estado/figura que haya que definir). Si no aplica, dejarlo explícito.
+    - **DECISIÓN DE NEGOCIO FIJADA: solo existe ANULACIÓN TOTAL. No hay NC parcial.**
+      La NC siempre acredita el recibo **completo**, replicando **todos los ítems** del snapshot del recibo por
+      su importe total; al confirmarse, el recibo pasa a `Estado = Anulado`. No implementes acreditación parcial
+      ni selección de ítems: la NC es siempre por el total. Documentá esta regla como definitiva.
     - **Formato heredado:** la NC debe respetar el formato establecido por el recibo — mismo emisor/receptor,
       mismos ítems (texto e importes), misma estructura de detalle, mismo tipo de comprobante derivado
       (la NC del tipo correspondiente según `CatalogoComprobantesAfip`), y referencia al original en AFIP vía

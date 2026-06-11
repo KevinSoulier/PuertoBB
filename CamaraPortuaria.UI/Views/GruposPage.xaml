@@ -2,8 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      Title="Grupos"
-      ScrollViewer.VerticalScrollBarVisibility="Disabled">
+      Title="Grupos">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -20,12 +19,17 @@
             </Grid.ColumnDefinitions>
 
             <ListBox Grid.Column="0" ItemsSource="{Binding Grupos}" SelectedItem="{Binding Seleccionado}"
-                     DisplayMemberPath="Nombre" Margin="0,0,16,0" />
+                     DisplayMemberPath="Nombre" Margin="0,0,16,0"
+                     IsEnabled="{Binding NoEnEdicion}"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     VirtualizingStackPanel.VirtualizationMode="Recycling" />
 
             <Border Grid.Column="1" Padding="16" CornerRadius="8"
                     Background="{DynamicResource LayerFillColorDefaultBrush}">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -35,47 +39,157 @@
 
                     <TextBlock Grid.Row="0" Text="Datos del grupo" FontWeight="SemiBold" Margin="0,0,0,12" />
 
-                    <StackPanel Grid.Row="1">
+                    <StackPanel Grid.Row="1" IsEnabled="{Binding EnEdicion}">
                         <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding NombreEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                         <TextBlock Text="Descripción" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding DescripcionEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
-                        <TextBlock Text="Importe de cuota" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding ImporteEdit, UpdateSourceTrigger=PropertyChanged}" Width="140" HorizontalAlignment="Left" Margin="0,0,0,12" />
                     </StackPanel>
 
-                    <!-- Buscador de miembros -->
-                    <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                    <!-- Ítems a facturar -->
+                    <Border Grid.Row="2" Padding="12" CornerRadius="6" Margin="0,0,0,8"
+                            IsEnabled="{Binding EnEdicion}"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding TotalEditTexto, StringFormat='Total: {0}'}"
+                                           DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Text="Ítems a facturar"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <DataGrid ItemsSource="{Binding LineasEdit}"
+                                      AutoGenerateColumns="False" HeadersVisibility="Column" IsReadOnly="True"
+                                      CanUserAddRows="False" GridLinesVisibility="Horizontal" MaxHeight="160"
+                                      SelectionMode="Single">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Descripción"  Binding="{Binding Descripcion}"     Width="*"   />
+                                    <DataGridTextColumn Header="Cant."        Binding="{Binding CantidadTexto}"   Width="60"  />
+                                    <DataGridTextColumn Header="Precio unit." Binding="{Binding PrecioUnitTexto}" Width="110" />
+                                    <DataGridTextColumn Header="Subtotal"     Binding="{Binding ImporteTexto}"    Width="110" />
+                                    <DataGridTemplateColumn Width="46" CanUserResize="False" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ui:Button Command="{Binding DataContext.QuitarLineaCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                           CommandParameter="{Binding}"
+                                                           Style="{StaticResource AccionIconButtonCompact}"
+                                                           ToolTip="Quitar este ítem">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <WrapPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Descripción" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="11" Margin="0,0,0,2" />
+                                    <TextBox Text="{Binding DescripcionLinea, UpdateSourceTrigger=PropertyChanged}" Width="200" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Cantidad" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="11" Margin="0,0,0,2" />
+                                    <ui:NumberBox Value="{Binding CantidadLinea, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="0.001" Maximum="1000000000" ClearButtonEnabled="False"
+                                                  SpinButtonPlacementMode="Hidden" Width="80" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Precio unit." Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="11" Margin="0,0,0,2" />
+                                    <ui:NumberBox Value="{Binding PrecioUnitarioLinea, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="0" Maximum="1000000000" ClearButtonEnabled="False"
+                                                  SpinButtonPlacementMode="Hidden" Width="120" />
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Bottom">
+                                    <ui:Button Content="Agregar ítem" Command="{Binding AgregarLineaCommand}"
+                                               Style="{StaticResource AccionIconButton}"
+                                               ToolTip="Agregar este ítem al grupo">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </StackPanel>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Selector de empresas -->
+                    <StackPanel Grid.Row="3" Margin="0,0,0,8" IsEnabled="{Binding EnEdicion}">
                         <TextBlock Text="Miembros" FontWeight="SemiBold" Margin="0,0,0,4" />
-                        <ui:TextBox Text="{Binding FiltroMiembros, UpdateSourceTrigger=PropertyChanged}"
-                                 PlaceholderText="Buscar empresa…" />
+                        <DockPanel>
+                            <ui:Button DockPanel.Dock="Right"
+                                       Content="Agregar" Command="{Binding AgregarMiembroCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Agregar empresa seleccionada al grupo">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ComboBox IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                      Text="{Binding FiltroMiembros, UpdateSourceTrigger=PropertyChanged}"
+                                      ItemsSource="{Binding EmpresasDisponibles}"
+                                      SelectedItem="{Binding EmpresaSeleccionada}"
+                                      DisplayMemberPath="Nombre" />
+                        </DockPanel>
                     </StackPanel>
 
-                    <ListBox Grid.Row="3" ItemsSource="{Binding MiembrosFiltrados}"
-                             MaxHeight="320"
+                    <!-- Lista de miembros del grupo -->
+                    <ListBox Grid.Row="4" ItemsSource="{Binding MiembrosDelGrupo}" IsEnabled="{Binding EnEdicion}"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              VirtualizingStackPanel.IsVirtualizing="True"
                              VirtualizingStackPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="Padding" Value="6,2" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <CheckBox Content="{Binding Nombre}" IsChecked="{Binding EsMiembro}" />
+                                <DockPanel MinWidth="0">
+                                    <ui:Button DockPanel.Dock="Right"
+                                               Command="{Binding DataContext.QuitarMiembroCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                               CommandParameter="{Binding}"
+                                               MinHeight="24" Padding="4,4"
+                                               Style="{StaticResource AccionIconButtonCompact}"
+                                               ToolTip="Quitar del grupo">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <TextBlock Text="{Binding Nombre}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0">
-                        <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                   Style="{StaticResource AccionIconButton}">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
-                        </ui:Button>
-                        <ui:Button Content="Guardar" Command="{Binding GuardarCommand}"
-                                   Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                        </ui:Button>
-                        <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                   Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
-                        </ui:Button>
+                    <StackPanel Grid.Row="5" Margin="0,12,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
+                                       Style="{StaticResource AccionIconButton}"
+                                       ToolTip="Crear un nuevo grupo de facturación">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Editar" Command="{Binding EditarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Editar el grupo seleccionado">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Eliminar el grupo seleccionado">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button Content="Aceptar" Command="{Binding AceptarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                       ToolTip="Guardar los cambios del grupo">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Cancelar" Command="{Binding CancelarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Cancelar la edición">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -265,5 +265,22 @@
         </Setter>
     </Style>
 
+    <!-- Deshabilita el DynamicScrollViewer de NavigationViewContentPresenter (WPF-UI v4.x).
+         Por defecto IsDynamicScrollViewerEnabled=True usa el template con DynamicScrollViewer que
+         envuelve las páginas midiendo el contenido con altura infinita. Esto rompe Grid rows Height="*":
+         los ListBox/DataGrid reciben altura infinita y no scrollean internamente.
+         El override del trigger para IsDynamicScrollViewerEnabled=True usa el template simple
+         (DefaultNavigationViewContentPresenterControlTemplate) que no incluye DynamicScrollViewer,
+         dando altura acotada a las páginas y permitiendo que * rows funcionen correctamente. -->
+    <Style TargetType="{x:Type ui:NavigationViewContentPresenter}"
+           BasedOn="{StaticResource {x:Type ui:NavigationViewContentPresenter}}">
+        <Style.Triggers>
+            <Trigger Property="IsDynamicScrollViewerEnabled" Value="True">
+                <Setter Property="Template"
+                        Value="{StaticResource DefaultNavigationViewContentPresenterControlTemplate}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>
 

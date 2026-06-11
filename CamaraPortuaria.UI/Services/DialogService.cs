@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using CamaraPortuaria.UI.Dialogs;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models;
 using PuertoBB.Services.Common;
 
 namespace CamaraPortuaria.UI.Services;
@@ -50,6 +51,15 @@ public class DialogService : IDialogService
         var ruta = Path.Combine(carpeta, $"{Formato.NombreArchivoSeguro(nombreArchivo)}.pdf");
         await File.WriteAllBytesAsync(ruta, pdfBytes);
         Process.Start(new ProcessStartInfo(ruta) { UseShellExecute = true });
+    }
+
+    public Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
+        string labelEntidad,
+        IReadOnlyList<EntidadEmisionItem> entidades,
+        IReadOnlyList<string> conceptos)
+    {
+        var dialog = new EmisionIndividualDialog(labelEntidad, entidades, conceptos);
+        return ShowAsync(dialog, dialog.Result);
     }
 
     private async Task<T> ShowAsync<T>(UIElement dialog, Task<T> resultTask)

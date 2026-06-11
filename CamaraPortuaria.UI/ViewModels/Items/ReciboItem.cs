@@ -9,7 +9,9 @@ namespace CamaraPortuaria.UI.ViewModels.Items;
 public class ReciboItem
 {
     public int Id { get; }
+    public int EmpresaId { get; }
     public string Empresa { get; }
+    public bool EsMoroso { get; }
     public string Periodo { get; }
     public string Importe { get; }
     public string Comprobante { get; }
@@ -28,15 +30,19 @@ public class ReciboItem
     public string? FechaEnvioMailFormateada { get; }
 
     public bool EsReenviable => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado;
-    public bool EsPagable => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado;
-    /// <summary>Hay un paso pendiente que reintentar: falta el CAE, o el CAE está pero el mail falló.</summary>
+    public bool EsPagable    => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado;
+    public bool EsAnulable   => EstadoPersistido != ReciboEstado.Anulado;
+    /// <summary>El paso de emisión/CAE está pendiente (sin CAE). El mail fallido lo cubre <see cref="EsReenviable"/>.</summary>
     public bool EsReintentable { get; }
 
     public ReciboItem(Recibo r)
     {
         var hoy = DateTime.Today;
         Id = r.Id;
-        Empresa = r.Empresa?.Nombre ?? $"#{r.EmpresaId}";
+        EmpresaId = r.EmpresaId;
+        // Nombre desde el snapshot fiscal (inmutable); fallback a la navegación para recibos legacy.
+        Empresa = r.ReceptorNombre is { Length: > 0 } nombre ? nombre : r.Empresa?.Nombre ?? $"#{r.EmpresaId}";
+        EsMoroso = r.Empresa?.EsMoroso ?? false;
         Periodo = Formato.Periodo(r.PeriodoAnio, r.PeriodoMes);
         Importe = Formato.Moneda(r.Importe);
         CaeOk = !string.IsNullOrEmpty(r.CAE);
@@ -44,13 +50,14 @@ public class ReciboItem
         FechaEmision = Formato.Fecha(r.FechaEmision);
         FechaVencimiento = Formato.Fecha(r.FechaVencimientoPago);
         EstadoPersistido = r.Estado;
-        Estado = EstadoReciboHelper.EtiquetaEstado(r.Estado, r.FechaVencimientoPago, hoy);
+        Estado = r.Empresa?.EsMoroso == true
+            ? "Moroso"
+            : EstadoReciboHelper.EtiquetaEstado(r.Estado, r.FechaVencimientoPago, hoy);
         DiasAtraso = EstadoReciboHelper.DiasAtraso(r.Estado, r.FechaVencimientoPago, hoy);
         MailEnviado = r.Estado == ReciboEstado.Enviado;
         FechaEnvioMailFormateada = r.FechaEnvioMail.HasValue ? Formato.Fecha(r.FechaEnvioMail.Value) : null;
         Error = r.UltimoErrorCae ?? r.UltimoErrorMail;
-        EsReintentable = r.Estado == ReciboEstado.Pendiente
-                         || (r.Estado == ReciboEstado.Emitido && r.UltimoErrorMail is not null);
+        EsReintentable = r.Estado == ReciboEstado.Pendiente;
         EstadoEnvio = r.Estado switch
         {
             ReciboEstado.Pendiente => "CAE pendiente",

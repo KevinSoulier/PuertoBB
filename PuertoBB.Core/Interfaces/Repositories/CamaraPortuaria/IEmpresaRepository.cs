@@ -11,4 +11,6 @@ public interface IEmpresaRepository : IRepository<Empresa>
     Task<IReadOnlyList<Empresa>> GetTodasConEmailsAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<Empresa>> GetActivasAsync(CancellationToken ct = default);
+
+    Task SetMorosoAsync(int id, bool esMoroso, CancellationToken ct = default);
 }

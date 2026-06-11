@@ -9,6 +9,7 @@ public abstract class PageViewModel : BaseViewModel
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
 
     protected void MostrarError(string mensaje) => SnackbarHost.Error(mensaje);
+    protected void MostrarAdvertencia(string mensaje) => SnackbarHost.Advertencia(mensaje);
     protected void MostrarExito(string mensaje) => SnackbarHost.Exito(mensaje);
     protected void LimpiarStatus() { /* obsoleto: el toaster se autocierra por timeout */ }
 }

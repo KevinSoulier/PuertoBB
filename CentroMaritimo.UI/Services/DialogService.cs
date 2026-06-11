@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using CentroMaritimo.UI.Dialogs;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models;
 
 namespace CentroMaritimo.UI.Services;
 
@@ -41,6 +42,15 @@ public class DialogService : IDialogService
     public Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null)
     {
         var dialog = new PdfPreviewDialog(pdfBytes, titulo, nombreArchivo);
+        return ShowAsync(dialog, dialog.Result);
+    }
+
+    public Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
+        string labelEntidad,
+        IReadOnlyList<EntidadEmisionItem> entidades,
+        IReadOnlyList<string> conceptos)
+    {
+        var dialog = new EmisionIndividualDialog(labelEntidad, entidades, conceptos);
         return ShowAsync(dialog, dialog.Result);
     }
 

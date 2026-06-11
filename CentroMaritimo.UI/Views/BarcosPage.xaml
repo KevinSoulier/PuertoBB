@@ -16,7 +16,8 @@
         <!-- Buscador -->
         <ui:TextBox Grid.Row="2" Margin="0,0,0,12"
                  Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
-                 PlaceholderText="Buscar barco…" />
+                 PlaceholderText="Buscar barco…"
+                 IsEnabled="{Binding NoEnEdicion}" />
 
         <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
@@ -26,7 +27,8 @@
 
             <DataGrid Grid.Column="0" ItemsSource="{Binding BarcosFiltrados}" SelectedItem="{Binding Seleccionado}"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal" CanUserAddRows="False" Margin="0,0,16,0">
+                      GridLinesVisibility="Horizontal" CanUserAddRows="False" Margin="0,0,16,0"
+                      SelectionMode="Single" IsEnabled="{Binding NoEnEdicion}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*" />
                 </DataGrid.Columns>
@@ -36,21 +38,40 @@
                     Background="{DynamicResource LayerFillColorDefaultBrush}" VerticalAlignment="Top">
                 <StackPanel>
                     <TextBlock Text="Ficha de barco" FontWeight="SemiBold" Margin="0,0,0,12" />
-                    <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding NombreEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
-                    <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                   Style="{StaticResource AccionIconButton}">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
-                        </ui:Button>
-                        <ui:Button Content="Guardar" Command="{Binding GuardarCommand}"
-                                   Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                        </ui:Button>
-                        <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                   Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
-                        </ui:Button>
+                    <StackPanel IsEnabled="{Binding EnEdicion}">
+                        <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding NombreEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                    </StackPanel>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
+                                       Style="{StaticResource AccionIconButton}"
+                                       ToolTip="Crear un nuevo barco">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Editar" Command="{Binding EditarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Editar el barco seleccionado">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Eliminar el barco seleccionado">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button Content="Aceptar" Command="{Binding AceptarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                       ToolTip="Guardar los cambios del barco">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Cancelar" Command="{Binding CancelarCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Cancelar la edición">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>

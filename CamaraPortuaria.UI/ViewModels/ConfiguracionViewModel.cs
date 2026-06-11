@@ -27,15 +27,19 @@ public class ConfiguracionViewModel : PageViewModel
     // ══════════════════════════════════════════
     // EMISOR
     // ══════════════════════════════════════════
-    public string RazonSocial { get => _config.RazonSocial; set { _config.RazonSocial = value; OnPropertyChanged(); } }
-    public string Cuit        { get => _config.Cuit;        set { _config.Cuit = value; OnPropertyChanged(); } }
+    public string    RazonSocial       { get => _config.RazonSocial;        set { _config.RazonSocial = value;        OnPropertyChanged(); } }
+    public string    Cuit              { get => _config.Cuit;               set { _config.Cuit = value;               OnPropertyChanged(); } }
+    public string?   IngresosBrutos   { get => _config.IngresosBrutos;     set { _config.IngresosBrutos = value;     OnPropertyChanged(); } }
+    public DateTime? InicioActividades { get => _config.InicioActividades;  set { _config.InicioActividades = value;  OnPropertyChanged(); } }
 
     private bool _emisorEditando;
     public bool EmisorEditando   { get => _emisorEditando;  set { SetField(ref _emisorEditando, value);  OnPropertyChanged(nameof(EmisorNoEditando));  } }
     public bool EmisorNoEditando => !_emisorEditando;
 
-    private string _snapRazonSocial = string.Empty;
-    private string _snapCuit        = string.Empty;
+    private string    _snapRazonSocial       = string.Empty;
+    private string    _snapCuit              = string.Empty;
+    private string?   _snapIngresosBrutos;
+    private DateTime? _snapInicioActividades;
 
     public ICommand EditarEmisorCommand   { get; }
     public ICommand GuardarEmisorCommand  { get; }
@@ -43,15 +47,19 @@ public class ConfiguracionViewModel : PageViewModel
 
     private void EditarEmisor()
     {
-        _snapRazonSocial = RazonSocial;
-        _snapCuit        = Cuit;
-        EmisorEditando   = true;
+        _snapRazonSocial       = RazonSocial;
+        _snapCuit              = Cuit;
+        _snapIngresosBrutos    = IngresosBrutos;
+        _snapInicioActividades = InicioActividades;
+        EmisorEditando         = true;
     }
     private void CancelarEmisor()
     {
-        RazonSocial    = _snapRazonSocial;
-        Cuit           = _snapCuit;
-        EmisorEditando = false;
+        RazonSocial        = _snapRazonSocial;
+        Cuit               = _snapCuit;
+        IngresosBrutos     = _snapIngresosBrutos;
+        InicioActividades  = _snapInicioActividades;
+        EmisorEditando     = false;
     }
     private async Task GuardarEmisorAsync()
     {
@@ -345,8 +353,16 @@ public class ConfiguracionViewModel : PageViewModel
     }
     private async Task GuardarCorreoAsync()
     {
-        try   { await _repo.SaveAsync(_config); CorreoEditando = false; MostrarExito("Configuración de correo guardada."); }
+        var rawPwd = _config.SmtpPassword;
+        _config.SmtpPassword = _protector.Protect(rawPwd);
+        try
+        {
+            await _repo.SaveAsync(_config);
+            CorreoEditando = false;
+            MostrarExito("Configuración de correo guardada.");
+        }
         catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+        finally { _config.SmtpPassword = rawPwd; }
     }
     private async Task ProbarMailAsync()
     {
@@ -441,7 +457,9 @@ public class ConfiguracionViewModel : PageViewModel
     private async Task CargarAsync()
     {
         _config = await _repo.GetAsync();
-        foreach (var p in new[] { nameof(RazonSocial), nameof(Cuit), nameof(CodigoAfipRecibo), nameof(CodigoAfipNotaDeCredito),
+        _config.SmtpPassword = _protector.Unprotect(_config.SmtpPassword);
+        foreach (var p in new[] { nameof(RazonSocial), nameof(Cuit), nameof(IngresosBrutos), nameof(InicioActividades),
+                                   nameof(CodigoAfipRecibo), nameof(CodigoAfipNotaDeCredito),
                                    nameof(DiasVencimiento), nameof(SmtpHost), nameof(SmtpPort), nameof(SmtpSeguridad),
                                    nameof(SmtpUsuario), nameof(SmtpPassword), nameof(EmailRemitente) })
             OnPropertyChanged(p);
@@ -620,7 +638,7 @@ public class ConfiguracionViewModel : PageViewModel
         var res = await _backup.RestaurarAsync(dlg.FileName);
         if (res.Success)
         {
-            MostrarExito("Backup restaurado correctamente. La aplicación se cerrará ahora.");
+            MostrarExito("Base restaurada. Cierre y vuelva a abrir la aplicación.");
             await Task.Delay(1500);
             Application.Current.Shutdown();
         }

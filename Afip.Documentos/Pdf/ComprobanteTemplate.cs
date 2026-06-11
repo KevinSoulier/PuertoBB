@@ -34,7 +34,7 @@ internal class ComprobanteTemplate : IDocument
 
             p.Header().Element(Encabezado);
             p.Content().Element(Cuerpo);
-            p.Footer().Element(PieCae);
+            p.Footer().Element(Pie);
         });
     }
 
@@ -154,15 +154,20 @@ internal class ComprobanteTemplate : IDocument
             // Sección datos del receptor
             col.Item().PaddingTop(6).Element(SeccionReceptor);
 
+            // Comprobante asociado (NC que cancela un comprobante previo) — P1-7
+            if (_doc.ComprobanteAsociado is { } ca)
+                col.Item().PaddingTop(4).Text(t =>
+                {
+                    t.Span("Comprobante asociado: ").SemiBold();
+                    t.Span($"{TipoComprobanteAfip.Nombre(ca.CodigoTipo)} {TipoComprobanteAfip.Letra(ca.CodigoTipo)} — {ca.PuntoVenta:0000}-{ca.Numero:00000000}");
+                });
+
             // Tabla de items o texto libre
             col.Item().PaddingTop(6).Element(Detalle);
 
             // Observaciones / leyendas
             if (_doc.Leyendas.Count > 0)
                 col.Item().PaddingTop(4).Element(SeccionLeyendas);
-
-            // Totales al pie del contenido
-            col.Item().PaddingTop(6).Element(Totales);
         });
     }
 
@@ -348,7 +353,6 @@ internal class ComprobanteTemplate : IDocument
 
     private void Totales(IContainer e)
     {
-        // Desglose estándar AFIP: Subtotal, Bonif, Subtotal c/Bonif, Otros Tributos, Total
         var tieneDesglose = _doc.ImporteNeto.HasValue || _doc.ImporteIva.HasValue || _doc.ImporteExento.HasValue;
         var subtotal = tieneDesglose
             ? _doc.ImporteNeto.GetValueOrDefault() + _doc.ImporteIva.GetValueOrDefault() + _doc.ImporteExento.GetValueOrDefault()
@@ -359,31 +363,35 @@ internal class ComprobanteTemplate : IDocument
         {
             col.Spacing(2);
 
-            FilaDatoTotal(col, "Subtotal: $", FormatMonedaSinSimbolo(subtotal));
+            // Subtotal: solo si hay desglose de IVA/Neto/Exento
+            if (tieneDesglose)
+                FilaDatoTotal(col, "Subtotal:", FormatMoneda(subtotal));
 
-            col.Item().Row(r =>
-            {
-                r.RelativeItem().AlignRight().Text(t =>
-                {
-                    t.Span("Bonif: ").FontColor(Gris);
-                    t.Span("%0");
-                    t.Span("   Importe Bonif: $").FontColor(Gris);
-                });
-                r.ConstantItem(90).AlignRight().Text(FormatMonedaSinSimbolo(0m));
-            });
+            // Otros Tributos: solo si tienen valor
+            if (otrosTributos > 0)
+                FilaDatoTotal(col, "Importe Otros Tributos:", FormatMoneda(otrosTributos));
 
-            FilaDatoTotal(col, "Subtotal c/Bonif.: $", FormatMonedaSinSimbolo(subtotal));
-            FilaDatoTotal(col, "Importe Otros Tributos: $", FormatMonedaSinSimbolo(otrosTributos));
-
+            // Total: siempre
             col.Item().BorderTop(1).BorderColor(BordeGris).PaddingTop(2).Row(r =>
             {
-                r.RelativeItem().AlignRight().Text("Importe Total: $ ").SemiBold().FontSize(10);
-                r.ConstantItem(90).AlignRight().Text(FormatMonedaSinSimbolo(_doc.ImporteTotal)).Bold().FontSize(10);
+                r.RelativeItem().AlignRight().Text("Importe Total: ").SemiBold().FontSize(10);
+                r.ConstantItem(90).AlignRight().Text(FormatMoneda(_doc.ImporteTotal)).Bold().FontSize(10);
             });
         });
     }
 
-    // ── 3. PIE — QR | ARCA texto | CAE ──────────────────────────────────────
+    // ── 3. PIE — Totales + QR | ARCA texto | CAE ────────────────────────────
+
+    /// <summary>Footer completo: Totales arriba + recuadro QR+CAE abajo.</summary>
+    private void Pie(IContainer e)
+    {
+        e.Column(col =>
+        {
+            col.Spacing(0);
+            col.Item().PaddingBottom(6).Element(Totales);
+            col.Item().Element(PieCae);
+        });
+    }
 
     private void PieCae(IContainer e)
     {

@@ -59,6 +59,10 @@ public class VoucherService : IVoucherService
     public async Task<ServiceResult<IReadOnlyList<Voucher>>> GetPendientesAsync(int anio, int mes, CancellationToken ct = default)
         => ServiceResult<IReadOnlyList<Voucher>>.Ok(await _vouchers.GetPendientesByPeriodoAsync(anio, mes, ct));
 
+    public async Task<ServiceResult<IReadOnlyList<Voucher>>> GetDelPeriodoAsync(int anio, int mes, CancellationToken ct = default)
+        => ServiceResult<IReadOnlyList<Voucher>>.Ok(
+            (await _vouchers.GetTodosByPeriodoAsync(anio, mes, ct)).OrderBy(v => v.Numero).ToList());
+
     public async Task<ServiceResult<bool>> ActualizarVoucherAsync(Voucher voucher, CancellationToken ct = default)
     {
         var existente = await _vouchers.GetByIdAsync(voucher.Id, ct);
@@ -135,7 +139,8 @@ public class VoucherService : IVoucherService
         ReciboEstado.Emitido  => EstadoCierreAgencia.Emitido,
         ReciboEstado.Enviado  => EstadoCierreAgencia.Completo,
         ReciboEstado.Pagado   => EstadoCierreAgencia.Completo,
-        // Anulado: se trata como Pendiente para permitir reemisión (TODO: chip "Anulado" en iter siguiente).
+        // Decisión: un consolidado Anulado vuelve a figurar como Pendiente para permitir reemitir el período.
+        // (Si en el futuro se quiere distinguirlo visualmente, agregar un estado "Anulado" a EstadoCierreAgencia.)
         ReciboEstado.Anulado  => EstadoCierreAgencia.Pendiente,
         _                     => EstadoCierreAgencia.Pendiente
     };

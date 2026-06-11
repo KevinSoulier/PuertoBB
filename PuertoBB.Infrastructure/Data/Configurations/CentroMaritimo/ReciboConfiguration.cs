@@ -17,13 +17,23 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
         b.Property(r => r.Estado).HasConversion<string>().HasMaxLength(20);
         b.Property(r => r.TipoComprobante).HasConversion<string>().HasMaxLength(20);
 
-        // Bloqueo de duplicados de cuota/individual.
-        b.HasIndex(r => new { r.AgenciaId, r.GrupoFacturacionId, r.PeriodoAnio, r.PeriodoMes }).IsUnique();
+        // Snapshot fiscal del receptor (copiado al emitir)
+        b.Property(r => r.ReceptorNombre).IsRequired().HasMaxLength(200);
+        b.Property(r => r.ReceptorRazonSocial).IsRequired().HasMaxLength(200);
+        b.Property(r => r.ReceptorCuit).IsRequired().HasMaxLength(13);
+        b.Property(r => r.ReceptorDomicilio).HasMaxLength(300);
+        b.Property(r => r.ReceptorCondicionIva).HasMaxLength(100);
 
-        // Un solo recibo consolidado de vouchers por (agencia, período) — índice único parcial.
+        // El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
+
+        b.HasIndex(r => new { r.PuntoDeVenta, r.NumeroComprobante, r.CodigoAfip })
+            .IsUnique()
+            .HasFilter("\"NumeroComprobante\" > 0");
+
+        // Un solo recibo consolidado de vouchers por (agencia, período) — índice único parcial (excluye anulados para permitir reemisión).
         b.HasIndex(r => new { r.AgenciaId, r.PeriodoAnio, r.PeriodoMes })
             .IsUnique()
-            .HasFilter("\"EsConsolidadoVouchers\" = 1");
+            .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"Estado\" <> 'Anulado'");
 
         b.HasOne(r => r.NotaDeCredito)
             .WithOne(n => n.ReciboOriginal)

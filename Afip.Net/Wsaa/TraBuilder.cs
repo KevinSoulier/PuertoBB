@@ -37,7 +37,7 @@ public static class TraBuilder
             : X509CertificateLoader.LoadPkcs12FromFile(
                 options.CertificadoRuta!,
                 options.CertificadoPassword,
-                X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.Exportable);
+                X509KeyStorageFlags.EphemeralKeySet);
 
         var traBytes = Encoding.UTF8.GetBytes(traXml);
         var signedCms = new SignedCms(new ContentInfo(traBytes), detached: false);

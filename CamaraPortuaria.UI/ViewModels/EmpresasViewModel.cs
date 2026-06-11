@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CamaraPortuaria.UI.ViewModels.Base;
+using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
@@ -13,6 +14,9 @@ public class EmpresasViewModel : PageViewModel
     private readonly IDialogService _dialog;
     private int _editId;
     private List<Empresa> _todasLasEmpresas = [];
+
+    private string _snapNombre = string.Empty, _snapRazonSocial = string.Empty, _snapCuit = string.Empty;
+    private string _snapDomicilio = string.Empty, _snapCondicionIva = string.Empty, _snapEmails = string.Empty;
 
     public ObservableCollection<Empresa> EmpresasFiltradas { get; } = [];
 
@@ -27,7 +31,7 @@ public class EmpresasViewModel : PageViewModel
     public Empresa? Seleccionada
     {
         get => _seleccionada;
-        set { if (SetField(ref _seleccionada, value) && value is not null) _ = CargarEdicionAsync(value.Id); }
+        set { if (SetField(ref _seleccionada, value) && value is not null) _ = MostrarAsync(value.Id); }
     }
 
     public string NombreEdit { get; set; } = string.Empty;
@@ -37,17 +41,29 @@ public class EmpresasViewModel : PageViewModel
     public string CondicionIvaEdit { get; set; } = string.Empty;
     public string EmailsEdit { get; set; } = string.Empty;
 
+    private bool _enEdicion;
+    public bool EnEdicion
+    {
+        get => _enEdicion;
+        private set { if (SetField(ref _enEdicion, value)) { OnPropertyChanged(nameof(NoEnEdicion)); CommandManager.InvalidateRequerySuggested(); } }
+    }
+    public bool NoEnEdicion => !EnEdicion;
+
     public ICommand NuevoCommand { get; }
-    public ICommand GuardarCommand { get; }
+    public ICommand EditarCommand { get; }
+    public ICommand AceptarCommand { get; }
+    public ICommand CancelarCommand { get; }
     public ICommand EliminarCommand { get; }
 
     public EmpresasViewModel(IEmpresaRepository repo, IDialogService dialog)
     {
         _repo = repo;
         _dialog = dialog;
-        NuevoCommand = new RelayCommand(_ => Nuevo());
-        GuardarCommand = new AsyncRelayCommand(GuardarAsync);
-        EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionada is not null);
+        NuevoCommand = new RelayCommand(_ => Nuevo(), _ => !EnEdicion);
+        EditarCommand = new RelayCommand(_ => Editar(), _ => Seleccionada is not null && !EnEdicion);
+        AceptarCommand = new AsyncRelayCommand(AceptarAsync, () => EnEdicion);
+        CancelarCommand = new RelayCommand(_ => Cancelar(), _ => EnEdicion);
+        EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionada is not null && !EnEdicion);
         _ = CargarListaAsync();
     }
 
@@ -75,11 +91,52 @@ public class EmpresasViewModel : PageViewModel
         _editId = 0;
         NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
         _seleccionada = null;
+        OnPropertyChanged(nameof(Seleccionada));
+        TomarSnapshot();
         NotificarEdicion();
+        EnEdicion = true;
         LimpiarStatus();
     }
 
-    private async Task CargarEdicionAsync(int id)
+    private void Editar()
+    {
+        TomarSnapshot();
+        EnEdicion = true;
+    }
+
+    private void Cancelar()
+    {
+        if (_editId == 0)
+        {
+            NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
+            _seleccionada = null;
+            OnPropertyChanged(nameof(Seleccionada));
+        }
+        else
+        {
+            NombreEdit = _snapNombre;
+            RazonSocialEdit = _snapRazonSocial;
+            CuitEdit = _snapCuit;
+            DomicilioEdit = _snapDomicilio;
+            CondicionIvaEdit = _snapCondicionIva;
+            EmailsEdit = _snapEmails;
+        }
+        NotificarEdicion();
+        EnEdicion = false;
+        LimpiarStatus();
+    }
+
+    private void TomarSnapshot()
+    {
+        _snapNombre = NombreEdit;
+        _snapRazonSocial = RazonSocialEdit;
+        _snapCuit = CuitEdit;
+        _snapDomicilio = DomicilioEdit;
+        _snapCondicionIva = CondicionIvaEdit;
+        _snapEmails = EmailsEdit;
+    }
+
+    private async Task MostrarAsync(int id)
     {
         var e = await _repo.GetConDetalleAsync(id);
         if (e is null) return;
@@ -93,17 +150,18 @@ public class EmpresasViewModel : PageViewModel
         NotificarEdicion();
     }
 
-    private async Task GuardarAsync()
+    private async Task AceptarAsync()
     {
         if (string.IsNullOrWhiteSpace(NombreEdit)) { MostrarError("El nombre es obligatorio."); return; }
         if (string.IsNullOrWhiteSpace(CuitEdit)) { MostrarError("El CUIT es obligatorio."); return; }
+        if (!CuitValidator.EsValido(CuitEdit)) { MostrarError("El CUIT no es válido."); return; }
 
         var emails = ParsearEmails();
         try
         {
             if (_editId == 0)
             {
-                await _repo.AddAsync(new Empresa
+                var nueva = new Empresa
                 {
                     Nombre = NombreEdit.Trim(),
                     RazonSocial = RazonSocialEdit.Trim(),
@@ -112,7 +170,9 @@ public class EmpresasViewModel : PageViewModel
                     CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim(),
                     Activa = true,
                     Emails = emails.Select(em => new EmailEmpresa { Email = em }).ToList()
-                });
+                };
+                await _repo.AddAsync(nueva);
+                _editId = nueva.Id;
                 MostrarExito("Empresa creada.");
             }
             else
@@ -130,7 +190,12 @@ public class EmpresasViewModel : PageViewModel
                 await _repo.UpdateAsync(existente);
                 MostrarExito("Empresa actualizada.");
             }
+            var idGuardado = _editId;
             await CargarListaAsync();
+            var guardada = EmpresasFiltradas.FirstOrDefault(e => e.Id == idGuardado)
+                           ?? _todasLasEmpresas.FirstOrDefault(e => e.Id == idGuardado);
+            if (guardada is not null) { _seleccionada = guardada; OnPropertyChanged(nameof(Seleccionada)); }
+            EnEdicion = false;
         }
         catch (Exception ex)
         {
@@ -147,7 +212,12 @@ public class EmpresasViewModel : PageViewModel
         {
             await _repo.DeleteAsync(Seleccionada.Id);
             MostrarExito("Empresa eliminada.");
-            Nuevo();
+            _editId = 0;
+            NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
+            _seleccionada = null;
+            OnPropertyChanged(nameof(Seleccionada));
+            NotificarEdicion();
+            EnEdicion = false;
             await CargarListaAsync();
         }
         catch (Exception ex)

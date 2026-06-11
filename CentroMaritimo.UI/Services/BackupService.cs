@@ -28,6 +28,8 @@ public class BackupService : IBackupService
     {
         try
         {
+            // VACUUM INTO falla si el archivo destino ya existe (P2-9).
+            if (File.Exists(destinoPath)) File.Delete(destinoPath);
             // VACUUM INTO no admite parámetros enlazados; se escapan las comillas simples.
             // La ruta la elige el usuario con SaveFileDialog (no es entrada externa).
             var sql = "VACUUM INTO '" + destinoPath.Replace("'", "''") + "'";
@@ -50,6 +52,8 @@ public class BackupService : IBackupService
             var dbPath = conn.DataSource;
 
             _db.Database.CloseConnection();
+            // Limpiar el pool para liberar todos los handles abiertos por otros DbContext transient (P1-5).
+            SqliteConnection.ClearAllPools();
             await Task.Run(() => File.Copy(origenPath, dbPath, overwrite: true), ct);
             _logger.LogInformation("Base restaurada desde {Origen}", origenPath);
             return ServiceResult<bool>.Ok(true);

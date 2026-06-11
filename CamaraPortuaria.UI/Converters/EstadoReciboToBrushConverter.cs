@@ -34,23 +34,27 @@ internal static class EstadoReciboColorHelper
 {
     internal static string Background(string? estado) => estado switch
     {
-        "Emitido"   => "#E3F2FD",
-        "Enviado"   => "#E0F7FA",
-        "Pagado"    => "#E8F5E9",
-        "Vencido"   => "#FFEBEE",
-        "Anulado"   => "#F5F5F5",
-        "Pendiente" => "#FFF3E0",
-        _           => "#FFFFFF"
+        "Emitido"     => "#E3F2FD",
+        "Enviado"     => "#E0F7FA",
+        "Pagado"      => "#E8F5E9",
+        "Vencido"     => "#FFEBEE",
+        "Anulado"     => "#F5F5F5",
+        "Pendiente"   => "#FFF3E0",
+        "Moroso"      => "#FBE9E7",
+        "No emitido"  => "#ECEFF1",
+        _             => "#FFFFFF"
     };
 
     internal static string Foreground(string? estado) => estado switch
     {
-        "Emitido"   => "#1565C0",
-        "Enviado"   => "#006064",
-        "Pagado"    => "#2E7D32",
-        "Vencido"   => "#C62828",
-        "Anulado"   => "#616161",
-        "Pendiente" => "#E65100",
-        _           => "#212121"
+        "Emitido"     => "#1565C0",
+        "Enviado"     => "#006064",
+        "Pagado"      => "#2E7D32",
+        "Vencido"     => "#C62828",
+        "Anulado"     => "#616161",
+        "Pendiente"   => "#E65100",
+        "Moroso"      => "#BF360C",
+        "No emitido"  => "#607D8B",
+        _             => "#212121"
     };
 }

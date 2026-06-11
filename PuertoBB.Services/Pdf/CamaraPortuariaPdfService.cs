@@ -9,6 +9,7 @@ namespace PuertoBB.Services.Pdf;
 public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
 {
     private const string RazonSocialEmisor = "Cámara Portuaria de Bahía Blanca";
+    private static readonly PdfTheme _theme = PdfTheme.CamaraPortuaria;
 
     private readonly IAfipDocumentosService _documentos;
     private readonly IAfipConfigProvider _configProvider;
@@ -22,13 +23,20 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
     public async Task<byte[]> GenerarPdfReciboAsync(Recibo recibo, CancellationToken ct = default)
     {
         var config = await _configProvider.GetAsync(ct);
-        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.Empresa?.Cuit);
-        var receptorNombre = recibo.Empresa?.RazonSocial is { Length: > 0 } rs
+        // Datos del receptor desde el snapshot fiscal del recibo (inmutable), no por navegación.
+        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.ReceptorCuit);
+        var receptorNombre = recibo.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
-            : recibo.Empresa?.Nombre ?? $"#{recibo.EmpresaId}";
+            : recibo.ReceptorNombre is { Length: > 0 } n ? n : $"#{recibo.EmpresaId}";
 
         var periodoDesde = new DateOnly(recibo.PeriodoAnio, recibo.PeriodoMes, 1);
         var periodoHasta = periodoDesde.AddMonths(1).AddDays(-1);
+
+        // El detalle sale SIEMPRE del snapshot de líneas persistido (no se recalcula).
+        var items = recibo.Lineas
+            .OrderBy(l => l.Orden)
+            .Select(l => new ItemDocumento { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Subtotal = l.Importe })
+            .ToList();
 
         var doc = new ComprobanteDocumento
         {
@@ -40,24 +48,27 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
             Cae           = recibo.CAE,
             FechaVencimientoCae = recibo.FechaVencimientoCAE,
             ImporteTotal  = recibo.Importe,
-            ConceptoGeneral = recibo.Detalle,
+            Items         = items.Count > 0 ? items : [],
+            ConceptoGeneral = items.Count > 0 ? null : recibo.Detalle,
             PeriodoServicioDesde = periodoDesde,
             PeriodoServicioHasta = periodoHasta,
             FechaVencimientoPago = recibo.FechaVencimientoPago,
             Emisor = new EmisorDocumento
             {
-                RazonSocial   = RazonSocialEmisor,
-                Cuit          = Formato.ParseCuit(config.CuitEmisor),
-                CondicionIva  = "IVA Exento",
-                ColorAcentoHex = "#1565C0"
+                RazonSocial       = RazonSocialEmisor,
+                Cuit              = Formato.ParseCuit(config.CuitEmisor),
+                CondicionIva      = "IVA Exento",
+                ColorAcentoHex    = _theme.AcentoHex,
+                IngresosBrutos    = config.IngresosBrutos,
+                InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
             },
             Receptor = new ReceptorDocumento
             {
                 RazonSocial   = receptorNombre,
                 TipoDocumento = tipoDoc,
                 NroDocumento  = nroDoc,
-                Domicilio     = recibo.Empresa?.Domicilio,
-                CondicionIva  = recibo.Empresa?.CondicionIva
+                Domicilio     = recibo.ReceptorDomicilio,
+                CondicionIva  = recibo.ReceptorCondicionIva
             }
         };
 
@@ -68,10 +79,16 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
     {
         var config = await _configProvider.GetAsync(ct);
         var recibo = nc.ReciboOriginal;
-        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.Empresa?.Cuit);
-        var receptorNombre = recibo?.Empresa?.RazonSocial is { Length: > 0 } rs
+        var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.ReceptorCuit);
+        var receptorNombre = recibo?.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
-            : recibo?.Empresa?.Nombre ?? string.Empty;
+            : recibo?.ReceptorNombre ?? string.Empty;
+
+        // Anulación total: la NC replica el detalle (líneas) del recibo original.
+        var items = (recibo?.Lineas ?? [])
+            .OrderBy(l => l.Orden)
+            .Select(l => new ItemDocumento { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Subtotal = l.Importe })
+            .ToList();
 
         var doc = new ComprobanteDocumento
         {
@@ -83,16 +100,19 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
             Cae           = nc.CAE,
             FechaVencimientoCae = nc.FechaVencimientoCAE,
             ImporteTotal  = recibo?.Importe ?? 0,
+            Items         = items.Count > 0 ? items : [],
             Leyendas      = [$"Anula el recibo original Nro. {nc.ReciboOriginalId}"],
             ComprobanteAsociado = recibo is not null
                 ? new ComprobanteAsociado(recibo.CodigoAfip, recibo.PuntoDeVenta, recibo.NumeroComprobante)
                 : null,
             Emisor = new EmisorDocumento
             {
-                RazonSocial   = RazonSocialEmisor,
-                Cuit          = Formato.ParseCuit(config.CuitEmisor),
-                CondicionIva  = "IVA Exento",
-                ColorAcentoHex = "#1565C0"
+                RazonSocial       = RazonSocialEmisor,
+                Cuit              = Formato.ParseCuit(config.CuitEmisor),
+                CondicionIva      = "IVA Exento",
+                ColorAcentoHex    = _theme.AcentoHex,
+                IngresosBrutos    = config.IngresosBrutos,
+                InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
             },
             Receptor = new ReceptorDocumento
             {

@@ -11,6 +11,7 @@ public class ConfiguracionConfiguration : IEntityTypeConfiguration<Configuracion
         b.HasKey(c => c.Id);
         b.Property(c => c.NombreApoderado).HasMaxLength(200);
         b.Property(c => c.CuitApoderado).HasMaxLength(13);
+        b.Property(c => c.IngresosBrutos).HasMaxLength(50);
 
         b.HasData(new Configuracion
         {

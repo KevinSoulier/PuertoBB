@@ -9,7 +9,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="Recibos" Style="{StaticResource PageTitle}" />
@@ -17,40 +16,29 @@
         <!-- Filtros período + acciones -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox ItemsSource="{Binding Meses}" SelectedItem="{Binding Mes}" Width="70" />
+            <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
             <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
                           Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
-            <ui:Button Content="Buscar" Command="{Binding BuscarCommand}"
-                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
-            </ui:Button>
-            <ui:Button Content="Reintentar" Command="{Binding ReintentarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
-                       ToolTip="Reintenta el CAE o el envío del mail del recibo seleccionado.">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
-            </ui:Button>
-            <ui:Button Content="Anular" Command="{Binding AnularCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="Prohibited24" /></ui:Button.Icon>
-            </ui:Button>
-            <ui:Button Content="Reenviar" Command="{Binding ReenviarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
-            </ui:Button>
-            <ui:Button Content="Marcar pagado" Command="{Binding MarcarPagadoCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
-            </ui:Button>
-            <ui:Button Content="Previsualizar" Command="{Binding PrevisualizarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
-                       ToolTip="Abre el PDF del recibo seleccionado.">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+            <ui:TextBox PlaceholderText="Buscar en recibos..."
+                        Text="{Binding TextoBusqueda, UpdateSourceTrigger=PropertyChanged}"
+                        Width="200" Margin="8,0,0,0" VerticalAlignment="Center">
+                <ui:TextBox.Icon>
+                    <ui:SymbolIcon Symbol="Search24" />
+                </ui:TextBox.Icon>
+            </ui:TextBox>
+            <Separator Margin="4,0" />
+            <ui:Button Content="Nuevo recibo" Command="{Binding AbrirEmisionIndividualCommand}"
+                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0"
+                       ToolTip="Emitir un recibo individual a una agencia específica.">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="AddSquare24" /></ui:Button.Icon>
             </ui:Button>
         </StackPanel>
 
         <DataGrid Grid.Row="3" ItemsSource="{Binding Recibos}" SelectedItem="{Binding Seleccionado}"
                   AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                  GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                  SelectionMode="Single"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
                 <DataGridTextColumn Header="Comprobante" Binding="{Binding Comprobante}" Width="120" />
@@ -76,76 +64,44 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Acciones" Width="230" CanUserResize="False" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
+                                <ui:Button IsEnabled="{Binding EsReintentable}"
+                                           Style="{StaticResource AccionIconButtonCompact}"
+                                           Click="Reintentar_Click"
+                                           ToolTip="Emitir / reintentar emisión (obtener CAE)">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button IsEnabled="{Binding EsAnulable}"
+                                           Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
+                                           Click="Anular_Click"
+                                           ToolTip="Anular emitiendo nota de crédito">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Prohibited24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button IsEnabled="{Binding EsReenviable}"
+                                           Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
+                                           Click="Reenviar_Click"
+                                           ToolTip="Reenviar por correo">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button IsEnabled="{Binding EsPagable}"
+                                           Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
+                                           Click="MarcarPagado_Click"
+                                           ToolTip="Marcar como pagado">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
+                                           Click="Previsualizar_Click"
+                                           ToolTip="Abrir PDF">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
-
-        <!-- Emisión individual -->
-        <Border Grid.Row="4" Margin="0,16,0,0" Padding="16" CornerRadius="8"
-                Background="{DynamicResource LayerFillColorDefaultBrush}">
-            <StackPanel>
-                <TextBlock Text="Emisión individual" FontWeight="SemiBold" Margin="0,0,0,12" />
-                <WrapPanel Orientation="Horizontal">
-                    <StackPanel Margin="0,0,12,8">
-                        <TextBlock Text="Agencia" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="11" Margin="0,0,0,2" />
-                        <ComboBox ItemsSource="{Binding Agencias}" SelectedItem="{Binding AgenciaEmision}"
-                                  DisplayMemberPath="Nombre" Width="220" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,12,8">
-                        <TextBlock Text="Mes" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="11" Margin="0,0,0,2" />
-                        <ComboBox ItemsSource="{Binding Meses}" SelectedItem="{Binding MesEmision}" Width="70" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,12,8">
-                        <TextBlock Text="Año" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="11" Margin="0,0,0,2" />
-                        <ui:NumberBox Value="{Binding AnioEmision, UpdateSourceTrigger=PropertyChanged}"
-                                      Style="{StaticResource YearNumberBox}" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,12,8">
-                        <TextBlock Text="Fecha de emisión" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="11" Margin="0,0,0,2" />
-                        <DatePicker SelectedDate="{Binding FechaEmision}" Width="140" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,12,8">
-                        <TextBlock Text="Importe" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="11" Margin="0,0,0,2" />
-                        <ui:NumberBox Value="{Binding ImporteEmision, UpdateSourceTrigger=PropertyChanged}"
-                                      Minimum="0" Maximum="1000000000" ClearButtonEnabled="False"
-                                      SpinButtonPlacementMode="Hidden" Width="130" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,12,8">
-                        <TextBlock Text="Detalle" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="11" Margin="0,0,0,2" />
-                        <ComboBox x:Name="DetalleCombo"
-                                  IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
-                                  ItemsSource="{Binding DetallesFiltrados}"
-                                  DisplayMemberPath="Nombre"
-                                  Text="{Binding DetalleTexto, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedItem="{Binding DetalleSeleccionado}"
-                                  PreviewKeyDown="ComboBox_OpenOnDownKey"
-                                  Width="260" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,0,8" VerticalAlignment="Bottom" Orientation="Horizontal">
-                        <ui:Button Content="Emitir" Command="{Binding EmitirCommand}"
-                                   Style="{StaticResource AccionIconButton}"
-                                   ToolTip="Genera el CAE y guarda el recibo, sin enviar el mail.">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
-                        </ui:Button>
-                        <ui:Button Content="Emitir y enviar" Command="{Binding EmitirYEnviarCommand}"
-                                   Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0"
-                                   ToolTip="Genera el CAE, guarda el recibo y lo envía por mail.">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
-                        </ui:Button>
-                    </StackPanel>
-                </WrapPanel>
-            </StackPanel>
-        </Border>
     </Grid>
 </Page>

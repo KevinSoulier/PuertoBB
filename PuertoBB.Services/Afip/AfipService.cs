@@ -34,6 +34,11 @@ public class AfipService : IAfipService
                 return ServiceResult<CaeResult>.Fail(
                     "No hay certificado AFIP configurado. Cargue el certificado en Configuración o use el modo de prueba.");
 
+            if (!long.TryParse(request.CuitReceptor, out _))
+                return ServiceResult<CaeResult>.Fail("El CUIT/identificación del receptor no es válido.");
+            if (request.ComprobanteAsociado is { } asociado && !long.TryParse(asociado.CuitEmisor, out _))
+                return ServiceResult<CaeResult>.Fail("El CUIT del emisor del comprobante asociado no es válido.");
+
             var resp = await _wsfe.SolicitarCaeAsync(ToOptions(config), ToAfipRequest(request), ct);
             if (!resp.Aprobado || string.IsNullOrWhiteSpace(resp.Cae))
             {
@@ -42,11 +47,14 @@ public class AfipService : IAfipService
                 return ServiceResult<CaeResult>.Fail($"AFIP rechazó el comprobante: {AfipErrores.Describir(resp.Observaciones)}");
             }
 
+            if (resp.FechaVencimientoCae is null)
+                _logger.LogWarning("AFIP no devolvió FechaVencimientoCae para PV={PuntoVenta} Tipo={Tipo} Nro={Numero}", request.PuntoDeVenta, request.CodigoAfip, resp.Numero);
+
             return ServiceResult<CaeResult>.Ok(new CaeResult
             {
                 NumeroComprobante = resp.Numero,
                 Cae = resp.Cae,
-                FechaVencimientoCae = resp.FechaVencimientoCae ?? request.FechaEmision.AddDays(10)
+                FechaVencimientoCae = resp.FechaVencimientoCae ?? default
             });
         }
         catch (Exception ex)
@@ -144,14 +152,14 @@ public class AfipService : IAfipService
     {
         CodigoComprobante = r.CodigoAfip,
         PuntoDeVenta = r.PuntoDeVenta,
-        DocNroReceptor = long.Parse(r.CuitReceptor),
+        DocNroReceptor = long.TryParse(r.CuitReceptor, out var docReceptor) ? docReceptor : 0,
         ImporteTotal = r.ImporteTotal,
         FechaComprobante = r.FechaEmision,
         ServicioDesde = r.PeriodoServicioDesde,
         ServicioHasta = r.PeriodoServicioHasta,
         VencimientoPago = r.FechaVencimientoPago,
         ComprobanteAsociado = r.ComprobanteAsociado is { } a
-            ? new AfipComprobanteAsociado { Tipo = a.Tipo, PuntoDeVenta = a.PuntoDeVenta, Numero = a.Numero, Cuit = long.Parse(a.CuitEmisor) }
+            ? new AfipComprobanteAsociado { Tipo = a.Tipo, PuntoDeVenta = a.PuntoDeVenta, Numero = a.Numero, Cuit = long.TryParse(a.CuitEmisor, out var cuitEmisor) ? cuitEmisor : 0 }
             : null
     };
 }

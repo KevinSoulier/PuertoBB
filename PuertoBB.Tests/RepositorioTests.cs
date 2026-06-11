@@ -12,7 +12,7 @@ namespace PuertoBB.Tests;
 public class CamaraRepositorioTests
 {
     [Fact]
-    public async Task Recibo_IndiceUnico_BloqueaDuplicados()
+    public async Task Recibo_IndiceUnicoDeEmision_BloqueaDuplicados()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
         db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
@@ -22,7 +22,8 @@ public class CamaraRepositorioTests
         var repo = new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance);
         Cp.Recibo Nuevo() => new()
         {
-            EmpresaId = 1, GrupoFacturacionId = 5, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
             Importe = 100, Detalle = "x", CAE = "1", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
         };
 
@@ -30,6 +31,62 @@ public class CamaraRepositorioTests
         await Assert.ThrowsAsync<ReciboException>(() => repo.AddAsync(Nuevo()));
         Assert.True(await repo.ExisteAsync(1, 5, 2026, 6));
         Assert.False(await repo.ExisteAsync(1, 5, 2026, 7));
+    }
+
+    [Fact]
+    public async Task ReciboIndividual_YReciboDeGrupo_ConvivenEnElMismoPeriodo()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
+        db.Grupos.Add(new Cp.GrupoFacturacion { Id = 5, Nombre = "G", Importe = 100, CreatedAt = DateTime.Now });
+        await db.SaveChangesAsync();
+
+        var repo = new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance);
+        // El individual debe estar en Pendiente para que FiltrarPorClave(grupoId:null) lo retorne (P1-4).
+        await repo.AddAsync(new Cp.Recibo
+        {
+            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            Importe = 50, Detalle = "individual", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now,
+            Estado = PuertoBB.Core.Enums.ReciboEstado.Pendiente
+        });
+        await repo.AddAsync(new Cp.Recibo
+        {
+            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            Importe = 100, Detalle = "grupo", CAE = "2", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
+        });
+
+        Assert.True(await repo.ExisteAsync(1, null, 2026, 6));  // Pendiente individual encontrado
+        Assert.True(await repo.ExisteAsync(1, 5, 2026, 6));
+        var individual = await repo.GetPorClaveAsync(1, null, 2026, 6);
+        Assert.NotNull(individual);
+        Assert.Equal("individual", individual!.Detalle);
+    }
+
+    [Fact]
+    public async Task BorrarGrupo_ConRecibos_CascadeaRelacion_YRecibosSobreviven()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
+        db.Grupos.Add(new Cp.GrupoFacturacion { Id = 5, Nombre = "G", Importe = 100, CreatedAt = DateTime.Now });
+        await db.SaveChangesAsync();
+
+        var recibos = new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance);
+        await recibos.AddAsync(new Cp.Recibo
+        {
+            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            Importe = 100, Detalle = "x", CAE = "1", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
+        });
+
+        var grupos = new CpRepos.GrupoFacturacionRepository(db, NullLogger<CpRepos.GrupoFacturacionRepository>.Instance);
+        await grupos.DeleteAsync(5);
+
+        Assert.Empty(db.Grupos.ToList());
+        Assert.Empty(db.EmisionesGrupo.ToList());
+        var recibo = Assert.Single(db.Recibos.ToList()); // el recibo (auditoría) sobrevive
+        Assert.False(await recibos.ExisteAsync(1, 5, 2026, 6));
+        Assert.Equal("x", recibo.Detalle);
     }
 }
 

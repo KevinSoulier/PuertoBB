@@ -10,6 +10,7 @@ public class Empresa : BaseEntity
     public string? Domicilio     { get; set; }
     public string? CondicionIva  { get; set; }  // ej. "IVA Responsable Inscripto", "Monotributista"
     public bool    Activa        { get; set; } = true;
+    public bool    EsMoroso      { get; set; } = false;
 
     public ICollection<EmailEmpresa> Emails  { get; set; } = [];
     public ICollection<EmpresaGrupo> Grupos  { get; set; } = [];

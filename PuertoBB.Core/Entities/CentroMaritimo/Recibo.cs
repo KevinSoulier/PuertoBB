@@ -4,21 +4,34 @@ using PuertoBB.Core.Enums;
 namespace PuertoBB.Core.Entities.CentroMaritimo;
 
 /// <summary>
-/// Recibo emitido a una Agencia. Índice único:
-/// (AgenciaId, GrupoFacturacionId, PeriodoAnio, PeriodoMes).
-/// Recibos consolidados únicos por (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=true.
+/// Recibo emitido a una Agencia. Entidad de auditoría autocontenida: los datos fiscales del
+/// receptor se copian al emitir (Receptor*) y el vínculo con el grupo que lo originó vive en
+/// <see cref="EmisionGrupo"/> (null = emisión individual/consolidado).
+/// Recibos consolidados únicos por (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=true;
+/// el anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
 public class Recibo : BaseEntity
 {
-    public int               AgenciaId          { get; set; }
-    public Agencia           Agencia            { get; set; } = null!;
-    public int?              GrupoFacturacionId { get; set; }
-    public GrupoFacturacion? Grupo              { get; set; }
+    public int     AgenciaId { get; set; }
+    public Agencia Agencia   { get; set; } = null!;
+
+    /// <summary>Vínculo con la emisión de grupo que lo originó; null = individual o consolidado.</summary>
+    public EmisionGrupo? EmisionGrupo { get; set; }
+
+    // Snapshot fiscal del receptor (copiado al emitir, inmutable — como los campos de apoderado)
+    public string  ReceptorNombre       { get; set; } = string.Empty;
+    public string  ReceptorRazonSocial  { get; set; } = string.Empty;
+    public string  ReceptorCuit         { get; set; } = string.Empty;
+    public string? ReceptorDomicilio    { get; set; }
+    public string? ReceptorCondicionIva { get; set; }
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
-    public decimal Importe     { get; set; } // = SUM(Vouchers.Importe) cuando EsConsolidadoVouchers=true
-    public string  Detalle     { get; set; } = string.Empty;
+    public decimal Importe     { get; set; } // = suma de Items.Importe (se persiste al emitir)
+    public string  Detalle     { get; set; } = string.Empty; // encabezado/leyenda opcional; el detalle real son los Items
+
+    /// <summary>Líneas/ítems del recibo (snapshot inmutable del detalle). El detalle mostrado/enviado sale de acá.</summary>
+    public ICollection<ReciboLinea> Lineas { get; set; } = [];
 
     public bool EsConsolidadoVouchers { get; set; }
 

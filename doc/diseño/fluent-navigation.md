@@ -371,7 +371,31 @@ El Border del contenido lleva además:
 
 No mezcles "Background opaco + Mica + ambos juegos de botones" — es la receta del bug.
 
-### 11.3 No asumir desde un solo cambio
+### 11.3 DynamicScrollViewer — ListBox/DataGrid no scrollean internamente
+
+**Síntoma:** en una página con un `ListBox` o `DataGrid` en un row `Height="*"`, el control no scrollea su propio contenido — en cambio scrollea todo el contenido de la página y los botones de acción quedan fuera de la pantalla.
+
+**Causa raíz:** WPF-UI v4.x usa `IsDynamicScrollViewerEnabled=True` por defecto en `NavigationViewContentPresenter`, lo que envuelve cada página en un `DynamicScrollViewer` que mide el contenido con **altura infinita**. Los rows `Height="*"` en los Grid de las páginas heredan esa altura infinita, por lo que los ListBox/DataGrid se expanden para mostrar todos los ítems sin necesitar scroll interno.
+
+**Fix:** en `Resources/Styles.xaml` de cada app UI, sobreescribir el trigger del `NavigationViewContentPresenter` para que use el template simple (sin `DynamicScrollViewer`):
+
+```xml
+<Style TargetType="{x:Type ui:NavigationViewContentPresenter}"
+       BasedOn="{StaticResource {x:Type ui:NavigationViewContentPresenter}}">
+    <Style.Triggers>
+        <Trigger Property="IsDynamicScrollViewerEnabled" Value="True">
+            <Setter Property="Template"
+                    Value="{StaticResource DefaultNavigationViewContentPresenterControlTemplate}" />
+        </Trigger>
+    </Style.Triggers>
+</Style>
+```
+
+Con esto, las páginas reciben altura acotada y los rows `Height="*"` funcionan correctamente.
+
+**Páginas que scrollean ellas mismas** (Dashboard): deben tener su propio `<ScrollViewer>` como root element — eso sigue funcionando porque el ScrollViewer explícito maneja su propio contenido.
+
+### 11.4 No asumir desde un solo cambio
 
 Cada cambio en el shell (`MainWindow.xaml`, `WindowChrome`, jerarquía de fondos) tiene **efectos visuales que solo se ven ejecutando la app**. Tests automatizados y `dotnet build` pasan aunque la UI esté rota.
 

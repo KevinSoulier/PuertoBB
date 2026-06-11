@@ -6,9 +6,11 @@ namespace PuertoBB.Core.Models.Afip;
 /// </summary>
 public record AfipConfig
 {
-    public required string  CuitEmisor       { get; init; } // sin guiones
-    public string?          CertificadoRuta     { get; init; }
-    public string?          CertificadoPassword { get; init; }
-    public string?          CertificadoKeyRuta  { get; init; }
-    public required bool    UsarHomologacion { get; init; }
+    public required string   CuitEmisor          { get; init; } // sin guiones
+    public string?           CertificadoRuta     { get; init; }
+    public string?           CertificadoPassword { get; init; }
+    public string?           CertificadoKeyRuta  { get; init; }
+    public required bool     UsarHomologacion    { get; init; }
+    public string?           IngresosBrutos      { get; init; }
+    public DateTime?         InicioActividades   { get; init; }
 }

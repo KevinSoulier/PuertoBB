@@ -17,6 +17,7 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         DataContext = vm;
         _nav = nav;
+        if (App.ModoDemo) Title += " — MODO DEMO";
 
         // En modo "System" seguimos el tema y el acento del SO en vivo.
         if (PreferenciasUsuario.GetTema() == "System")

@@ -15,6 +15,7 @@ public class GrupoFacturacionRepository : RepositoryBase<GrupoFacturacion>, IGru
 
     public Task<GrupoFacturacion?> GetConMiembrosAsync(int id, CancellationToken ct = default)
         => _db.Grupos
+            .Include(g => g.Lineas)
             .Include(g => g.Agencias).ThenInclude(ag => ag.Agencia).ThenInclude(a => a.Emails)
             .FirstOrDefaultAsync(g => g.Id == id, ct);
 

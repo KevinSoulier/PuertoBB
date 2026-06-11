@@ -14,6 +14,6 @@ public class GrupoFacturacionConfiguration : IEntityTypeConfiguration<GrupoFactu
         b.Property(g => g.Importe).HasColumnType("TEXT"); // SQLite: decimal como TEXT para preservar precisión
 
         b.HasMany(g => g.Empresas).WithOne(x => x.Grupo).HasForeignKey(x => x.GrupoFacturacionId).OnDelete(DeleteBehavior.Cascade);
-        b.HasMany(g => g.Recibos).WithOne(x => x.Grupo).HasForeignKey(x => x.GrupoFacturacionId).OnDelete(DeleteBehavior.Restrict);
+        // La relación con las emisiones (grupo + período + recibo) se configura en EmisionGrupoConfiguration.
     }
 }

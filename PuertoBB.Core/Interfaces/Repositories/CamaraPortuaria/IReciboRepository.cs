@@ -14,9 +14,15 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>Recibo rastreado (con Empresa+Emails) para (empresa, grupo, período), o null. Para crear-o-resumir.</summary>
     Task<Recibo?> GetPorClaveAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default);
 
+    /// <summary>Marca el recibo Anulado y persiste la NC en UN solo SaveChanges.</summary>
+    Task AnularConNotaAsync(Recibo recibo, Core.Entities.CamaraPortuaria.NotaDeCredito nota, CancellationToken ct = default);
+
     /// <summary>Recibos que matchean el filtro del dashboard (con Empresa/Grupo cargados).</summary>
     Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
 
     /// <summary>Todos los recibos de un período (para la grilla de recibos).</summary>
     Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default);
+
+    /// <summary>Recibos de un grupo en un período (para la tabla de emisión masiva).</summary>
+    Task<IReadOnlyList<Recibo>> GetPorGrupoYPeriodoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
 }

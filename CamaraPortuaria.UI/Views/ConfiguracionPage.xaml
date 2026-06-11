@@ -27,7 +27,15 @@
                         <TextBlock Text="CUIT" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding Cuit, UpdateSourceTrigger=PropertyChanged}"
                                  IsEnabled="{Binding EmisorEditando}"
-                                 Width="200" HorizontalAlignment="Left" Margin="0,0,0,16" />
+                                 Width="200" HorizontalAlignment="Left" Margin="0,0,0,8" />
+                        <TextBlock Text="Ingresos Brutos" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding IngresosBrutos, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding EmisorEditando}"
+                                 Width="200" HorizontalAlignment="Left" Margin="0,0,0,8" />
+                        <TextBlock Text="Inicio de Actividades" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                        <DatePicker SelectedDate="{Binding InicioActividades, UpdateSourceTrigger=PropertyChanged}"
+                                    IsEnabled="{Binding EmisorEditando}"
+                                    Width="200" HorizontalAlignment="Left" Margin="0,0,0,16" />
                         <!-- Barra Editar/Guardar/Cancelar -->
                         <StackPanel Orientation="Horizontal">
                             <ui:Button Content="Editar" Command="{Binding EditarEmisorCommand}"
@@ -214,7 +222,7 @@
                                 <DataGrid ItemsSource="{Binding PuntosDeVenta}" SelectedItem="{Binding PuntoSeleccionado}"
                                           AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                           CanUserAddRows="False" CanUserResizeRows="False" GridLinesVisibility="Horizontal"
-                                          Height="180" Margin="0,0,0,6">
+                                          Height="180" Margin="0,0,0,6" SelectionMode="Single">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="" Binding="{Binding ActivoTexto}" Width="80" />
                                         <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*" />
@@ -223,16 +231,20 @@
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <ui:Button Content="Nuevo" Command="{Binding NuevoPuntoCommand}" Style="{StaticResource AccionIconButton}">
+                                    <ui:Button Content="Nuevo" Command="{Binding NuevoPuntoCommand}" Style="{StaticResource AccionIconButton}"
+                                               ToolTip="Agregar un nuevo punto de venta">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Marcar activo" Command="{Binding MarcarActivoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                                    <ui:Button Content="Marcar activo" Command="{Binding MarcarActivoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               ToolTip="Usar este punto de venta para emitir (solo uno puede estar activo)">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Checkmark24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Eliminar" Command="{Binding EliminarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                                    <ui:Button Content="Eliminar" Command="{Binding EliminarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               ToolTip="Eliminar el punto de venta seleccionado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Probar conexión" Command="{Binding ProbarConexionCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                                    <ui:Button Content="Probar conexión" Command="{Binding ProbarConexionCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               ToolTip="Verificar el servicio AFIP y la autenticación con el certificado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </StackPanel>
@@ -329,6 +341,7 @@
                             </ui:Button>
                             <ui:Button Content="Probar conexión" Command="{Binding ProbarMailCommand}"
                                        Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Enviar un correo de prueba con la configuración SMTP actual"
                                        Visibility="{Binding CorreoNoEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
                             </ui:Button>
@@ -370,11 +383,13 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
                             <ui:Button Content="Generar backup…" Command="{Binding BackupCommand}"
-                                       Style="{StaticResource AccionIconButton}">
+                                       Style="{StaticResource AccionIconButton}"
+                                       ToolTip="Guardar una copia de seguridad de la base de datos en disco.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Restaurar backup…" Command="{Binding RestaurarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
+                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       ToolTip="Reemplazar la base actual por una copia de seguridad previa.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUpload24" /></ui:Button.Icon>
                             </ui:Button>
                         </StackPanel>
@@ -387,7 +402,8 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12" />
                         <StackPanel Orientation="Horizontal">
                             <ui:Button Content="Verificar integridad" Command="{Binding VerificarIntegridadCommand}"
-                                       Style="{StaticResource AccionIconButton}">
+                                       Style="{StaticResource AccionIconButton}"
+                                       ToolTip="Comprobar que el archivo de la base de datos no esté dañado.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ShieldCheckmark24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Compactar (VACUUM)" Command="{Binding VacuumCommand}"

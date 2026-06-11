@@ -17,7 +17,8 @@ public partial class ConfiguracionPage : Page
         InitializeComponent();
         DataContext = vm;
         _vm = vm;
-        Loaded += OnLoaded;
+        Loaded   += OnLoaded;
+        Unloaded += (_, _) => _vm.PropertyChanged -= OnViewModelPropertyChanged;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

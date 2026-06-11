@@ -15,6 +15,9 @@ public static class SnackbarHost
     public static void Exito(string mensaje) =>
         Mostrar(null, mensaje, ControlAppearance.Success, SymbolRegular.CheckmarkCircle24, TimeSpan.FromSeconds(4));
 
+    public static void Advertencia(string mensaje) =>
+        Mostrar(null, mensaje, ControlAppearance.Caution, SymbolRegular.Warning24, TimeSpan.FromSeconds(6));
+
     public static void Error(string mensaje) =>
         Mostrar(null, mensaje, ControlAppearance.Danger, SymbolRegular.ErrorCircle24, TimeSpan.FromSeconds(6));
 

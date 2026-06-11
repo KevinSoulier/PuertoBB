@@ -1,0 +1,135 @@
+<UserControl x:Class="CentroMaritimo.UI.Dialogs.EmisionIndividualDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Border CornerRadius="8" MinWidth="680" MaxWidth="860"
+            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+            Effect="{DynamicResource ElevationShadow16Effect}"
+            Padding="24">
+        <StackPanel>
+            <TextBlock Text="Nuevo recibo" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16" />
+
+            <!-- Datos del recibo -->
+            <Border Padding="12" CornerRadius="6" Margin="0,0,0,8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="Datos del recibo"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,10" />
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock x:Name="LabelEntidad" Text="Agencia"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="11" Margin="0,0,0,2" />
+                            <ComboBox x:Name="EntidadCombo" DisplayMemberPath="Nombre" Width="220" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Fecha de emisión"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="11" Margin="0,0,0,2" />
+                            <DatePicker x:Name="FechaPicker" Width="140" />
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Ítems -->
+            <Border Padding="12" CornerRadius="6" Margin="0,0,0,12"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="Ítems"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,10" />
+                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Descripción"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="11" Margin="0,0,0,2" />
+                            <ComboBox x:Name="DetalleCombo"
+                                      IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                      PreviewKeyDown="ComboBox_OpenOnDownKey"
+                                      Width="260" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Cantidad"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="11" Margin="0,0,0,2" />
+                            <ui:NumberBox x:Name="CantidadBox"
+                                          Minimum="0.001" Maximum="1000000000" ClearButtonEnabled="False"
+                                          SpinButtonPlacementMode="Hidden" Width="90" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Precio unit."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="11" Margin="0,0,0,2" />
+                            <ui:NumberBox x:Name="PrecioBox"
+                                          Minimum="0" Maximum="1000000000" ClearButtonEnabled="False"
+                                          SpinButtonPlacementMode="Hidden" Width="130" />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Bottom">
+                            <ui:Button Content="Agregar ítem" Style="{StaticResource AccionIconButton}"
+                                       Click="AgregarLinea_Click"
+                                       ToolTip="Agregar este ítem al recibo">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                    </WrapPanel>
+                    <DataGrid x:Name="LineasGrid"
+                              AutoGenerateColumns="False" HeadersVisibility="Column" IsReadOnly="True"
+                              CanUserAddRows="False" GridLinesVisibility="Horizontal" MaxHeight="180"
+                              SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Descripción"  Binding="{Binding Descripcion}"     Width="*"   />
+                            <DataGridTextColumn Header="Cant."        Binding="{Binding CantidadTexto}"   Width="70"  />
+                            <DataGridTextColumn Header="Precio unit." Binding="{Binding PrecioUnitTexto}" Width="120" />
+                            <DataGridTextColumn Header="Subtotal"     Binding="{Binding ImporteTexto}"    Width="120" />
+                            <DataGridTemplateColumn Width="46" CanUserResize="False" CanUserSort="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ui:Button CommandParameter="{Binding}"
+                                                   Style="{StaticResource AccionIconButtonCompact}"
+                                                   Click="QuitarLinea_Click"
+                                                   ToolTip="Quitar este ítem">
+                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                        </ui:Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Total -->
+            <DockPanel Margin="0,0,0,8">
+                <TextBlock x:Name="TotalText" DockPanel.Dock="Right"
+                           FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <!-- Error inline -->
+            <TextBlock x:Name="ErrorText"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                       FontSize="12" TextWrapping="Wrap"
+                       Margin="0,0,0,12" Visibility="Collapsed" />
+
+            <!-- Botones -->
+            <DockPanel LastChildFill="False">
+                <Button Content="Cancelar" DockPanel.Dock="Left" MinHeight="32" MinWidth="90"
+                        Click="Cancelar_Click" />
+                <ui:Button Content="Emitir y enviar" DockPanel.Dock="Right" MinHeight="32"
+                           Appearance="Primary" Style="{StaticResource AccionIconButton}"
+                           Click="EmitirYEnviar_Click"
+                           ToolTip="Genera el CAE, guarda el recibo y lo envía por mail.">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
+                </ui:Button>
+                <ui:Button Content="Emitir" DockPanel.Dock="Right" MinHeight="32" Margin="0,0,8,0"
+                           Style="{StaticResource AccionIconButton}"
+                           Click="Emitir_Click"
+                           ToolTip="Genera el CAE y guarda el recibo, sin enviar el mail.">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
+                </ui:Button>
+            </DockPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -11,4 +11,5 @@ public record FiltroPendientes
     public int?          EntidadId          { get; init; }
     public ReciboEstado? Estado             { get; init; }
     public bool          SoloVencidos       { get; init; }
+    public bool          ExcluirMorosos     { get; init; } = true;
 }

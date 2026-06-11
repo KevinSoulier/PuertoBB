@@ -9,6 +9,7 @@ public class ConfiguracionConfiguration : IEntityTypeConfiguration<Configuracion
     public void Configure(EntityTypeBuilder<Configuracion> b)
     {
         b.HasKey(c => c.Id);
+        b.Property(c => c.IngresosBrutos).HasMaxLength(50);
 
         // Singleton Id = 1 sembrado de fábrica.
         b.HasData(new Configuracion

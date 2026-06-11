@@ -4,20 +4,33 @@ using PuertoBB.Core.Enums;
 namespace PuertoBB.Core.Entities.CamaraPortuaria;
 
 /// <summary>
-/// Recibo emitido a una Empresa. Índice único:
-/// (EmpresaId, GrupoFacturacionId, PeriodoAnio, PeriodoMes).
+/// Recibo emitido a una Empresa. Entidad de auditoría autocontenida: los datos fiscales del
+/// receptor se copian al emitir (Receptor*) y el vínculo con el grupo que lo originó vive en
+/// <see cref="EmisionGrupo"/> (null = emisión individual).
+/// El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
 public class Recibo : BaseEntity
 {
-    public int              EmpresaId          { get; set; }
-    public Empresa          Empresa            { get; set; } = null!;
-    public int?             GrupoFacturacionId { get; set; } // null = emisión individual
-    public GrupoFacturacion? Grupo             { get; set; }
+    public int     EmpresaId { get; set; }
+    public Empresa Empresa   { get; set; } = null!;
+
+    /// <summary>Vínculo con la emisión de grupo que lo originó; null = emisión individual.</summary>
+    public EmisionGrupo? EmisionGrupo { get; set; }
+
+    // Snapshot fiscal del receptor (copiado al emitir, inmutable)
+    public string  ReceptorNombre       { get; set; } = string.Empty;
+    public string  ReceptorRazonSocial  { get; set; } = string.Empty;
+    public string  ReceptorCuit         { get; set; } = string.Empty;
+    public string? ReceptorDomicilio    { get; set; }
+    public string? ReceptorCondicionIva { get; set; }
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
-    public decimal Importe     { get; set; }
-    public string  Detalle     { get; set; } = string.Empty;
+    public decimal Importe     { get; set; } // = suma de Items.Importe (se persiste al emitir)
+    public string  Detalle     { get; set; } = string.Empty; // encabezado/leyenda opcional; el detalle real son los Items
+
+    /// <summary>Líneas/ítems del recibo (snapshot inmutable del detalle). El detalle mostrado/enviado sale de acá.</summary>
+    public ICollection<ReciboLinea> Lineas { get; set; } = [];
 
     // Comprobante AFIP
     public int             PuntoDeVenta        { get; set; }

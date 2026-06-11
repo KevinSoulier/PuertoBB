@@ -14,11 +14,12 @@ public class Empresa : BaseEntity
     public string  RazonSocial { get; set; } = string.Empty;
     public string  Cuit        { get; set; } = string.Empty;
     public string? Domicilio   { get; set; }
+    public string? CondicionIva { get; set; }
     public bool    Activa      { get; set; } = true;
+    public bool    EsMoroso    { get; set; } = false;
 
     public ICollection<EmailEmpresa>  Emails  { get; set; } = [];
     public ICollection<EmpresaGrupo>  Grupos  { get; set; } = [];
-    public ICollection<Recibo>        Recibos { get; set; } = [];
 }
 ```
 
@@ -39,11 +40,10 @@ public class GrupoFacturacion : BaseEntity
 {
     public string  Nombre      { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
-    public decimal Importe     { get; set; }
     public bool    Activo      { get; set; } = true;
 
-    public ICollection<EmpresaGrupo> Empresas { get; set; } = [];
-    public ICollection<Recibo>       Recibos  { get; set; } = [];
+    public ICollection<EmpresaGrupo>  Empresas { get; set; } = [];
+    public ICollection<ReciboLinea>   Lineas   { get; set; } = [];
 }
 ```
 
@@ -59,24 +59,51 @@ public class EmpresaGrupo : BaseEntity
 // Índice único: (EmpresaId, GrupoFacturacionId)
 ```
 
+### `EmisionGrupo` *(vínculo Grupo ↔ Recibo, cascade al borrar el grupo)*
+```csharp
+public class EmisionGrupo : BaseEntity
+{
+    public int              GrupoFacturacionId { get; set; }
+    public GrupoFacturacion Grupo              { get; set; } = null!;
+    public int              ReciboId           { get; set; }
+    public Recibo           Recibo             { get; set; } = null!;
+
+    // Denormalizados desde el Recibo (anti-duplicados de emisión por grupo)
+    public int EmpresaId   { get; set; }
+    public int PeriodoAnio { get; set; }
+    public int PeriodoMes  { get; set; }
+}
+// Índice único: (GrupoFacturacionId, EmpresaId, PeriodoAnio, PeriodoMes)
+```
+
 ### `Recibo`
 ```csharp
 public class Recibo : BaseEntity
 {
-    public int              EmpresaId          { get; set; }
-    public Empresa          Empresa            { get; set; } = null!;
-    public int?             GrupoFacturacionId { get; set; } // null = emisión individual
-    public GrupoFacturacion? Grupo             { get; set; }
+    public int     EmpresaId { get; set; }
+    public Empresa Empresa   { get; set; } = null!;
+
+    // Null = emisión individual. La relación con el grupo vive en EmisionGrupo.
+    public EmisionGrupo? EmisionGrupo { get; set; }
+
+    // Snapshot fiscal del receptor (copiado al emitir, inmutable)
+    public string  ReceptorNombre       { get; set; } = string.Empty;
+    public string  ReceptorRazonSocial  { get; set; } = string.Empty;
+    public string  ReceptorCuit         { get; set; } = string.Empty;
+    public string? ReceptorDomicilio    { get; set; }
+    public string? ReceptorCondicionIva { get; set; }
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
-    public decimal Importe     { get; set; }
-    public string  Detalle     { get; set; } = string.Empty;
+    public decimal Importe     { get; set; } // = SUM(Lineas.Importe)
+    public string  Detalle     { get; set; } = string.Empty; // encabezado opcional
+
+    public ICollection<ReciboLinea> Lineas { get; set; } = []; // snapshot del detalle
 
     // Comprobante AFIP
     public int             PuntoDeVenta        { get; set; }
     public TipoComprobante TipoComprobante     { get; set; }
-    public int             CodigoAfip          { get; set; } // código numérico AFIP (ej. 11)
+    public int             CodigoAfip          { get; set; } // código numérico AFIP (ej. 15)
     public long            NumeroComprobante   { get; set; }
     public string          CAE                 { get; set; } = string.Empty;
     public DateTime        FechaVencimientoCAE { get; set; }
@@ -84,13 +111,32 @@ public class Recibo : BaseEntity
 
     public ReciboEstado Estado { get; set; } = ReciboEstado.Emitido;
 
+    // Trazabilidad de emisión
+    public string?   UltimoErrorCae  { get; set; } // null = CAE OK
+    public string?   UltimoErrorMail { get; set; } // null = mail OK o no enviado
+    public DateTime? FechaEnvioMail  { get; set; } // null = mail no enviado
+
     // Control de pagos
-    public DateTime  FechaVencimientoPago { get; set; }  // = FechaEmision + Configuracion.DiasVencimiento
-    public DateTime? FechaPago            { get; set; }  // null hasta que Laura marque como pagado
+    public DateTime  FechaVencimientoPago { get; set; } // = FechaEmision + DiasVencimiento
+    public DateTime? FechaPago            { get; set; } // null hasta marcar pagado
 
     public NotaDeCredito? NotaDeCredito { get; set; }
 }
-// Índice único: (EmpresaId, GrupoFacturacionId, PeriodoAnio, PeriodoMes)
+// Índice único: (PuntoDeVenta, NumeroComprobante, CodigoAfip) WHERE NumeroComprobante > 0
+```
+
+### `ReciboLinea`
+```csharp
+public class ReciboLinea : BaseEntity
+{
+    public int     ReciboId       { get; set; }
+    public Recibo  Recibo         { get; set; } = null!;
+    public string  Descripcion    { get; set; } = string.Empty;
+    public decimal Cantidad       { get; set; } = 1;
+    public decimal PrecioUnitario { get; set; }
+    public decimal Importe        { get; set; } // = Cantidad × PrecioUnitario (snapshot)
+    public int     Orden          { get; set; }
+}
 ```
 
 ### `NotaDeCredito`
@@ -110,34 +156,45 @@ public class NotaDeCredito : BaseEntity
 }
 ```
 
+### `PuntoDeVenta`
+```csharp
+public class PuntoDeVenta : BaseEntity
+{
+    public int     ConfiguracionId    { get; set; }
+    public string  Nombre             { get; set; } = string.Empty;
+    public int     Numero             { get; set; }
+    public bool    UsarHomologacion   { get; set; }
+    public string? CertificadoRuta    { get; set; } // ruta al .p12 o .crt/.pem
+    public string? CertificadoPassword { get; set; } // cifrado con DPAPI
+    public string? CertificadoKeyRuta  { get; set; } // solo en modo CRT+KEY
+    public bool    Activo             { get; set; }
+}
+```
+
 ### `Configuracion` *(singleton, Id = 1)*
 ```csharp
 public class Configuracion : BaseEntity
 {
-    public string RazonSocial  { get; set; } = string.Empty;
-    public string Cuit         { get; set; } = string.Empty;
-    public int    PuntoDeVenta { get; set; }
+    public string    RazonSocial       { get; set; } = string.Empty;
+    public string    Cuit              { get; set; } = string.Empty;
+    public string?   IngresosBrutos    { get; set; }
+    public DateTime? InicioActividades { get; set; }
 
-    // Tipos AFIP (configurables; default = clase C / Exento IVA).
-    // En la UI se elige el comprobante por su clase (Recibo/Factura A·B·C); la Nota de
-    // Crédito se deriva de la clase (ver Core/Afip/CatalogoComprobantesAfip).
-    public int CodigoAfipRecibo          { get; set; } = 15; // Recibo C
-    public int CodigoAfipNotaDeCredito   { get; set; } = 13; // Nota de Crédito C
+    public int CodigoAfipRecibo        { get; set; } = 15; // Recibo C
+    public int CodigoAfipNotaDeCredito { get; set; } = 13; // Nota de Crédito C
 
-    // Certificado AFIP/WSAA
-    public string? AfipCertificadoRuta     { get; set; } // ruta al archivo .p12
-    public string? AfipCertificadoPassword { get; set; } // contraseña del .p12
-    public bool    AfipUsarHomologacion    { get; set; } = false; // solo para desarrollo/testing
+    public List<PuntoDeVenta> PuntosDeVenta { get; set; } = new();
+    // [NotMapped] PuntoDeVentaActivo => PuntosDeVenta.FirstOrDefault(p => p.Activo)
 
-    // Control de pagos
     public int DiasVencimiento { get; set; } = 30;
 
-    // Mail saliente
-    public string? SmtpHost        { get; set; }
-    public int     SmtpPort        { get; set; }
-    public string? SmtpUsuario     { get; set; }
-    public string? SmtpPassword    { get; set; } // texto plano; aceptable para app unipersonal
-    public string? EmailRemitente  { get; set; }
+    // Mail saliente (SmtpPassword cifrado con DPAPI al guardar)
+    public string? SmtpHost       { get; set; }
+    public int     SmtpPort       { get; set; }
+    public int     SmtpSeguridad  { get; set; } = 0; // 0=Auto, 1=SslOnConnect, 2=None
+    public string? SmtpUsuario    { get; set; }
+    public string? SmtpPassword   { get; set; }
+    public string? EmailRemitente { get; set; }
 }
 ```
 
@@ -149,16 +206,17 @@ public class Configuracion : BaseEntity
 ```csharp
 public class Agencia : BaseEntity
 {
-    public string  Nombre      { get; set; } = string.Empty;
-    public string  RazonSocial { get; set; } = string.Empty;
-    public string  Cuit        { get; set; } = string.Empty;
-    public string? Domicilio   { get; set; }
-    public bool    Activa      { get; set; } = true;
+    public string  Nombre       { get; set; } = string.Empty;
+    public string  RazonSocial  { get; set; } = string.Empty;
+    public string  Cuit         { get; set; } = string.Empty;
+    public string? Domicilio    { get; set; }
+    public string? CondicionIva { get; set; }
+    public bool    Activa       { get; set; } = true;
+    public bool    EsMoroso     { get; set; } = false;
 
     public ICollection<EmailAgencia> Emails   { get; set; } = [];
     public ICollection<AgenciaGrupo> Grupos   { get; set; } = [];
     public ICollection<Voucher>      Vouchers { get; set; } = [];
-    public ICollection<Recibo>       Recibos  { get; set; } = [];
 }
 ```
 
@@ -179,10 +237,10 @@ public class GrupoFacturacion : BaseEntity
 {
     public string  Nombre      { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
-    public decimal Importe     { get; set; }
     public bool    Activo      { get; set; } = true;
 
     public ICollection<AgenciaGrupo> Agencias { get; set; } = [];
+    public ICollection<ReciboLinea>  Lineas   { get; set; } = [];
 }
 ```
 
@@ -198,12 +256,27 @@ public class AgenciaGrupo : BaseEntity
 // Índice único: (AgenciaId, GrupoFacturacionId)
 ```
 
+### `EmisionGrupo` *(vínculo Grupo ↔ Recibo, cascade al borrar el grupo)*
+```csharp
+public class EmisionGrupo : BaseEntity
+{
+    public int              GrupoFacturacionId { get; set; }
+    public GrupoFacturacion Grupo              { get; set; } = null!;
+    public int              ReciboId           { get; set; }
+    public Recibo           Recibo             { get; set; } = null!;
+
+    public int AgenciaId   { get; set; }
+    public int PeriodoAnio { get; set; }
+    public int PeriodoMes  { get; set; }
+}
+// Índice único: (GrupoFacturacionId, AgenciaId, PeriodoAnio, PeriodoMes)
+```
+
 ### `Barco`
 ```csharp
 public class Barco : BaseEntity
 {
     public string Nombre { get; set; } = string.Empty;
-    // Extensible: Bandera, TipoBarco, IMO, etc.
 }
 // Índice único: (Nombre)
 ```
@@ -213,8 +286,6 @@ public class Barco : BaseEntity
 public class ContadorVoucher : BaseEntity
 {
     public int UltimoNumero { get; set; }
-    // Editable: permite fijar el valor inicial al migrar del sistema manual
-    // Secuencia global única — no hay series con letra prefija
 }
 ```
 
@@ -224,18 +295,17 @@ public class Voucher : BaseEntity
 {
     public int     AgenciaId { get; set; }
     public Agencia Agencia   { get; set; } = null!;
+    public int     BarcoId   { get; set; }
+    public Barco   Barco     { get; set; } = null!;
 
-    public int   BarcoId { get; set; }
-    public Barco Barco   { get; set; } = null!;
+    public int      Numero  { get; set; }  // auto-generado desde ContadorVoucher
+    public decimal  Importe { get; set; }
+    public DateTime Fecha   { get; set; }
 
-    public int      Numero  { get; set; }  // auto-generado desde ContadorVoucher; editable para importar histórico
-    public decimal  Importe { get; set; }  // monto recibido
-    public DateTime Fecha   { get; set; }  // fecha de entrada del barco
-
-    public int PeriodoAnio { get; set; }   // derivado de Fecha al guardar
+    public int PeriodoAnio { get; set; }
     public int PeriodoMes  { get; set; }
 
-    public int?    ReciboId { get; set; }  // null = pendiente de consolidar
+    public int?    ReciboId { get; set; } // null = pendiente de consolidar
     public Recibo? Recibo   { get; set; }
 }
 // Índice único: (Numero)
@@ -245,21 +315,29 @@ public class Voucher : BaseEntity
 ```csharp
 public class Recibo : BaseEntity
 {
-    public int               AgenciaId          { get; set; }
-    public Agencia           Agencia            { get; set; } = null!;
-    public int?              GrupoFacturacionId { get; set; }
-    public GrupoFacturacion? Grupo              { get; set; }
+    public int     AgenciaId { get; set; }
+    public Agencia Agencia   { get; set; } = null!;
+
+    // Null = individual o consolidado de vouchers. La relación con el grupo vive en EmisionGrupo.
+    public EmisionGrupo? EmisionGrupo { get; set; }
+
+    // Snapshot fiscal del receptor (copiado al emitir, inmutable)
+    public string  ReceptorNombre       { get; set; } = string.Empty;
+    public string  ReceptorRazonSocial  { get; set; } = string.Empty;
+    public string  ReceptorCuit         { get; set; } = string.Empty;
+    public string? ReceptorDomicilio    { get; set; }
+    public string? ReceptorCondicionIva { get; set; }
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
-    public decimal Importe     { get; set; }  // = SUM(Vouchers.Importe) cuando EsConsolidadoVouchers=true
+    public decimal Importe     { get; set; } // = SUM(Lineas.Importe)
     public string  Detalle     { get; set; } = string.Empty;
-    // Cuando EsConsolidadoVouchers=true:
-    // Detalle = "Vouchers Nros: 1234, 1235, 1236" (auto-generado, no lo tipea Laura)
+
+    public ICollection<ReciboLinea> Lineas { get; set; } = [];
 
     public bool EsConsolidadoVouchers { get; set; }
 
-    // Apoderado fiscal (copiado desde Configuracion al emitir, para inmutabilidad)
+    // Apoderado fiscal (copiado desde Configuracion al emitir)
     public bool    EsApoderado     { get; set; }
     public string? NombreApoderado { get; set; }
     public string? CuitApoderado   { get; set; }
@@ -275,15 +353,32 @@ public class Recibo : BaseEntity
 
     public ReciboEstado Estado { get; set; } = ReciboEstado.Emitido;
 
-    // Control de pagos
+    public string?   UltimoErrorCae  { get; set; }
+    public string?   UltimoErrorMail { get; set; }
+    public DateTime? FechaEnvioMail  { get; set; }
+
     public DateTime  FechaVencimientoPago { get; set; }
     public DateTime? FechaPago            { get; set; }
 
     public ICollection<Voucher> Vouchers      { get; set; } = [];
     public NotaDeCredito?       NotaDeCredito { get; set; }
 }
-// Índice único: (AgenciaId, GrupoFacturacionId, PeriodoAnio, PeriodoMes)
-// Recibos consolidados únicos por: (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=true
+// Índice único: (PuntoDeVenta, NumeroComprobante, CodigoAfip) WHERE NumeroComprobante > 0
+// Índice único parcial: (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=1 AND Estado<>'Anulado'
+```
+
+### `ReciboLinea`
+```csharp
+public class ReciboLinea : BaseEntity
+{
+    public int     ReciboId       { get; set; }
+    public Recibo  Recibo         { get; set; } = null!;
+    public string  Descripcion    { get; set; } = string.Empty;
+    public decimal Cantidad       { get; set; } = 1;
+    public decimal PrecioUnitario { get; set; }
+    public decimal Importe        { get; set; }
+    public int     Orden          { get; set; }
+}
 ```
 
 ### `NotaDeCredito`
@@ -303,34 +398,50 @@ public class NotaDeCredito : BaseEntity
 }
 ```
 
+### `PuntoDeVenta`
+```csharp
+public class PuntoDeVenta : BaseEntity
+{
+    public int     ConfiguracionId     { get; set; }
+    public string  Nombre              { get; set; } = string.Empty;
+    public int     Numero              { get; set; }
+    public bool    UsarHomologacion    { get; set; }
+    public string? CertificadoRuta     { get; set; }
+    public string? CertificadoPassword { get; set; } // cifrado con DPAPI
+    public string? CertificadoKeyRuta  { get; set; }
+    public bool    Activo              { get; set; }
+}
+```
+
 ### `Configuracion` *(singleton, Id = 1)*
 ```csharp
 public class Configuracion : BaseEntity
 {
-    public string RazonSocial  { get; set; } = string.Empty;
-    public string Cuit         { get; set; } = string.Empty;
-    public int    PuntoDeVenta { get; set; }
+    public string    RazonSocial       { get; set; } = string.Empty;
+    public string    Cuit              { get; set; } = string.Empty;
+    public string?   IngresosBrutos    { get; set; }
+    public DateTime? InicioActividades { get; set; }
 
-    // Tipos AFIP (configurables; default = clase C / Exento IVA). NC derivada de la clase.
     public int CodigoAfipRecibo        { get; set; } = 15;
     public int CodigoAfipNotaDeCredito { get; set; } = 13;
 
-    // Certificado AFIP/WSAA
-    public string? AfipCertificadoRuta     { get; set; }
-    public string? AfipCertificadoPassword { get; set; }
-    public bool    AfipUsarHomologacion    { get; set; } = false;
+    public List<PuntoDeVenta> PuntosDeVenta { get; set; } = new();
+    // [NotMapped] PuntoDeVentaActivo => PuntosDeVenta.FirstOrDefault(p => p.Activo)
 
     // Apoderado fiscal
     public bool    UsarApoderado   { get; set; }
     public string? NombreApoderado { get; set; }
     public string? CuitApoderado   { get; set; }
 
-    // Control de pagos
+    // Vouchers
+    public decimal ImporteVoucherPredeterminado { get; set; } = 0;
+
     public int DiasVencimiento { get; set; } = 30;
 
-    // Mail saliente
+    // Mail saliente (SmtpPassword cifrado con DPAPI al guardar)
     public string? SmtpHost       { get; set; }
     public int     SmtpPort       { get; set; }
+    public int     SmtpSeguridad  { get; set; } = 0;
     public string? SmtpUsuario    { get; set; }
     public string? SmtpPassword   { get; set; }
     public string? EmailRemitente { get; set; }
@@ -342,14 +453,19 @@ public class Configuracion : BaseEntity
 ## Enums compartidos — `Core/Enums/`
 
 ```csharp
-public enum ReciboEstado    { Emitido, Enviado, Pagado, Anulado }
-// "Vencido" se calcula en tiempo de presentación: FechaVencimientoPago < DateTime.Today && Estado != Pagado/Anulado
-// No es un estado persistido para evitar transiciones automáticas no deseadas
+public enum ReciboEstado
+{
+    Emitido,  // CAE obtenido
+    Enviado,  // mail enviado exitosamente
+    Pagado,
+    Anulado,
+    Pendiente // creado sin CAE todavía (reintentable)
+}
+// "Vencido" se calcula en presentación: FechaVencimientoPago < DateTime.Today && Estado != Pagado/Anulado
 
 public enum TipoComprobante { Recibo, NotaDeCredito }
-// Los códigos AFIP numéricos van en Configuracion.CodigoAfipRecibo / CodigoAfipNotaDeCredito
-// La tabla oficial (FEParamGetTiposCbte) vive en Core/Afip/CatalogoComprobantesAfip:
-//   Recibo  A=4  B=9  C=15   Factura A=1 B=6 C=11   Nota de Crédito A=3 B=8 C=13
+// Códigos AFIP: Recibo A=4 B=9 C=15 | Factura A=1 B=6 C=11 | NC A=3 B=8 C=13
+// Tabla completa: Core/Afip/CatalogoComprobantesAfip.cs
 ```
 
 ---
@@ -367,12 +483,12 @@ public enum TipoComprobante { Recibo, NotaDeCredito }
 | `Vencido` calculado, no persistido | Sí | Evita transiciones automáticas; se calcula en la capa de presentación |
 | Vouchers sin series | Contador global único | Laura confirmó: un solo contador numérico, sin letra prefija |
 | Códigos AFIP configurables | En `Configuracion` | Permite cambiar si el tipo fiscal cambia, sin redespliegue |
-| Certificado AFIP | Ruta en `Configuracion` | Usuario lo carga via file picker desde la pantalla de configuración |
-| SMTP password | Texto plano en SQLite | Aceptable: app unipersonal de escritorio, DB no expuesta externamente |
+| `EmisionGrupo` como join desacoplado | Sí | Recibo es entidad de auditoría autocontenida; relación con el grupo vive en `EmisionGrupo` (cascade al borrar grupo, recibos sobreviven) |
+| Snapshot `Receptor*` en `Recibo` | Sí | Datos fiscales del receptor copiados al emitir; PDF/AFIP nunca leen de la navegación |
+| `ReciboLinea` como entidad propia | Sí | Snapshot inmutable del detalle; el detalle mostrado/enviado sale siempre de las líneas |
+| Estado `Pendiente` | Persiste antes de pedir CAE | Hace la emisión idempotente y reintentable tras un fallo |
+| `PuntoDeVenta` como entidad | Sí | Permite cargar varios (ej. homologación + producción); el activo determina número, ambiente y certificado |
+| SMTP password | Cifrado DPAPI (`dpapi:`+Base64) | Migración suave: si no tiene prefijo se trata como texto plano legado |
 | NC por mail | Opcional en el dialog | Checkbox al anular: "Enviar notificación por mail" (default: true) |
-| Apoderado en `Recibo` | Copiado desde `Configuracion` al emitir | Inmutabilidad del comprobante: el apoderado puede cambiar luego sin afectar recibos pasados |
-| PDF de recibos | Regenerado a demanda (no persiste en DB) | Volumen bajo; template consistente garantiza mismo resultado; simplifica modelo |
-| Estados del recibo | `Emitido` (CAE obtenido) → `Enviado` (mail OK) | Si mail falla, queda Emitido; botón "Reenviar" en dashboard; rollback solo si falla AFIP |
-| Cobros extraordinarios CM | GrupoFacturacion + emisión individual | Mismo mecanismo que CP; no requiere entidad nueva |
-| Emisión individual | Solo a entidades del sistema | No se emite a receptores libres; destinatario siempre existe en la DB |
-| Entorno AFIP | `AfipUsarHomologacion` en Configuracion | Flag solo para desarrollo; la app de producción siempre usa producción (default: false) |
+| Apoderado en `Recibo` CM | Copiado desde `Configuracion` al emitir | Inmutabilidad: el apoderado puede cambiar sin afectar recibos pasados |
+| PDF de recibos | Regenerado a demanda | Volumen bajo; template consistente garantiza mismo resultado |

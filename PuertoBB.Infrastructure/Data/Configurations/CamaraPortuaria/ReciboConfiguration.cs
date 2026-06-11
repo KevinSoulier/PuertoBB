@@ -10,13 +10,23 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
     {
         b.HasKey(r => r.Id);
         b.Property(r => r.Importe).HasColumnType("TEXT");
-        b.Property(r => r.Detalle).HasMaxLength(1000);
+        b.Property(r => r.Detalle).HasMaxLength(2000); // unificado con CM (F-02)
         b.Property(r => r.CAE).HasMaxLength(20);
         b.Property(r => r.Estado).HasConversion<string>().HasMaxLength(20);
         b.Property(r => r.TipoComprobante).HasConversion<string>().HasMaxLength(20);
 
-        // Bloqueo de duplicados: una entidad no puede tener dos recibos del mismo grupo/período.
-        b.HasIndex(r => new { r.EmpresaId, r.GrupoFacturacionId, r.PeriodoAnio, r.PeriodoMes }).IsUnique();
+        // Snapshot fiscal del receptor (copiado al emitir)
+        b.Property(r => r.ReceptorNombre).IsRequired().HasMaxLength(200);
+        b.Property(r => r.ReceptorRazonSocial).IsRequired().HasMaxLength(200);
+        b.Property(r => r.ReceptorCuit).IsRequired().HasMaxLength(13);
+        b.Property(r => r.ReceptorDomicilio).HasMaxLength(300);
+        b.Property(r => r.ReceptorCondicionIva).HasMaxLength(100);
+
+        // El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
+
+        b.HasIndex(r => new { r.PuntoDeVenta, r.NumeroComprobante, r.CodigoAfip })
+            .IsUnique()
+            .HasFilter("\"NumeroComprobante\" > 0");
 
         b.HasOne(r => r.NotaDeCredito)
             .WithOne(n => n.ReciboOriginal)

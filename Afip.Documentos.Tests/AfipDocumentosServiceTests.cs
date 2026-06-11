@@ -70,4 +70,39 @@ public class AfipDocumentosServiceTests
         Assert.True(bytes.Length > 1000);
         Assert.True(EsPdf(bytes));
     }
+
+    [Fact]
+    public void GenerarPdf_NotaDeCreditoConComprobanteAsociado_DevuelvePdfValido()
+    {
+        var nc = new ComprobanteDocumento
+        {
+            CodigoTipo = 13,   // NC C
+            PuntoVenta = 1,
+            Numero = 5,
+            FechaEmision = new DateTime(2026, 6, 10),
+            Cae = "70417054367477",
+            FechaVencimientoCae = new DateTime(2026, 6, 20),
+            ImporteTotal = 45000m,
+            ConceptoGeneral = "Anulación recibo 0001-00000094",
+            ComprobanteAsociado = new ComprobanteAsociado(CodigoTipo: 15, PuntoVenta: 1, Numero: 94),
+            Emisor = new EmisorDocumento
+            {
+                RazonSocial = "Cámara Portuaria de Bahía Blanca",
+                Cuit = 30000000007L,
+                CondicionIva = "IVA Exento"
+            },
+            Receptor = new ReceptorDocumento
+            {
+                RazonSocial = "Empresa de Prueba S.A.",
+                TipoDocumento = 80,
+                NroDocumento = 30000000001L
+            }
+        };
+
+        var svc = new AfipDocumentosService();
+        var bytes = svc.GenerarPdf(nc);
+
+        Assert.True(bytes.Length > 1000);
+        Assert.True(EsPdf(bytes));
+    }
 }

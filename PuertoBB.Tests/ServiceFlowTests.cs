@@ -1,4 +1,5 @@
 using Afip.Documentos.Pdf;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using PuertoBB.Core.Common;
@@ -132,6 +133,81 @@ public class CamaraEmisionTests
     }
 
     [Fact]
+    public async Task EmitirMasivo_CopiaSnapshotReceptor_YCreaEmisionGrupo()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);
+        var service = BuildService(db, MailOk());
+
+        await service.EmitirMasivoAsync(grupoId, 2026, 6);
+
+        var recibos = db.Recibos.ToList();
+        var emisiones = db.EmisionesGrupo.ToList();
+
+        // El recibo es autocontenido: snapshot fiscal del receptor copiado al emitir.
+        var uno = recibos.Single(r => r.ReceptorNombre == "Uno");
+        Assert.Equal("Uno SA", uno.ReceptorRazonSocial);
+        Assert.Equal("30711111111", uno.ReceptorCuit);
+
+        // El vínculo con el grupo vive en la entidad de relación, con período/receptor coincidentes.
+        Assert.Equal(2, emisiones.Count);
+        Assert.All(emisiones, e => Assert.Equal(grupoId, e.GrupoFacturacionId));
+        Assert.All(recibos, r => Assert.Contains(emisiones,
+            e => e.ReciboId == r.Id && e.EmpresaId == r.EmpresaId && e.PeriodoAnio == r.PeriodoAnio && e.PeriodoMes == r.PeriodoMes));
+    }
+
+    [Fact]
+    public async Task EmitirMasivo_PersisteLineasSnapshot_ConTotalIgualSuma()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);
+        var service = BuildService(db, MailOk());
+
+        await service.EmitirMasivoAsync(grupoId, 2026, 6);
+
+        var recibos = db.Recibos.ToList();
+        var lineas = db.RecibosLineas.ToList();
+        // Cada recibo (emisión por grupo = mono-ítem) tiene al menos una línea persistida (snapshot).
+        Assert.All(recibos, r => Assert.Contains(lineas, l => l.ReciboId == r.Id));
+        // El total del recibo es exactamente la suma de sus líneas.
+        Assert.All(recibos, r => Assert.Equal(r.Importe, lineas.Where(l => l.ReciboId == r.Id).Sum(l => l.Importe)));
+    }
+
+    [Fact]
+    public async Task EmitirMasivo_ConLineasDeGrupo_MaterializaUnaLineaPorItem()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupo = new CpGrupo
+        {
+            Nombre = "Cuota+extras",
+            Importe = 0m, // se recalcula al sumar las líneas
+            CreatedAt = DateTime.Now,
+            Lineas =
+            [
+                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Cuota mensual", Cantidad = 1, PrecioUnitario = 5000m, Importe = 5000m, Orden = 0, CreatedAt = DateTime.Now },
+                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Aporte extra",  Cantidad = 2, PrecioUnitario = 1500m, Importe = 3000m, Orden = 1, CreatedAt = DateTime.Now },
+            ]
+        };
+        db.Grupos.Add(grupo);
+        var emp = new Empresa { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "u@x.com", CreatedAt = DateTime.Now }] };
+        db.Empresas.Add(emp);
+        db.SaveChanges();
+        db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = emp.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+        var service = BuildService(db, MailOk());
+
+        var res = await service.EmitirMasivoAsync(grupo.Id, 2026, 6);
+
+        Assert.True(res.Success);
+        var recibo = Assert.Single(db.Recibos.ToList());
+        var lineas = db.RecibosLineas.Where(l => l.ReciboId == recibo.Id).OrderBy(l => l.Orden).ToList();
+        Assert.Equal(2, lineas.Count); // una línea por ítem del grupo
+        Assert.Equal("Cuota mensual", lineas[0].Descripcion);
+        Assert.Equal("Aporte extra", lineas[1].Descripcion);
+        Assert.Equal(8000m, recibo.Importe); // total = suma de las líneas
+    }
+
+    [Fact]
     public async Task EmitirMasivo_SegundaVez_BloqueaDuplicados()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
@@ -223,6 +299,42 @@ public class CamaraEmisionTests
     }
 
     [Fact]
+    public async Task Anular_ReciboSinCae_Falla()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+        var service = BuildService(db, MailOk(), AfipFallaUnaVez());
+
+        // El CAE falla → el recibo queda Pendiente sin CAE.
+        await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        var pendiente = db.Recibos.Single();
+        Assert.True(string.IsNullOrEmpty(pendiente.CAE));
+
+        var anular = await service.AnularReciboAsync(pendiente.Id, enviarMail: false);
+
+        Assert.False(anular.Success);                 // F-10: no se puede anular sin CAE
+        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Empty(db.NotasDeCredito);
+    }
+
+    [Fact]
+    public async Task MarcarPagado_ReciboAnulado_Falla()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+        var service = BuildService(db, MailOk(), AfipOk());
+
+        await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        var recibo = db.Recibos.Single();
+        Assert.True((await service.AnularReciboAsync(recibo.Id, enviarMail: false)).Success);
+
+        var pagar = await service.MarcarPagadoAsync(recibo.Id);
+
+        Assert.False(pagar.Success);                  // F-09: no se puede pagar un recibo anulado
+        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+    }
+
+    [Fact]
     public async Task Reintentar_TrasFalloMail_EnviaSinPedirNuevoCae()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
@@ -248,20 +360,233 @@ public class CamaraEmisionTests
     }
 
     [Fact]
-    public async Task EmitirIndividual_MismoPeriodoDosVeces_NoDuplica()
+    public async Task EmitirIndividual_MismoPeriodoDosVeces_CreaDosRecibos()
     {
+        // P1-4: N recibos individuales por período están permitidos (cobros extraordinarios).
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var empresaId = SeedEmpresa(db);
         var afip = AfipOk();
         var service = BuildService(db, MailOk(), afip);
 
-        var primera = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: true);
-        var segunda = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: true);
+        var primera = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro A", DateTime.Today, 2026, 6, enviarMail: true);
+        var segunda = await service.EmitirIndividualAsync(empresaId, 2000m, "Cobro B", DateTime.Today, 2026, 6, enviarMail: true);
 
         Assert.True(primera.Data!.Exito);
-        Assert.False(segunda.Data!.Exito);                       // "ya existe"
-        Assert.Single(db.Recibos);                               // no se duplicó
-        await afip.Received(1).ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>());
+        Assert.True(segunda.Data!.Exito);                        // segundo recibo OK (no bloqueado)
+        Assert.Equal(2, db.Recibos.Count());                     // dos recibos independientes
+        await afip.Received(2).ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EmitirMasivo_SinMail_QuedaEmitidoYNoEnviaMail()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);
+        var mail = MailOk();
+        var service = BuildService(db, mail);
+
+        var res = await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);
+
+        Assert.All(res.Data!, r => Assert.True(r.Exito));                       // CAE obtenido
+        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Emitido, r.Estado)); // pero no Enviado
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetEstadoMasivo_AntesYDespuesDeEmitir_ReflejaRecibos()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);
+        var service = BuildService(db, MailOk());
+
+        var antes = await service.GetEstadoMasivoAsync(grupoId, 2026, 6);
+        Assert.Equal(2, antes.Data!.Count);
+        Assert.All(antes.Data!, e => Assert.Null(e.Recibo));                    // todas "No emitido"
+
+        await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);
+
+        var despues = await service.GetEstadoMasivoAsync(grupoId, 2026, 6);
+        Assert.Equal(2, despues.Data!.Count);
+        Assert.All(despues.Data!, e => Assert.NotNull(e.Recibo));
+        Assert.All(despues.Data!, e => Assert.False(string.IsNullOrEmpty(e.Recibo!.CAE)));
+    }
+
+    [Fact]
+    public async Task EnviarMasivo_TrasEmitirSinMail_EnviaYDejaEnviado()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);
+        var service = BuildService(db, MailOk());
+
+        await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);
+        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Emitido, r.Estado));
+
+        var envio = await service.EnviarMasivoAsync(grupoId, 2026, 6);
+
+        Assert.Equal(2, envio.Data!.Count);
+        Assert.All(envio.Data!, r => Assert.True(r.Exito));
+        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Enviado, r.Estado));
+    }
+
+    // ── P0-1: test con DbContexts separados (replica el registro Transient real de la app) ──
+
+    private static CamaraPortuariaDbContext NuevoContextoCp(SqliteTestDb fixture)
+    {
+        var options = new DbContextOptionsBuilder<CamaraPortuariaDbContext>()
+            .UseSqlite(fixture.Connection).Options;
+        var db = new CamaraPortuariaDbContext(options);
+        db.Database.EnsureCreated();
+        return db;
+    }
+
+    private static CamaraPortuariaReciboService BuildServiceContextosSeparados(SqliteTestDb fixture, IMailService mail, IAfipService? afip = null)
+        => new(
+            new CpRepos.ReciboRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.ReciboRepository>.Instance),
+            new CpRepos.GrupoFacturacionRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.GrupoFacturacionRepository>.Instance),
+            new CpRepos.EmpresaRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.EmpresaRepository>.Instance),
+            new CpRepos.NotaDeCreditoRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.NotaDeCreditoRepository>.Instance),
+            new CpRepos.ConfiguracionRepository(NuevoContextoCp(fixture)),
+            afip ?? AfipOk(),
+            new CamaraPortuariaPdfService(new AfipDocumentosService(), new FakeAfipConfigProvider()),
+            mail,
+            NullLogger<CamaraPortuariaReciboService>.Instance);
+
+    [Fact]
+    public async Task EmitirMasivo_ConContextosSeparados_EmiteSinReinsertarEmpresa()
+    {
+        // Replica el escenario real de la app: cada repositorio usa su propio DbContext (Transient).
+        // Antes del fix CP, esto falla porque EF re-inserta la empresa al guardar el recibo.
+        using var fx = SqliteTestDb.CreateCamara(out var seedDb);
+        var grupoId = SeedGrupoConEmpresas(seedDb);
+
+        var service = BuildServiceContextosSeparados(fx, MailOk());
+
+        var res = await service.EmitirMasivoAsync(grupoId, 2026, 6);
+
+        Assert.True(res.Success);
+        Assert.Equal(2, res.Data!.Count);
+        Assert.All(res.Data, r => Assert.True(r.Exito));
+
+        // Verificar con un contexto de lectura independiente que no se duplicó la empresa.
+        using var verDb = NuevoContextoCp(fx);
+        Assert.Equal(2, verDb.Empresas.Count());
+        Assert.Equal(2, verDb.Recibos.Count());
+    }
+
+    [Fact]
+    public async Task EmitirMasivo_ConContextosSeparados_CM_YaSinBug()
+    {
+        // CM no tiene el bug P0-1; este test debe pasar siempre (gemelo de referencia).
+        using var fx = SqliteTestDb.CreateCentro(out var seedDb);
+        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
+        seedDb.Agencias.Add(ag);
+        seedDb.Barcos.Add(barco);
+        seedDb.SaveChanges();
+        seedDb.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 10), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        seedDb.SaveChanges();
+
+        CentroMaritimoDbContext NuevoContextoCm()
+        {
+            var opts = new DbContextOptionsBuilder<CentroMaritimoDbContext>().UseSqlite(fx.Connection).Options;
+            var db = new CentroMaritimoDbContext(opts);
+            db.Database.EnsureCreated();
+            return db;
+        }
+
+        var service = new CentroMaritimoReciboService(
+            new CmRepos.ReciboRepository(NuevoContextoCm(), NullLogger<CmRepos.ReciboRepository>.Instance),
+            new CmRepos.GrupoFacturacionRepository(NuevoContextoCm(), NullLogger<CmRepos.GrupoFacturacionRepository>.Instance),
+            new CmRepos.AgenciaRepository(NuevoContextoCm(), NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.VoucherRepository(NuevoContextoCm(), NullLogger<CmRepos.VoucherRepository>.Instance),
+            new CmRepos.NotaDeCreditoRepository(NuevoContextoCm(), NullLogger<CmRepos.NotaDeCreditoRepository>.Instance),
+            new CmRepos.ConfiguracionRepository(NuevoContextoCm()),
+            AfipOk(),
+            new CentroMaritimoPdfService(new PdfMerger(), new AfipDocumentosService(), new FakeAfipConfigProvider()),
+            MailOk(),
+            NullLogger<CentroMaritimoReciboService>.Instance);
+
+        var res = await service.CerrarPeriodoAsync(2026, 6);
+
+        Assert.True(res.Success);
+        Assert.Single(res.Data!);
+        Assert.True(res.Data![0].Exito);
+
+        using var verDb = NuevoContextoCm();
+        Assert.Equal(1, verDb.Agencias.Count()); // no se reinsertó
+        Assert.Equal(1, verDb.Recibos.Count());
+    }
+
+    // ── P1-4 (CP) ──
+
+    [Fact]
+    public async Task EmitirIndividual_DosVecesMismoPeriodo_CreaDosRecibos()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+        var service = BuildService(db, MailOk());
+
+        var r1 = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro 1", DateTime.Today, 2026, 6, enviarMail: false);
+        var r2 = await service.EmitirIndividualAsync(empresaId, 2000m, "Cobro 2", DateTime.Today, 2026, 6, enviarMail: false);
+
+        Assert.True(r1.Data!.Exito);
+        Assert.True(r2.Data!.Exito);        // segundo recibo individual debe crearse OK (N por período)
+        Assert.Equal(2, db.Recibos.Count()); // dos recibos distintos
+    }
+
+    [Fact]
+    public async Task EmitirIndividual_ConPendientePrevio_RetomaSinDuplicar()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+        var afip = AfipFallaUnaVez();
+        var service = BuildService(db, MailOk(), afip);
+
+        // Primera emisión falla en CAE → recibo Pendiente
+        var r1 = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        Assert.False(r1.Data!.Exito);
+        Assert.Equal(1, db.Recibos.Count());
+
+        // Segunda emisión: encuentra el Pendiente y lo retoma
+        var r2 = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        Assert.True(r2.Data!.Exito);         // CAE OK en el reintento
+        Assert.Equal(1, db.Recibos.Count()); // no se duplicó
+    }
+
+    [Fact]
+    public async Task EmitirMasivo_ReintentoTrasFalloCae_MantieneLineasMultiItem()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupo = new CpGrupo
+        {
+            Nombre = "Cuota+extras", Importe = 0m, CreatedAt = DateTime.Now,
+            Lineas =
+            [
+                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Cuota mensual", Cantidad = 1, PrecioUnitario = 5000m, Importe = 5000m, Orden = 0, CreatedAt = DateTime.Now },
+                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Aporte extra",  Cantidad = 2, PrecioUnitario = 1500m, Importe = 3000m, Orden = 1, CreatedAt = DateTime.Now },
+            ]
+        };
+        db.Grupos.Add(grupo);
+        var emp = new Empresa { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "u@x.com", CreatedAt = DateTime.Now }] };
+        db.Empresas.Add(emp);
+        db.SaveChanges();
+        db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = emp.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+        var service = BuildService(db, MailOk(), AfipFallaUnaVez());
+
+        var primera = await service.EmitirMasivoAsync(grupo.Id, 2026, 6, enviarMail: false);   // CAE falla → Pendiente
+        Assert.All(primera.Data!, r => Assert.False(r.Exito));
+        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+
+        var segunda = await service.EmitirMasivoAsync(grupo.Id, 2026, 6, enviarMail: false);    // resume vía GetPorClave → CAE OK
+        Assert.All(segunda.Data!, r => Assert.True(r.Exito));
+
+        var recibo = db.Recibos.Single();
+        Assert.Equal(ReciboEstado.Emitido, recibo.Estado);
+        var lineas = db.RecibosLineas.Where(l => l.ReciboId == recibo.Id).OrderBy(l => l.Orden).ToList();
+        Assert.Equal(2, lineas.Count);                            // los ítems del grupo se mantienen tras el reintento
+        Assert.Equal("Cuota mensual", lineas[0].Descripcion);
+        Assert.Equal(8000m, recibo.Importe);                      // total = suma de las líneas
     }
 }
 
@@ -291,7 +616,7 @@ public class CentroCierreTests
         return mail;
     }
 
-    private static CentroMaritimoReciboService BuildService(CentroMaritimoDbContext db, IMailService mail)
+    private static CentroMaritimoReciboService BuildService(CentroMaritimoDbContext db, IMailService mail, IAfipService? afip = null)
         => new(
             new CmRepos.ReciboRepository(db, NullLogger<CmRepos.ReciboRepository>.Instance),
             new CmRepos.GrupoFacturacionRepository(db, NullLogger<CmRepos.GrupoFacturacionRepository>.Instance),
@@ -299,7 +624,7 @@ public class CentroCierreTests
             new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.NotaDeCreditoRepository(db, NullLogger<CmRepos.NotaDeCreditoRepository>.Instance),
             new CmRepos.ConfiguracionRepository(db),
-            AfipOk(),
+            afip ?? AfipOk(),
             new CentroMaritimoPdfService(new PdfMerger(), new AfipDocumentosService(), new FakeAfipConfigProvider()),
             mail,
             NullLogger<CentroMaritimoReciboService>.Instance);
@@ -342,6 +667,242 @@ public class CentroCierreTests
         var res = await service.CerrarPeriodoAsync(2026, 6);
         Assert.True(res.Success);
         Assert.Empty(res.Data!);
+    }
+
+    // ── P1-1 ──
+
+    private static IAfipService AfipFallaUnaVezCm()
+    {
+        var afip = Substitute.For<IAfipService>();
+        long n = 0;
+        var llamadas = 0;
+        afip.ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++llamadas == 1
+                ? ServiceResult<CaeResult>.Fail("AFIP no disponible")
+                : ServiceResult<CaeResult>.Ok(new CaeResult
+                {
+                    NumeroComprobante = ++n,
+                    Cae = $"TEST{n:D8}",
+                    FechaVencimientoCae = DateTime.Today.AddDays(10),
+                }));
+        return afip;
+    }
+
+    private static (CmAgencia agencia, Barco barco) SeedAgenciaConVouchers(CentroMaritimoDbContext db, int cantVouchers)
+    {
+        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
+        db.Agencias.Add(ag);
+        db.Barcos.Add(barco);
+        db.SaveChanges();
+        for (int i = 1; i <= cantVouchers; i++)
+            db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = i, Importe = 1000m, Fecha = new DateTime(2026, 6, i), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+        return (ag, barco);
+    }
+
+    [Fact]
+    public async Task CerrarPeriodo_FallaCae_PersisteReciboPendienteYVouchersVinculados()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
+
+        var res = await service.CerrarPeriodoAsync(2026, 6);
+
+        Assert.True(res.Success);
+        var r = Assert.Single(res.Data!);
+        Assert.False(r.Exito);  // CAE falló
+
+        var recibo = db.Recibos.Single();
+        Assert.Equal(ReciboEstado.Pendiente, recibo.Estado);
+        Assert.True(string.IsNullOrEmpty(recibo.CAE));
+        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(recibo.Id, v.ReciboId));
+    }
+
+    [Fact]
+    public async Task CerrarPeriodo_ReintentoTrasFalloCae_CompletaSinDuplicar()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
+
+        await service.CerrarPeriodoAsync(2026, 6);  // primer intento: CAE falla
+        Assert.Equal(1, db.Recibos.Count());        // persiste Pendiente
+
+        var service2 = BuildService(db, MailOk());  // segundo servicio con AFIP OK
+        var res2 = await service2.CerrarPeriodoAsync(2026, 6);
+
+        Assert.True(res2.Success);
+        var r = Assert.Single(res2.Data!);
+        Assert.True(r.Exito);
+
+        Assert.Equal(1, db.Recibos.Count());  // no se duplicó
+        var recibo = db.Recibos.Single();
+        Assert.False(string.IsNullOrEmpty(recibo.CAE));
+        Assert.NotEqual(ReciboEstado.Pendiente, recibo.Estado);
+    }
+
+    // ── Reintento de "Emitir recibos" (sin mail) tras fallo de CAE ──
+
+    [Fact]
+    public async Task EmitirRecibosPeriodo_ReintentoTrasFalloCae_ProcesaConsolidadoPendiente()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var mail = MailOk();
+        var service = BuildService(db, mail, AfipFallaUnaVezCm());
+
+        var primera = await service.EmitirRecibosPeriodoAsync(2026, 6);
+        Assert.True(primera.Success);
+        var r1 = Assert.Single(primera.Data!);
+        Assert.False(r1.Exito);                                  // CAE falló
+        Assert.NotNull(r1.ErrorEmision);                         // el motivo viaja al llamador
+        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+
+        // Los vouchers ya quedaron vinculados; el consolidado Pendiente debe reintentarse igual.
+        var segunda = await service.EmitirRecibosPeriodoAsync(2026, 6);
+        var r2 = Assert.Single(segunda.Data!);
+        Assert.True(r2.Exito);
+        var recibo = db.Recibos.Single();                        // no se duplicó
+        Assert.Equal(ReciboEstado.Emitido, recibo.Estado);       // emitido pero sin mail
+        Assert.False(string.IsNullOrEmpty(recibo.CAE));
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EmitirReciboAgencia_ReintentoTrasFalloCae_SinVouchersLibres_Emite()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
+
+        var primera = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        Assert.False(primera.Success);                           // CAE falló → error con motivo
+        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+
+        var segunda = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        Assert.True(segunda.Success);                            // reintento sobre el consolidado Pendiente
+        Assert.True(segunda.Data!.Exito);
+        Assert.Equal(1, db.Recibos.Count());
+        Assert.Equal(ReciboEstado.Emitido, db.Recibos.Single().Estado);
+    }
+
+    [Fact]
+    public async Task EmitirReciboAgencia_SinVouchersNiConsolidadoPendiente_Falla()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var service = BuildService(db, MailOk());
+
+        var emision = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        Assert.True(emision.Success);                            // emite OK (queda Emitido, con CAE)
+
+        var repetida = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        Assert.False(repetida.Success);                          // ya no hay nada para emitir
+        Assert.Contains("no tiene vouchers pendientes", repetida.ErrorMessage);
+        Assert.Equal(1, db.Recibos.Count());
+    }
+
+    [Fact]
+    public async Task EmitirRecibos_SinPuntoDeVentaActivo_FallaConMensajeClaro()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        db.PuntosDeVenta.Single().Activo = false;                // sin punto de venta activo
+        db.SaveChanges();
+        var service = BuildService(db, MailOk());
+
+        var masivo = await service.EmitirRecibosPeriodoAsync(2026, 6);
+        Assert.False(masivo.Success);
+        Assert.Contains("punto de venta", masivo.ErrorMessage);
+
+        var porAgencia = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        Assert.False(porAgencia.Success);
+        Assert.Contains("punto de venta", porAgencia.ErrorMessage);
+
+        Assert.Empty(db.Recibos);                                // no se persistió nada a medias
+    }
+
+    // ── P1-2 (CM) ──
+
+    [Fact]
+    public async Task Anular_PersisteReciboYNotaJuntos_CM()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var service = BuildService(db, MailOk());
+
+        await service.CerrarPeriodoAsync(2026, 6);
+        var reciboId = db.Recibos.Single().Id;
+        var anulacion = await service.AnularReciboAsync(reciboId, enviarMail: false);
+
+        Assert.True(anulacion.Success);
+        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(1, db.NotasDeCredito.Count());
+    }
+
+    // ── P1-3 ──
+
+    [Fact]
+    public async Task AnularConsolidado_PermiteReemitirElPeriodo()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, barco) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk());
+
+        // Cerrar período → consolidado emitido
+        var cierre1 = await service.CerrarPeriodoAsync(2026, 6);
+        Assert.True(cierre1.Data![0].Exito);
+        var reciboId = db.Recibos.Single().Id;
+
+        // Anular el consolidado → vouchers liberados
+        var anulacion = await service.AnularReciboAsync(reciboId, enviarMail: false);
+        Assert.True(anulacion.Success);
+        Assert.All(db.Vouchers.ToList(), v => Assert.Null(v.ReciboId)); // P1-3: vouchers liberados
+
+        // Agregar un voucher nuevo y volver a cerrar el mismo período
+        db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 15), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+
+        var cierre2 = await service.CerrarPeriodoAsync(2026, 6);
+        Assert.True(cierre2.Data![0].Exito);  // debe emitir sin error de índice único
+        Assert.Equal(2, db.Recibos.Count());   // el anulado + el nuevo
+        var nuevo = db.Recibos.Single(r => r.Estado != ReciboEstado.Anulado);
+        Assert.Equal(3, nuevo.Vouchers.Count); // 3 vouchers en el nuevo consolidado
+    }
+
+    // ── P1-4 (CM) ──
+
+    [Fact]
+    public async Task EmitirIndividual_DosVecesMismoPeriodo_CreaDosRecibos_CM()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        db.Agencias.Add(ag);
+        db.SaveChanges();
+        var service = BuildService(db, MailOk());
+
+        var r1 = await service.EmitirIndividualAsync(ag.Id, 1000m, "Cobro 1", DateTime.Today, 2026, 6, enviarMail: false);
+        var r2 = await service.EmitirIndividualAsync(ag.Id, 2000m, "Cobro 2", DateTime.Today, 2026, 6, enviarMail: false);
+
+        Assert.True(r1.Data!.Exito);
+        Assert.True(r2.Data!.Exito);        // segundo recibo individual debe crearse OK
+        Assert.Equal(2, db.Recibos.Count()); // dos recibos distintos, no duplicados
+    }
+
+    [Fact]
+    public async Task EmitirIndividual_EnPeriodoConsolidado_NoChocaConElConsolidado_CM()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var service = BuildService(db, MailOk());
+
+        await service.CerrarPeriodoAsync(2026, 6);  // consolidado emitido
+
+        var ind = await service.EmitirIndividualAsync(ag.Id, 500m, "Cobro extra", DateTime.Today, 2026, 6, enviarMail: false);
+        Assert.True(ind.Data!.Exito);           // individual no choca con el consolidado
+        Assert.Equal(2, db.Recibos.Count());    // 1 consolidado + 1 individual
     }
 }
 
@@ -456,5 +1017,52 @@ public class VoucherServiceTests
         Assert.Equal(1200m, rSur.Total);
         Assert.Null(rSur.NumeroComprobante);
         Assert.Null(rSur.ReciboId);
+    }
+
+    [Fact]
+    public async Task GetDelPeriodo_DevuelveConsolidadosYPendientes_ConRecibo()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag", Cuit = "30700000001", CreatedAt = DateTime.Now };
+        var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
+        db.Agencias.Add(ag);
+        db.Barcos.Add(barco);
+        db.SaveChanges();
+
+        var reciboEmitido = new CmRecibo
+        {
+            AgenciaId = ag.Id, PeriodoAnio = 2026, PeriodoMes = 6,
+            Importe = 3000m, EsConsolidadoVouchers = true,
+            PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
+            NumeroComprobante = 101, CAE = "12345678901234",
+            FechaVencimientoCAE = DateTime.Today.AddDays(10),
+            FechaEmision = DateTime.Today, FechaVencimientoPago = DateTime.Today.AddDays(30),
+            Estado = ReciboEstado.Emitido, CreatedAt = DateTime.Now
+        };
+        db.Recibos.Add(reciboEmitido);
+        db.SaveChanges();
+
+        db.Vouchers.AddRange(
+            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+
+        var service = new VoucherService(
+            new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
+            new CmRepos.ContadorVoucherRepository(db),
+            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
+            NullLogger<VoucherService>.Instance);
+
+        var res = await service.GetDelPeriodoAsync(2026, 6);
+
+        Assert.True(res.Success);
+        var lista = res.Data!.ToList();
+        // El consolidado NO desaparece: vienen los 3 (2 consolidados + 1 pendiente), ordenados por Numero.
+        Assert.Equal(new[] { 1, 2, 3 }, lista.Select(v => v.Numero).ToArray());
+        // Los consolidados traen su recibo cargado para poder mostrar el estado.
+        Assert.Equal(ReciboEstado.Emitido, lista.Single(v => v.Numero == 1).Recibo!.Estado);
+        Assert.Null(lista.Single(v => v.Numero == 3).ReciboId);
     }
 }

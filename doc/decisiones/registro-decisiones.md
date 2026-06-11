@@ -359,3 +359,70 @@ CamaraPortuaria) con cuatro operaciones nuevas sobre la base SQLite, distribuida
   solo en una dirección.
 
 **Docs:** `doc/usuario/base-de-datos.md`.
+
+---
+
+## D-19 — Emisión masiva: tabla única, acciones por fila y fix de ítems del grupo
+
+**Fecha:** 2026-06-09.
+
+**Decisión:** Se rediseña la pantalla de **Emisión masiva por grupo** (ambas apps). Las dos tablas
+previas (previa + resultados con columnas Éxito / Error emisión / Error mail) se reemplazan por **una
+sola tabla** con una fila por miembro del grupo y su **estado para el período** (badge, reutilizando
+`EstadoReciboHelper` + `EstadoReciboToBrushConverter`, con un caso nuevo `No emitido`). La emisión se
+modela como dos pasos con un botón cada uno, habilitado sólo cuando ese paso falta/falló y deshabilitado
+cuando ya está hecho (re-clickear = reintentar):
+
+- **Masivas (3 botones):** Emitir (`EmitirMasivoAsync(enviarMail:false)`), Enviar (`EnviarMasivoAsync`),
+  Emitir y enviar (`EmitirMasivoAsync(enviarMail:true)`).
+- **Por fila:** Emitir/reintentar (`EmitirDeGrupoAsync` si no hay recibo, `ReintentarAsync` si existe),
+  Enviar (`ReenviarMailAsync`), Ver PDF.
+
+La misma idea se aplicó al botón de reintento de **Recibos**: `EsReintentable` pasa a ser sólo "paso CAE
+pendiente" (`Pendiente`), dejando el reenvío de mail al botón de correo (antes solapaban).
+
+**Modelo de datos:** `EstadoEmisionEntidad<TRecibo>(EntidadId, EntidadNombre, Recibo?)` en
+Core/Models/Resultados (genérico para reusar entre CP/CM sin acoplar Core a una app). La UI proyecta a
+`EmisionMasivaItem` (superset de `ReciboItem` que contempla "sin recibo").
+
+**Bug corregido (ítems del grupo no aparecían en el recibo):** `ReciboRepository.GetPorClaveAsync` no
+incluía `.Include(r => r.Lineas)`, así que al **reanudar/reintentar** un recibo existente sus líneas
+quedaban vacías y el PDF/mail caía al texto libre, perdiendo el detalle itemizado. Se agregó el Include en
+ambas apps. Además, mientras el recibo está `Pendiente` (sin CAE), `EmitirOResumirAsync` re-sincroniza el
+snapshot de líneas con los ítems actuales del grupo; con CAE ya emitido el detalle queda congelado.
+
+**Grupos:** el panel de edición se gatea con un flag `EnEdicion` (sólo editable al crear o seleccionar un
+grupo); `Guardar` requiere nombre + ≥1 ítem y `Agregar ítem` valida los campos, todo reactivo vía
+`CanExecute` (alineado con el resto de la app).
+
+**Por qué:** dos tablas con tres columnas de error para tres pasos consecutivos colapsaban información y
+confundían; Recibos ya había resuelto el mismo problema con una columna de estado + acciones por fila, así
+que se replicó ese patrón para dar control por agencia/empresa desde la misma pantalla.
+
+**Tests:** `PuertoBB.Tests/ServiceFlowTests.cs` suma cobertura de `EmitirMasivoAsync(enviarMail:false)`,
+`GetEstadoMasivoAsync`, `EnviarMasivoAsync` y el mantenimiento de líneas multi-ítem tras un reintento.
+
+**Migraciones consolidadas + seed (pre-producción):** como la plataforma aún no está en producción, se
+adopta la política de **una sola migración por release**: se borraron todas las migraciones incrementales
+de desarrollo y se regeneró una única `Inicial` por contexto (`Migrations/CamaraPortuaria`,
+`Migrations/CentroMaritimo`) con `dotnet ef migrations add Inicial`. El `SeedData` de ambas apps ahora
+siembra los grupos **con líneas (ítems)** para poder probar la emisión masiva multi-ítem de inmediato.
+Consecuencia operativa: las bases de desarrollo existentes traen el historial de migraciones viejo, así que
+hay que **borrar los `.db` de dev** (`%LocalAppData%\PuertoBB\CamaraPortuaria\camara-portuaria.db` y
+`...\CentroMaritimo\centro-maritimo.db`) para que la `Inicial` y el seed se apliquen en limpio.
+
+**Docs:** `doc/diseño/emision-masiva.md`; `doc/negocio/funcionalidad-compartida.md` actualizado.
+
+---
+
+## D-20 — Clave de emisión individual: N recibos por período, reintento del Pendiente
+
+**Fecha:** 2026-06-10.
+
+**Decisión:** Se permiten N recibos individuales (sin grupo) por (entidad, período). `FiltrarPorClave(grupoId: null)` retorna exclusivamente el recibo `Pendiente` (sin CAE) si existe; si no hay ninguno, devuelve null y se crea uno nuevo. Recibos ya emitidos/enviados del mismo período no bloquean la nueva emisión.
+
+**Motivo:** el negocio requiere cobros extraordinarios independientes en el mismo período (documentado en `funcionalidad-compartida.md`). La clave anterior bloqueaba el segundo recibo porque igualaba el "ya existe" a cualquier recibo individual, incluyendo los completos.
+
+**Efecto en CM:** también se excluyen los recibos `EsConsolidadoVouchers` del filtro de individuales, para que un mes con cierre cerrado no bloquee la emisión individual a esa agencia.
+
+**Invariante mantenido:** para recibos de grupo (grupoId non-null) el comportamiento no cambia — la unicidad sigue siendo la combinación (entidad, grupoId, período) a través de `EmisionGrupo`.

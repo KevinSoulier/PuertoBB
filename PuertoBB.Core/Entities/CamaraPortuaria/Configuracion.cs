@@ -6,8 +6,10 @@ namespace PuertoBB.Core.Entities.CamaraPortuaria;
 /// <summary>Configuración singleton (Id = 1) de la Cámara Portuaria.</summary>
 public class Configuracion : BaseEntity
 {
-    public string RazonSocial  { get; set; } = string.Empty;
-    public string Cuit         { get; set; } = string.Empty;
+    public string    RazonSocial       { get; set; } = string.Empty;
+    public string    Cuit              { get; set; } = string.Empty;
+    public string?   IngresosBrutos    { get; set; }
+    public DateTime? InicioActividades { get; set; }
 
     // Tipos AFIP (configurables; default = clase C / Exento IVA).
     // La Nota de Crédito se deriva de la clase del comprobante (ver CatalogoComprobantesAfip).

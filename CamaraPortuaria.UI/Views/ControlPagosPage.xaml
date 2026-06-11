@@ -8,33 +8,59 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="Control de pagos" Style="{StaticResource PageTitle}" />
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
-            <CheckBox Content="Solo vencidos" IsChecked="{Binding SoloVencidos}" VerticalAlignment="Center" />
-            <ui:Button Content="Actualizar" Command="{Binding BuscarCommand}" Margin="8,0,0,0"
-                       Style="{StaticResource AccionIconButton}" Appearance="Primary">
+        <!-- Fila de filtros -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+            <ui:TextBox PlaceholderText="Buscar en pagos..."
+                        Text="{Binding TextoBusqueda, UpdateSourceTrigger=PropertyChanged}"
+                        Width="220" VerticalAlignment="Center" Margin="0,0,8,0">
+                <ui:TextBox.Icon><ui:SymbolIcon Symbol="Search24" /></ui:TextBox.Icon>
+            </ui:TextBox>
+            <ComboBox ItemsSource="{Binding EstadosFiltro}" SelectedItem="{Binding FiltroEstado}"
+                      Width="110" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <CheckBox Content="Solo vencidos" IsChecked="{Binding SoloVencidos}"
+                      VerticalAlignment="Center" Margin="0,0,8,0" />
+            <CheckBox Content="Incluir morosos" IsChecked="{Binding IncluirMorosos}"
+                      VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Fila de acciones -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
+            <ui:Button Content="Actualizar" Command="{Binding BuscarCommand}"
+                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                       ToolTip="Actualizar la lista de pagos">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Marcar pagado" Command="{Binding MarcarPagadoCommand}"
-                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}">
+                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}"
+                       ToolTip="Marcar el recibo seleccionado como pagado">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Reenviar mail" Command="{Binding ReenviarCommand}"
-                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}">
+                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}"
+                       ToolTip="Reenviar el recibo seleccionado por correo">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Moroso" Command="{Binding MarcarMorosoCommand}"
+                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}"
+                       ToolTip="Marcar/quitar estado moroso de la empresa seleccionada">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Warning24" /></ui:Button.Icon>
             </ui:Button>
             <TextBlock Text="{Binding Resumen}" VerticalAlignment="Center" Margin="16,0,0,0"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </StackPanel>
 
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="4">
             <DataGrid ItemsSource="{Binding Recibos}" SelectedItem="{Binding Seleccionado}"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                      GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                      SelectionMode="Single"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Empresa" Binding="{Binding Empresa}" Width="*" />
                     <DataGridTextColumn Header="Comprobante" Binding="{Binding Comprobante}" Width="120" />

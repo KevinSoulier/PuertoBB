@@ -1,11 +1,14 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Markup;
 using CentroMaritimo.UI.Data;
 using CentroMaritimo.UI.Logging;
 using CentroMaritimo.UI.Services;
 using CentroMaritimo.UI.ViewModels;
 using CentroMaritimo.UI.Views;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -37,43 +40,61 @@ public partial class App : Application
 
     /// <summary>
     /// Modo desarrollo/demo: usa servicio de Mail falso y siembra datos de ejemplo.
-    /// En producción poner en false.
+    /// Configurable en appsettings.json → PuertoBB:ModoDemo.
     /// </summary>
-    public const bool ModoDemo = true;
+    public static bool ModoDemo { get; private set; } = true;
 
     /// <summary>
-    /// Modo de integración AFIP. Cambiar aquí para alternar entre Fake, Mock y Real.
-    /// Fake = sin red (default). Mock = stack Afip.Net completo sin red ni cert. Real = WSAA+WSFE reales.
+    /// Modo de integración AFIP. Configurable en appsettings.json → PuertoBB:Afip (Mock|Real).
     /// </summary>
-    public const AfipModo Afip = AfipModo.Mock;
+    public static AfipModo Afip { get; private set; } = AfipModo.Mock;
 
     private static string AppDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PuertoBB", "CentroMaritimo");
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
+        try
+        {
+            base.OnStartup(e);
 
-        Directory.CreateDirectory(AppDataDir);
-        ConfigurarManejadoresGlobales();
+            ConfigurarCultura();
+            Directory.CreateDirectory(AppDataDir);
+            ConfigurarManejadoresGlobales();
 
-        _host = Host.CreateDefaultBuilder()
-            .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.SetMinimumLevel(LogLevel.Debug);
-                logging.AddProvider(new FileLoggerProvider(Path.Combine(AppDataDir, "Logs")));
-            })
-            .ConfigureServices(ConfigureServices)
-            .Build();
+            var cfg = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true).Build();
+            ModoDemo = cfg.GetValue("PuertoBB:ModoDemo", true);
+            Afip     = Enum.TryParse<AfipModo>(cfg["PuertoBB:Afip"], out var m) ? m : AfipModo.Mock;
 
-        _logger = _host.Services.GetRequiredService<ILogger<App>>();
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.SetMinimumLevel(LogLevel.Debug);
+                    logging.AddProvider(new FileLoggerProvider(Path.Combine(AppDataDir, "Logs")));
+                })
+                .ConfigureServices(ConfigureServices)
+                .Build();
 
-        await InicializarBaseDeDatosAsync();
-        RestaurarTema();
+            _logger = _host.Services.GetRequiredService<ILogger<App>>();
 
-        var main = _host.Services.GetRequiredService<MainWindow>();
-        main.Show();
+            await InicializarBaseDeDatosAsync();
+            RestaurarTema();
+
+            var main = _host.Services.GetRequiredService<MainWindow>();
+            main.Show();
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Error al iniciar la aplicación:\n\n{ex.Message}",
+                "Error de inicio",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -83,12 +104,10 @@ public partial class App : Application
         services.AddCentroMaritimoInfrastructure(dbPath);
         services.AddCentroMaritimoServices();
         services.AddPuertoBBPdf();
-#pragma warning disable CS0162 // rama inalcanzable por diseño — cambiar la constante Afip para activar otro modo
         if (Afip == AfipModo.Real)
             services.AddPuertoBBAfip(ticketCacheDir: Path.Combine(AppDataDir, "afip-ticket-cache"));
         else
             services.AddPuertoBBAfipMock();
-#pragma warning restore CS0162
         services.AddPuertoBBMail(usarFake: ModoDemo);
 
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
@@ -120,7 +139,8 @@ public partial class App : Application
 
     private async Task InicializarBaseDeDatosAsync()
     {
-        var db = _host.Services.GetRequiredService<CentroMaritimoDbContext>();
+        await using var scope = _host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CentroMaritimoDbContext>();
         await db.Database.MigrateAsync();
         if (ModoDemo)
             await SeedData.EnsureSeededAsync(db);
@@ -135,6 +155,23 @@ public partial class App : Application
             ApplicationThemeManager.Apply(
                 pref == "Dark" ? ApplicationTheme.Dark : ApplicationTheme.Light,
                 WindowBackdropType.Mica);                            // updateAccent: true (default) → acento del sistema
+    }
+
+    /// <summary>
+    /// Fija la cultura es-AR en toda la app para que importes y fechas se formateen igual en código
+    /// (helper <c>Formato</c>) y en los bindings XAML (StringFormat=C2/d), sin depender de la cultura del SO.
+    /// </summary>
+    private static void ConfigurarCultura()
+    {
+        var cultura = CultureInfo.GetCultureInfo("es-AR");
+        CultureInfo.DefaultThreadCurrentCulture = cultura;
+        CultureInfo.DefaultThreadCurrentUICulture = cultura;
+        Thread.CurrentThread.CurrentCulture = cultura;
+        Thread.CurrentThread.CurrentUICulture = cultura;
+        // Para que los bindings WPF (StringFormat) usen es-AR y no la cultura del sistema.
+        FrameworkElement.LanguageProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(cultura.IetfLanguageTag)));
     }
 
     private void ConfigurarManejadoresGlobales()
@@ -175,7 +212,14 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
-        if (_host is not null) await _host.StopAsync();
+        try
+        {
+            if (_host is not null) await _host.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error en OnExit");
+        }
         base.OnExit(e);
     }
 }

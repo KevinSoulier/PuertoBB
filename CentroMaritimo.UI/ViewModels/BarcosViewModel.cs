@@ -13,6 +13,7 @@ public class BarcosViewModel : PageViewModel
     private readonly IDialogService _dialog;
     private int _editId;
     private List<Barco> _todosLosBarcos = [];
+    private string _snapNombre = string.Empty;
 
     public ObservableCollection<Barco> BarcosFiltrados { get; } = [];
 
@@ -27,22 +28,42 @@ public class BarcosViewModel : PageViewModel
     public Barco? Seleccionado
     {
         get => _seleccionado;
-        set { if (SetField(ref _seleccionado, value) && value is not null) { _editId = value.Id; NombreEdit = value.Nombre; OnPropertyChanged(nameof(NombreEdit)); } }
+        set
+        {
+            if (SetField(ref _seleccionado, value) && value is not null)
+            {
+                _editId = value.Id;
+                NombreEdit = value.Nombre;
+                OnPropertyChanged(nameof(NombreEdit));
+            }
+        }
     }
 
     public string NombreEdit { get; set; } = string.Empty;
 
+    private bool _enEdicion;
+    public bool EnEdicion
+    {
+        get => _enEdicion;
+        private set { if (SetField(ref _enEdicion, value)) { OnPropertyChanged(nameof(NoEnEdicion)); CommandManager.InvalidateRequerySuggested(); } }
+    }
+    public bool NoEnEdicion => !EnEdicion;
+
     public ICommand NuevoCommand { get; }
-    public ICommand GuardarCommand { get; }
+    public ICommand EditarCommand { get; }
+    public ICommand AceptarCommand { get; }
+    public ICommand CancelarCommand { get; }
     public ICommand EliminarCommand { get; }
 
     public BarcosViewModel(IBarcoRepository repo, IDialogService dialog)
     {
         _repo = repo;
         _dialog = dialog;
-        NuevoCommand = new RelayCommand(_ => { _editId = 0; NombreEdit = string.Empty; _seleccionado = null; OnPropertyChanged(nameof(NombreEdit)); LimpiarStatus(); });
-        GuardarCommand = new AsyncRelayCommand(GuardarAsync);
-        EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is not null);
+        NuevoCommand = new RelayCommand(_ => Nuevo(), _ => !EnEdicion);
+        EditarCommand = new RelayCommand(_ => Editar(), _ => Seleccionado is not null && !EnEdicion);
+        AceptarCommand = new AsyncRelayCommand(AceptarAsync, () => EnEdicion);
+        CancelarCommand = new RelayCommand(_ => Cancelar(), _ => EnEdicion);
+        EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is not null && !EnEdicion);
         _ = CargarAsync();
     }
 
@@ -62,7 +83,42 @@ public class BarcosViewModel : PageViewModel
         foreach (var b in lista) BarcosFiltrados.Add(b);
     }
 
-    private async Task GuardarAsync()
+    private void Nuevo()
+    {
+        _editId = 0;
+        NombreEdit = string.Empty;
+        _seleccionado = null;
+        OnPropertyChanged(nameof(Seleccionado));
+        OnPropertyChanged(nameof(NombreEdit));
+        _snapNombre = string.Empty;
+        EnEdicion = true;
+        LimpiarStatus();
+    }
+
+    private void Editar()
+    {
+        _snapNombre = NombreEdit;
+        EnEdicion = true;
+    }
+
+    private void Cancelar()
+    {
+        if (_editId == 0)
+        {
+            NombreEdit = string.Empty;
+            _seleccionado = null;
+            OnPropertyChanged(nameof(Seleccionado));
+        }
+        else
+        {
+            NombreEdit = _snapNombre;
+        }
+        OnPropertyChanged(nameof(NombreEdit));
+        EnEdicion = false;
+        LimpiarStatus();
+    }
+
+    private async Task AceptarAsync()
     {
         if (string.IsNullOrWhiteSpace(NombreEdit)) { MostrarError("El nombre es obligatorio."); return; }
         try
@@ -70,7 +126,9 @@ public class BarcosViewModel : PageViewModel
             if (_editId == 0)
             {
                 if (await _repo.GetPorNombreAsync(NombreEdit.Trim()) is not null) { MostrarError("Ya existe un barco con ese nombre."); return; }
-                await _repo.AddAsync(new Barco { Nombre = NombreEdit.Trim() });
+                var nuevo = new Barco { Nombre = NombreEdit.Trim() };
+                await _repo.AddAsync(nuevo);
+                _editId = nuevo.Id;
                 MostrarExito("Barco creado.");
             }
             else
@@ -81,7 +139,12 @@ public class BarcosViewModel : PageViewModel
                 await _repo.UpdateAsync(existente);
                 MostrarExito("Barco actualizado.");
             }
+            var idGuardado = _editId;
             await CargarAsync();
+            var guardado = BarcosFiltrados.FirstOrDefault(b => b.Id == idGuardado)
+                           ?? _todosLosBarcos.FirstOrDefault(b => b.Id == idGuardado);
+            if (guardado is not null) { _seleccionado = guardado; OnPropertyChanged(nameof(Seleccionado)); }
+            EnEdicion = false;
         }
         catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
     }
@@ -94,6 +157,12 @@ public class BarcosViewModel : PageViewModel
         {
             await _repo.DeleteAsync(Seleccionado.Id);
             MostrarExito("Barco eliminado.");
+            _editId = 0;
+            NombreEdit = string.Empty;
+            _seleccionado = null;
+            OnPropertyChanged(nameof(Seleccionado));
+            OnPropertyChanged(nameof(NombreEdit));
+            EnEdicion = false;
             await CargarAsync();
         }
         catch (Exception ex) { MostrarError($"No se pudo eliminar (¿tiene vouchers?): {ex.Message}"); }
