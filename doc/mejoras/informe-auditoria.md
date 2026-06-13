@@ -1,5 +1,9 @@
 # Informe de auditoría — PuertoBB (en construcción)
 
+> **Documento histórico** (2026-06-08, anterior a D-21): superado por las auditorías
+> formales de `doc/auditoria/` (informes 2026-06-10 y 2026-06-11). Las menciones al
+> "apoderado fiscal" ya no aplican: el feature fue eliminado (D-21).
+
 > Generado por el trabajo nocturno autónomo. Se completa de forma incremental por el loop.
 > Estado: **FASE 1 en curso.** Última actualización: 2026-06-08 (iteración 1).
 

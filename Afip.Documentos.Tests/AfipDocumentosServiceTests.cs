@@ -72,6 +72,18 @@ public class AfipDocumentosServiceTests
     }
 
     [Fact]
+    public void GenerarPdf_SinVencimientoCae_DevuelvePdfValidoSinFechaMinima()
+    {
+        // N-5: si AFIP no devolvió vencimiento (default), el PDF se genera igual y el template
+        // omite la línea (no imprime "01/01/0001").
+        var svc = new AfipDocumentosService();
+        var bytes = svc.GenerarPdf(BuildRecibo(conItems: true) with { FechaVencimientoCae = default });
+
+        Assert.True(bytes.Length > 1000);
+        Assert.True(EsPdf(bytes));
+    }
+
+    [Fact]
     public void GenerarPdf_NotaDeCreditoConComprobanteAsociado_DevuelvePdfValido()
     {
         var nc = new ComprobanteDocumento

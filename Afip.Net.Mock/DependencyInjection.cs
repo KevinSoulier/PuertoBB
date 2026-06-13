@@ -1,4 +1,5 @@
 using Afip.Abstractions;
+using Afip.Padron;
 using Afip.Wsaa;
 using Afip.Wsfe;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,8 @@ public static class DependencyInjection
         services.AddSingleton<TicketCache>();
         services.AddSingleton<ITicketProvider, MockTicketProvider>();
         services.AddSingleton<IWsfeService, WsfeService>();
+        services.AddSingleton<IPadronClient, MockPadronClient>();
+        services.AddSingleton<IPadronService, PadronService>();
         return services;
     }
 }

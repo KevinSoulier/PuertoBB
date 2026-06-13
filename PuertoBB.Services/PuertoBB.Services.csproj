@@ -21,7 +21,5 @@
     <PackageReference Include="PdfSharp" Version="6.2.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
-    <!-- DPAPI para proteger en reposo la contraseña del certificado (Windows) -->
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
   </ItemGroup>
 </Project>

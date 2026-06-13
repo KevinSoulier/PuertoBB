@@ -426,3 +426,67 @@ hay que **borrar los `.db` de dev** (`%LocalAppData%\PuertoBB\CamaraPortuaria\ca
 **Efecto en CM:** también se excluyen los recibos `EsConsolidadoVouchers` del filtro de individuales, para que un mes con cierre cerrado no bloquee la emisión individual a esa agencia.
 
 **Invariante mantenido:** para recibos de grupo (grupoId non-null) el comportamiento no cambia — la unicidad sigue siendo la combinación (entidad, grupoId, período) a través de `EmisionGrupo`.
+
+---
+
+## D-21 — Baja del "apoderado fiscal" (CM) y "Emisor" dentro de la pestaña AFIP/ARCA
+
+**Fecha:** 2026-06-11.
+
+**Decisión:** Se elimina por completo el feature **apoderado fiscal** del Centro Marítimo: pestaña de Configuración, propiedades/commands del `ConfiguracionViewModel`, campos de entidad (`Configuracion.UsarApoderado/NombreApoderado/CuitApoderado` y el snapshot `Recibo.EsApoderado/NombreApoderado/CuitApoderado`), su configuración EF, y el uso en `AfipConfigProvider` (vuelve a usar siempre `Cuit` del emisor), `CentroMaritimoReciboService` (sin snapshot de apoderado) y `CentroMaritimoPdfService` (sin leyenda de apoderado; `BuildEmisor` ya no recibe el `Recibo`). La migración `Inicial` del contexto CM se **regeneró** (convención: una migración por contexto) y se borraron las `.db` de dev. Además, en **ambas apps** la sección **"Datos del emisor"** deja de ser una pestaña propia y pasa a ser la primera subsección de la pestaña **"AFIP / ARCA"** (los bindings/commands del emisor no cambian).
+
+**Motivo:** simplificación pedida por el usuario; el apoderado no se usa en la operación real y dejaba datos/lógica muertos. Agrupar Emisor con AFIP/ARCA junta en una sola pantalla todo lo fiscal del emisor.
+
+---
+
+## D-22 — La grilla de Vouchers ya no muestra columna "Estado"
+
+**Fecha:** 2026-06-11.
+
+**Decisión:** Se elimina la columna "Estado" del `DataGrid` de la página Vouchers (CM) y la propiedad `VoucherItem.EstadoTexto` que la alimentaba. El estado del ciclo de un voucher (Pendiente / Emitido / Completo) se consulta en la página **Cierre de Período**, que lo deriva del recibo consolidado. En Vouchers, la propiedad `Consolidado` sigue gobernando qué vouchers se pueden editar/eliminar.
+
+**Motivo:** el estado por voucher duplicaba el estado del recibo que lo consolidó y generaba confusión (dos lugares mostrando lo mismo con matices distintos).
+
+---
+
+## D-23 — Los datos reales del SeedData se mantienen (cierra P2-10 de la auditoría 2026-06-10)
+
+**Fecha:** 2026-06-11.
+
+**Decisión:** Los CUITs y emails reales de empresas/agencias presentes en `SeedData` de ambas apps **se mantienen tal cual**. El repositorio es privado y el seed solo corre con `ModoDemo=true`; en producción (`ModoDemo=false`) la base nace vacía y esos datos nunca se siembran.
+
+**Motivo:** decisión explícita del usuario (2026-06-11) al cerrar el ítem P2-10 de la auditoría: anonimizar o externalizar no aporta valor en un repo privado de uso interno.
+
+---
+
+## D-24 — Certificado AFIP guardado en la base y baja del cifrado DPAPI
+
+**Fecha:** 2026-06-12.
+
+**Decisión:** El certificado AFIP (`.p12` o `.crt` + `.key`) deja de copiarse a `%LOCALAPPDATA%\...\Certificados\` y de guardarse por **ruta**. Ahora su contenido se persiste en la base, en `PuntoDeVenta` (columnas BLOB `CertificadoContenido` y `CertificadoKeyContenido`); `CertificadoRuta`/`CertificadoKeyRuta` quedan solo como nombre de archivo para mostrar. `Afip.Net` carga el `X509Certificate2` desde bytes en memoria (`X509CertificateLoader.LoadPkcs12` / `X509Certificate2.CreateFromPem`, `EphemeralKeySet`), sin tocar el disco; los campos por ruta de `AfipOptions` se conservan como alternativa.
+
+Además se **revierte el cifrado DPAPI** introducido proactivamente en D-16 (no había sido pedido): se elimina `ISecretProtector`/`DpapiSecretProtector` y todos sus usos (contraseña del certificado y contraseña SMTP, que ahora se guardan en texto plano) y se quita el cifrado DPAPI del cache de ticket WSAA (`FileTicketStore` pasa a JSON plano en disco). Se quita el paquete `System.Security.Cryptography.ProtectedData` de `PuertoBB.Services` y `Afip.Net`. Las migraciones `Inicial` de ambos contextos se regeneraron (convención: una por contexto) y se borró la `.db` de dev.
+
+**Motivo:** pedido explícito del usuario. (1) Guardar el certificado en la base lo incluye en el backup (VACUUM INTO) y evita archivos sueltos/rutas rotas. (2) El usuario no había solicitado ningún cifrado y prefiere no tenerlo.
+
+**Nota de seguridad (acordada con el usuario):** es un downgrade deliberado. El `.db` y el cache de ticket quedan con secretos en **texto plano** (contraseñas SMTP y de certificado, y la clave privada `.key`).
+
+**UI:** en Configuración, el campo del certificado pasó de `StackPanel` horizontal a un `Grid` de dos columnas (`*` + `Auto`): ancho fijo, sin empujar el botón "Examinar…", mostrando solo el nombre del archivo (ruta completa en el ToolTip).
+
+## D-25 — RG 5616 (condición IVA del receptor) + FEParamGet* en diagnóstico + constancia de inscripción
+
+**Fecha:** 2026-06-12.
+
+**Contexto:** la investigación del mismo día (ver `doc/arquitectura/afip-integracion.md`) detectó que la emisión real sería rechazada con error **10242**: la RG 5616 exige `CondicionIVAReceptorId` en `FECAESolicitar` (homologación ya lo valida; excluyente en producción desde el 01/09/2026) y el mapper serializaba `0`. Se aprovechó para sumar dos capacidades estándar de los clientes AFIP de referencia. La **NC parcial se descartó** por decisión de negocio.
+
+**Decisiones:**
+
+1. **Catálogo único** `PuertoBB.Core/Afip/CatalogoCondicionesIvaReceptor.cs` (códigos 1, 4, 5, 6, 7, 8, 9, 10, 13, 15, 16), patrón de `CatalogoComprobantesAfip`. Plano, sin clase fiscal: la semántica de `Cmp_Clase` de AFIP no está bien documentada y filtrar el combo podría bloquear emisiones válidas; la lista autoritativa por clase la muestra el diagnóstico.
+2. **Una sola fuente de verdad en el receptor:** `Empresa`/`Agencia` reemplazan el string libre `CondicionIva` por **`CondicionIvaId (int?)`**; el texto se deriva del catálogo al armar el snapshot del recibo (`ReceptorCondicionIva` + nuevo `ReceptorCondicionIvaId`). El PDF sigue leyendo el texto del snapshot.
+3. **`required int CondicionIvaReceptorId` en toda la cadena de DTOs** (`ComprobanteAfipRequest` → `AfipComprobanteRequest` → `WsfeCaeRequest` → `FECAEDetRequest`): el compilador impide reintroducir el 0 silencioso. La nulabilidad vive solo en entidades; los ReciboService validan ANTES de llamar a AFIP con mensaje accionable (en masiva, fallo por entidad; recibo queda Pendiente). Anulación: snapshot ?? entidad ?? error. `AfipErrores` traduce 10242/10243/10246.
+4. **Diagnóstico extendido:** `IWsfeClient`/`WsfeService` envuelven `FEParamGetPtosVenta`/`TiposCbte`/`CondicionIvaReceptor` (mapeo defensivo: "S"/"N", fechas "NULL", error 602 → lista vacía). `ProbarConexionAsync` valida PV habilitado/no bloqueado/CAE y tipo vigente; cada chequeo en try/catch propio y **nunca degrada `AutenticacionOk`**; `DiagnosticoAfip` suma `PuntoVentaOk`/`TipoComprobanteOk` (null = no verificable, p. ej. lista de PV vacía en homologación) y las condiciones IVA válidas.
+5. **Constancia de inscripción** (`ws_sr_constancia_inscripcion`): nuevo `Afip.Net/Padron/` + `PadronSoapClient`/`PadronMapper` (cliente generado con svcutil en `Soap/Generated/PadronReference.cs`). Derivación de condición: monotributo→6, impuesto 30→1, impuesto 32→4, sino→15; `errorConstancia` → resultado parcial con observaciones; fault "no existe persona" → null (detección encapsulada en un solo método). El TA usa el cache por (CUIT, servicio) existente. Adaptador `IAfipPadronService`/`AfipPadronService` único para ambos modos (mock = `MockPadronClient`, patrón D-16). Botón **"Validar en ARCA"** en el ABM de Empresas/Agencias autocompleta razón social/domicilio/condición (no pisa con vacío). Requiere delegar el servicio al certificado.
+6. **Seed demo:** `CondicionIvaId = 1` (todas S.A./S.R.L. reales, RI con altísima probabilidad). Migraciones `Inicial` regeneradas (convención de squash) y `.db` de dev borradas.
+7. `NoWarn CS8981` en `Afip.Net.csproj`: el contrato generado del padrón trae nombres en minúscula del WSDL de ARCA.
+
+**Resultado:** 159 tests verdes (28 nuevos). La emisión en homologación queda desbloqueada del lado del código.

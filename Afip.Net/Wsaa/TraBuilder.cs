@@ -32,12 +32,15 @@ public static class TraBuilder
 
     public static string FirmarCms(string traXml, AfipOptions options)
     {
-        var cert = options.CertificadoKeyRuta is not null
-            ? X509Certificate2.CreateFromPemFile(options.CertificadoRuta!, options.CertificadoKeyRuta)
-            : X509CertificateLoader.LoadPkcs12FromFile(
-                options.CertificadoRuta!,
-                options.CertificadoPassword,
-                X509KeyStorageFlags.EphemeralKeySet);
+        // El contenido en memoria tiene prioridad; si solo hay ruta, se lee el archivo.
+        var certBytes = options.CertificadoContenido ?? LeerArchivo(options.CertificadoRuta)
+            ?? throw new InvalidOperationException("No se configuró el certificado (ni contenido ni ruta).");
+        var keyBytes = options.CertificadoKeyContenido ?? LeerArchivo(options.CertificadoKeyRuta);
+
+        // Con clave privada presente → modo CRT+KEY (PEM); si no → P12.
+        var cert = keyBytes is not null
+            ? X509Certificate2.CreateFromPem(Encoding.UTF8.GetString(certBytes), Encoding.UTF8.GetString(keyBytes))
+            : X509CertificateLoader.LoadPkcs12(certBytes, options.CertificadoPassword, X509KeyStorageFlags.EphemeralKeySet);
 
         var traBytes = Encoding.UTF8.GetBytes(traXml);
         var signedCms = new SignedCms(new ContentInfo(traBytes), detached: false);
@@ -45,5 +48,8 @@ public static class TraBuilder
         signedCms.ComputeSignature(signer);
 
         return Convert.ToBase64String(signedCms.Encode());
+
+        static byte[]? LeerArchivo(string? ruta) =>
+            string.IsNullOrEmpty(ruta) ? null : File.ReadAllBytes(ruta);
     }
 }

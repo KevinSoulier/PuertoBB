@@ -11,6 +11,14 @@
 > importación del `.p12`, botón **Probar conexión** y aviso de ambiente. Tests: 29 verdes. Docs:
 > `Afip.Net/README.md`, `doc/usuario/afip-configuracion.md`.
 
+> **Actualización 2026-06-12 (D-25):** cumplimiento de la **RG 5616** — condición frente al IVA del
+> receptor obligatoria en la emisión (catálogo en Core, `CondicionIvaId` en Empresa/Agencia + snapshot
+> en Recibo, `required` en toda la cadena de DTOs, validación pre-AFIP con mensaje accionable);
+> **`FEParamGet*`** en el diagnóstico de "Probar conexión" (PV habilitado, tipo vigente, condiciones
+> IVA válidas); y **constancia de inscripción** (`ws_sr_constancia_inscripcion`) con botón
+> **"Validar en ARCA"** en el ABM de empresas/agencias. Tests: **159 verdes**. Las apps corren con
+> `Afip = "Real"` apuntando a homologación.
+
 ---
 
 ## Qué quedó implementado
@@ -33,15 +41,15 @@
 - **PDF (QuestPDF)**: `CamaraPortuariaPdfService`, `CentroMaritimoPdfService` (recibo, voucher, **consolidado recibo+vouchers**, nota de crédito).
 - **Mail (MailKit)**: `MailService` + `FakeMailService`.
 - **AFIP**: orquestación WSAA (`TraBuilder` TRA+CMS PKCS#7, `WsaaTokenCache`) + WSFE contra abstracciones `IWsaaClient`/`IWsfeClient`; `AfipService` real + `FakeAfipService` (CAE simulado).
-- **Negocio**: `CamaraPortuariaReciboService` (emisión masiva/individual, anulación con NC, reenvío, pago, dashboard), `CentroMaritimoReciboService` (idem + **cierre de período/consolidación** + apoderado fiscal), `VoucherService`.
+- **Negocio**: `CamaraPortuariaReciboService` (emisión masiva/individual, anulación con NC, reenvío, pago, dashboard), `CentroMaritimoReciboService` (idem + **cierre de período/consolidación**), `VoucherService`.
 - Extensiones DI conmutables (`AddPuertoBBAfip(usarFake)`, `AddPuertoBBMail(usarFake)`).
 
 ### `CamaraPortuaria.UI` y `CentroMaritimo.UI` — WPF Fluent (completo)
 - Shell Fluent: TitleBar 44px, sidebar 220px con `TreeView` + `Frame`, navegación por DI (`INavigationService`).
 - Diálogos modales Fluent por overlay (`IDialogService`: confirm/alert/input) — sin `MessageBox`.
-- `App.xaml.cs`: host genérico + DI, Serilog (archivo diario en `%LocalAppData%\PuertoBB\<App>\Logs`), handlers globales de excepción, migración automática y seed de demo, restauración de tema.
+- `App.xaml.cs`: host genérico + DI, logging a archivo con `FileLoggerProvider` propio (archivo diario en `%LocalAppData%\PuertoBB\<App>\Logs`, retención 30, escribe Warning+ y toda excepción), handlers globales de excepción, migración automática y seed de demo, restauración de tema.
 - Páginas CP: Inicio (control de pagos), Recibos (+emisión individual, anular, reenviar, pagar), Emisión masiva, Empresas (ABM+emails), Grupos (ABM+miembros), Configuración (+selector de tema claro/oscuro/sistema).
-- Páginas CM: Inicio, Vouchers (ABM), Cierre de período, Recibos, Emisión masiva, Agencias, Barcos, Grupos, Configuración (+apoderado).
+- Páginas CM: Inicio, Vouchers (ABM), Cierre de período, Recibos, Emisión masiva, Agencias, Barcos, Grupos, Configuración.
 - `SeedData` por app: empresas/agencias/grupos/barcos/vouchers de ejemplo.
 
 ### `PuertoBB.Tests` — xUnit (18 tests, verdes)

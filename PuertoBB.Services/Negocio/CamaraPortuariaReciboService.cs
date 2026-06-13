@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using PuertoBB.Core.Afip;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Enums;
@@ -162,9 +163,13 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
 
         try
         {
-            var importe = lineas.Sum(l => l.Importe);
+            var importe = lineas.Sum(l => Round2(l.Importe));
             var detalle = string.Join(" · ", lineas.Select(l => l.Descripcion));
             var recibo = await _recibos.GetPorClaveAsync(empresa.Id, grupoId, anio, mes, ct);
+            // N-1: para individuales, un Pendiente con contenido DISTINTO no es un reintento — es otro
+            // cobro. Crear un recibo nuevo en lugar de pisar el snapshot (D-20 permite N por período).
+            if (recibo is not null && grupoId is null && !MismoContenido(recibo, lineas))
+                recibo = null;
             if (recibo is null)
             {
                 recibo = new Recibo
@@ -180,12 +185,13 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
                     ReceptorRazonSocial = empresa.RazonSocial,
                     ReceptorCuit = empresa.Cuit,
                     ReceptorDomicilio = empresa.Domicilio,
-                    ReceptorCondicionIva = empresa.CondicionIva,
+                    ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(empresa.CondicionIvaId),
+                    ReceptorCondicionIvaId = empresa.CondicionIvaId,
                     PeriodoAnio = anio,
                     PeriodoMes = mes,
                     Importe = importe,
                     Detalle = detalle,
-                    Lineas = lineas.Select((l, i) => new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = l.Importe, Orden = i }).ToList(),
+                    Lineas = lineas.Select((l, i) => new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i }).ToList(),
                     PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
                     TipoComprobante = TipoComprobante.Recibo,
                     CodigoAfip = config.CodigoAfipRecibo,
@@ -211,10 +217,11 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
                     recibo.ReceptorRazonSocial = empresa.RazonSocial;
                     recibo.ReceptorCuit = empresa.Cuit;
                     recibo.ReceptorDomicilio = empresa.Domicilio;
-                    recibo.ReceptorCondicionIva = empresa.CondicionIva;
+                    recibo.ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(empresa.CondicionIvaId);
+                    recibo.ReceptorCondicionIvaId = empresa.CondicionIvaId;
                     recibo.Lineas.Clear();
                     foreach (var (l, i) in lineas.Select((l, i) => (l, i)))
-                        recibo.Lineas.Add(new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = l.Importe, Orden = i });
+                        recibo.Lineas.Add(new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i });
                 }
             }
 
@@ -230,6 +237,23 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
     /// <summary>Un recibo está "completo" cuando ya no hay nada que reintentar (lógica compartida CP/CM).</summary>
     private static bool EsCompleto(Recibo r) => EstadoReciboHelper.EsCompleto(r.Estado, r.UltimoErrorMail);
 
+    /// <summary>Redondea a 2 decimales (igual que el mapper AFIP) para que la suma de líneas
+    /// persistidas coincida exactamente con el total que se envía a AFIP.</summary>
+    private static decimal Round2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>True si el recibo tiene exactamente las mismas líneas que el pedido (mismo cobro).</summary>
+    private static bool MismoContenido(Recibo r, IReadOnlyList<ReciboLineaInput> lineas)
+    {
+        if (r.Lineas.Count != lineas.Count) return false;
+        var actuales = r.Lineas.OrderBy(l => l.Orden).ToList();
+        for (var i = 0; i < lineas.Count; i++)
+            if (actuales[i].Descripcion != lineas[i].Descripcion ||
+                actuales[i].Cantidad != lineas[i].Cantidad ||
+                actuales[i].PrecioUnitario != lineas[i].PrecioUnitario)
+                return false;
+        return true;
+    }
+
     /// <summary>
     /// Avanza un recibo persistido: pide el CAE solo si falta (idempotente), y manda el mail si
     /// corresponde. Un fallo de mail NO revierte el CAE.
@@ -240,18 +264,49 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         // 1. CAE (idempotente: no se vuelve a pedir si ya está).
         if (string.IsNullOrEmpty(recibo.CAE))
         {
+            // RG 5616: sin condición de IVA del receptor AFIP rechaza con 10242; cortar antes de llamar.
+            if (recibo.ReceptorCondicionIvaId is not (> 0))
+            {
+                recibo.Estado = ReciboEstado.Pendiente;
+                recibo.UltimoErrorCae = $"'{empresa.Nombre}' no tiene asignada la condición frente al IVA (obligatoria por RG 5616). Asígnela en Empresas y reintente.";
+                await _recibos.UpdateAsync(recibo, ct);
+                return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.Nombre, recibo.UltimoErrorCae);
+            }
+
             var afipReq = new ComprobanteAfipRequest
             {
                 TipoComprobante = TipoComprobante.Recibo,
                 CodigoAfip = recibo.CodigoAfip,
                 PuntoDeVenta = recibo.PuntoDeVenta,
                 CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
+                CondicionIvaReceptorId = recibo.ReceptorCondicionIvaId.Value,
                 ImporteTotal = recibo.Importe,
                 FechaEmision = recibo.FechaEmision,
                 PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
                 PeriodoServicioHasta = PeriodoHelper.UltimoDia(recibo.PeriodoAnio, recibo.PeriodoMes),
                 FechaVencimientoPago = recibo.FechaVencimientoPago
             };
+
+            // Recuperación anti-duplicado: si un intento previo falló (UltimoErrorCae), el CAE pudo
+            // haberse autorizado sin que lo registráramos (crash/cancelación tras la autorización).
+            // Recuperarlo de AFIP antes de re-emitir evita un segundo comprobante.
+            if (!string.IsNullOrEmpty(recibo.UltimoErrorCae))
+            {
+                var rec = await _afip.RecuperarComprobanteAsync(afipReq, ct);
+                if (rec is { Success: true, Data: { } recuperado }
+                    && !await _recibos.ExisteComprobanteAsync(recibo.PuntoDeVenta, recibo.CodigoAfip, recuperado.NumeroComprobante, ct))
+                {
+                    recibo.NumeroComprobante = recuperado.NumeroComprobante;
+                    recibo.CAE = recuperado.Cae;
+                    recibo.FechaVencimientoCAE = recuperado.FechaVencimientoCae;
+                    recibo.UltimoErrorCae = null;
+                    recibo.Estado = ReciboEstado.Emitido;
+                    _logger.LogWarning("CAE recuperado de AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
+                        recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
+                    await _recibos.UpdateAsync(recibo, ct);
+                    return ResultadoEmisionPorEntidad.Ok(empresa.Id, empresa.Nombre, recibo.NumeroComprobante, recibo.UltimoErrorMail);
+                }
+            }
 
             var cae = await _afip.ObtenerCAEAsync(afipReq, ct);
             if (!cae.Success || cae.Data is null)
@@ -267,6 +322,9 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
             recibo.FechaVencimientoCAE = cae.Data.FechaVencimientoCae;
             recibo.UltimoErrorCae = null;
             recibo.Estado = ReciboEstado.Emitido;
+            // F: rastro del CAE autorizado ANTES de persistir (único registro si el guardado falla).
+            _logger.LogWarning("CAE autorizado por AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
+                recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
             await _recibos.UpdateAsync(recibo, ct);
         }
 
@@ -305,25 +363,37 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         return ResultadoEmisionPorEntidad.Ok(empresa.Id, empresa.Nombre, recibo.NumeroComprobante, recibo.UltimoErrorMail);
     }
 
-    public async Task<ServiceResult<bool>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
+    public async Task<ServiceResult<ResultadoAnulacion>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
     {
         var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
-        if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
-        if (recibo.Estado == ReciboEstado.Anulado) return ServiceResult<bool>.Fail("El recibo ya está anulado.");
+        if (recibo is null) return ServiceResult<ResultadoAnulacion>.Fail("El recibo no existe.");
+        if (recibo.Estado == ReciboEstado.Anulado) return ServiceResult<ResultadoAnulacion>.Fail("El recibo ya está anulado.");
         if (string.IsNullOrEmpty(recibo.CAE))
-            return ServiceResult<bool>.Fail("El recibo no tiene CAE: emítalo antes de anularlo.");
+            return ServiceResult<ResultadoAnulacion>.Fail("El recibo no tiene CAE: emítalo antes de anularlo.");
 
         var config = await _config.GetAsync(ct);
         if (config.PuntoDeVentaActivo is null)
-            return ServiceResult<bool>.Fail("Configure un punto de venta activo en Configuración.");
+            return ServiceResult<ResultadoAnulacion>.Fail("Configure un punto de venta activo en Configuración.");
+        // La NC debe emitirse desde el mismo PV que el recibo original (su serie/certificado). El PV
+        // activo provee el certificado de autenticación; si no coincide, no se anula sin cambiarlo.
+        if (recibo.PuntoDeVenta != config.PuntoDeVentaActivo.Numero)
+            return ServiceResult<ResultadoAnulacion>.Fail(
+                $"Para anular este recibo, activá el punto de venta {recibo.PuntoDeVenta} en Configuración (el recibo se emitió desde ese PV).");
         var hoy = DateTime.Today;
+
+        // RG 5616: condición IVA del snapshot; recibos viejos sin snapshot usan la actual de la empresa.
+        var condicionIvaId = recibo.ReceptorCondicionIvaId ?? recibo.Empresa.CondicionIvaId;
+        if (condicionIvaId is not (> 0))
+            return ServiceResult<ResultadoAnulacion>.Fail(
+                "El recibo no registra la condición frente al IVA del receptor: asígnela a la empresa en el ABM y reintente.");
 
         var afipReq = new ComprobanteAfipRequest
         {
             TipoComprobante = TipoComprobante.NotaDeCredito,
             CodigoAfip = config.CodigoAfipNotaDeCredito,
-            PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
+            PuntoDeVenta = recibo.PuntoDeVenta,
             CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
+            CondicionIvaReceptorId = condicionIvaId.Value,
             ImporteTotal = recibo.Importe,
             FechaEmision = hoy,
             PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
@@ -338,43 +408,70 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
             }
         };
 
-        var cae = await _afip.ObtenerCAEAsync(afipReq, ct);
-        if (!cae.Success || cae.Data is null)
-            return ServiceResult<bool>.Fail(cae.ErrorMessage ?? "AFIP no devolvió CAE para la nota de crédito.");
+        // Recuperación anti-duplicado: si la respuesta del CAE de una NC previa se perdió, AFIP pudo
+        // haberla autorizado igual. Recuperarla antes de re-emitir evita una segunda NC sobre el mismo
+        // recibo. Confiable dentro del mismo día (la coincidencia incluye la fecha del comprobante);
+        // para reintentos en días posteriores queda el aviso de "posible emisión" de ObtenerCAEAsync.
+        CaeResult? caeNota = null;
+        var recuperada = await _afip.RecuperarComprobanteAsync(afipReq, ct);
+        if (recuperada is { Success: true, Data: { } ncRec }
+            && !await _recibos.ExisteComprobanteAsync(afipReq.PuntoDeVenta, afipReq.CodigoAfip, ncRec.NumeroComprobante, ct))
+        {
+            _logger.LogWarning("NC recuperada de AFIP: PV {Pv} Nro {Numero} CAE {Cae} (recibo {ReciboId}) — adoptando…",
+                afipReq.PuntoDeVenta, ncRec.NumeroComprobante, ncRec.Cae, recibo.Id);
+            caeNota = ncRec;
+        }
+
+        if (caeNota is null)
+        {
+            var cae = await _afip.ObtenerCAEAsync(afipReq, ct);
+            if (!cae.Success || cae.Data is null)
+                return ServiceResult<ResultadoAnulacion>.Fail(cae.ErrorMessage ?? "AFIP no devolvió CAE para la nota de crédito.");
+            caeNota = cae.Data;
+        }
 
         var nota = new NotaDeCredito
         {
             ReciboOriginalId = recibo.Id,
             ReciboOriginal = recibo,
-            PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
+            PuntoDeVenta = recibo.PuntoDeVenta,
             TipoComprobante = TipoComprobante.NotaDeCredito,
             CodigoAfip = config.CodigoAfipNotaDeCredito,
-            NumeroComprobante = cae.Data.NumeroComprobante,
-            CAE = cae.Data.Cae,
-            FechaVencimientoCAE = cae.Data.FechaVencimientoCae,
+            NumeroComprobante = caeNota.NumeroComprobante,
+            CAE = caeNota.Cae,
+            FechaVencimientoCAE = caeNota.FechaVencimientoCae,
             FechaEmision = hoy
         };
+
+        // N-2: si la persistencia local fallara, este log es el único registro del comprobante autorizado.
+        _logger.LogWarning("NC autorizada por AFIP: PV {Pv} Nro {Numero} CAE {Cae} (recibo {ReciboId}) — persistiendo…",
+            nota.PuntoDeVenta, nota.NumeroComprobante, nota.CAE, recibo.Id);
 
         // Anular recibo + persistir NC en un único SaveChanges (atómico: evita NC sin registro si falla).
         await _recibos.AnularConNotaAsync(recibo, nota, ct);
 
+        string? errorMail = null;
         if (enviarMail)
         {
             try
             {
                 var pdf = await _pdf.GenerarPdfNotaDeCreditoAsync(nota, ct);
                 var emails = recibo.Empresa.Emails.Where(e => e.Activo).Select(e => e.Email).ToList();
-                await _mail.EnviarReciboAsync(emails, pdf, $"NotaCredito_{recibo.Id}.pdf",
+                var envio = await _mail.EnviarReciboAsync(emails, pdf,
+                    $"NotaCredito_{Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante)}.pdf",
                     "Nota de crédito — Cámara Portuaria",
                     "Estimados,\n\nAdjuntamos la nota de crédito correspondiente.\n\nSaludos.", ct);
+                if (!envio.Success) errorMail = envio.ErrorMessage ?? "No se pudo enviar el mail.";
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Falló envío de NC del recibo {ReciboId}", reciboId);
+                errorMail = ex.Message;
             }
         }
 
-        return ServiceResult<bool>.Ok(true);
+        return ServiceResult<ResultadoAnulacion>.Ok(
+            ResultadoAnulacion.Ok(nota.PuntoDeVenta, nota.NumeroComprobante, errorMail));
     }
 
     public async Task<ServiceResult<bool>> ReenviarMailAsync(int reciboId, CancellationToken ct = default)
@@ -383,8 +480,24 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
         if (string.IsNullOrEmpty(recibo.CAE)) return ServiceResult<bool>.Fail("El recibo no tiene CAE: emítalo antes de reenviar.");
 
-        var pdf = await _pdf.GenerarPdfReciboAsync(recibo, ct);
         var emails = recibo.Empresa.Emails.Where(e => e.Activo).Select(e => e.Email).ToList();
+
+        if (recibo.Estado == ReciboEstado.Anulado)
+        {
+            if (recibo.NotaDeCredito is null)
+                return ServiceResult<bool>.Fail("El recibo está anulado pero no tiene nota de crédito registrada.");
+
+            var pdfNota = await _pdf.GenerarPdfNotaDeCreditoAsync(recibo.NotaDeCredito, ct);
+            var envioNota = await _mail.EnviarReciboAsync(emails, pdfNota,
+                $"NotaCredito_{Formato.Comprobante(recibo.NotaDeCredito.PuntoDeVenta, recibo.NotaDeCredito.NumeroComprobante)}.pdf",
+                "Nota de crédito — Cámara Portuaria",
+                "Estimados,\n\nAdjuntamos la nota de crédito correspondiente.\n\nSaludos.", ct);
+            return envioNota.Success
+                ? ServiceResult<bool>.Ok(true)
+                : ServiceResult<bool>.Fail(envioNota.ErrorMessage ?? "No se pudo enviar el mail.");
+        }
+
+        var pdf = await _pdf.GenerarPdfReciboAsync(recibo, ct);
         var envio = await _mail.EnviarReciboAsync(emails, pdf,
             $"Recibo_{recibo.ReceptorNombre}_{recibo.PeriodoAnio}{recibo.PeriodoMes:00}.pdf",
             $"Recibo {Formato.Periodo(recibo.PeriodoAnio, recibo.PeriodoMes)} — Cámara Portuaria",
@@ -395,6 +508,8 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         if (recibo.Estado == ReciboEstado.Emitido)
         {
             recibo.Estado = ReciboEstado.Enviado;
+            recibo.FechaEnvioMail = DateTime.Now;
+            recibo.UltimoErrorMail = null;
             await _recibos.UpdateAsync(recibo, ct);
         }
         return ServiceResult<bool>.Ok(true);

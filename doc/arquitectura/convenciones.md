@@ -73,22 +73,25 @@ Todos los servicios, repositorios y ViewModels que hacen I/O reciben `ILogger<T>
 | `LogError` | Errores no esperados que afectan una operación: AFIP rechazó CAE, fallo de DB |
 | `LogCritical` | Excepciones no manejadas que llegan al handler global |
 
-### Proveedor: Serilog con sink de archivo
+### Proveedor: `FileLoggerProvider` propio (no Serilog)
 
-Configurado en `App.xaml.cs` antes de construir el host. Archivos diarios en `%AppData%\Local\PuertoBB\{App}\Logs\`.
+Implementado en `<App>.UI\Logging\FileLoggerProvider.cs` y registrado en `App.xaml.cs` vía
+`ConfigureLogging` (con `ClearProviders()`). Archivos diarios `app-AAAAMMDD.log` en
+`%LocalAppData%\PuertoBB\{App}\Logs\`, retención de **30 archivos**.
+
+**Política de escritura:** se escribe toda entrada de nivel **Warning o superior** (con o sin
+excepción — los rechazos de AFIP llegan como `LogError` sin excepción) y cualquier entrada
+con excepción adjunta. `Information`/`Debug` sin excepción se descartan para mantener los
+logs chicos.
 
 ```csharp
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
-    .WriteTo.File(
-        path: Path.Combine(logPath, "app-.log"),
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 30,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
-    .Enrich.FromLogContext()
-    .CreateLogger();
-
-hostBuilder.UseSerilog();
+_host = Host.CreateDefaultBuilder()
+    .ConfigureLogging(logging =>
+    {
+        logging.ClearProviders();
+        logging.SetMinimumLevel(LogLevel.Debug);
+        logging.AddProvider(new FileLoggerProvider(Path.Combine(AppDataDir, "Logs")));
+    })
 ```
 
 ### Ejemplo de uso en servicio

@@ -9,7 +9,7 @@ public class Agencia : BaseEntity
     public string  RazonSocial   { get; set; } = string.Empty;
     public string  Cuit          { get; set; } = string.Empty;
     public string? Domicilio     { get; set; }
-    public string? CondicionIva  { get; set; }  // ej. "IVA Responsable Inscripto", "Monotributista"
+    public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor), ej. 1 = IVA Responsable Inscripto
     public bool    Activa        { get; set; } = true;
     public bool    EsMoroso      { get; set; } = false;
 

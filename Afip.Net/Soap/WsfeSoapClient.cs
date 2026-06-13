@@ -50,6 +50,20 @@ public class WsfeSoapClient : IWsfeClient
         catch { client.Abort(); throw; }
     }
 
+    public async Task<WsfeComprobanteConsultado?> ConsultarComprobanteAsync(string token, string sign, string cuit,
+        int puntoVenta, int tipoComprobante, long numero, bool usarHomologacion, CancellationToken ct = default)
+    {
+        var client = Crear(usarHomologacion);
+        try
+        {
+            var r = await client.FECompConsultarAsync(Auth(token, sign, cuit),
+                new FECompConsultaReq { CbteTipo = tipoComprobante, PtoVta = puntoVenta, CbteNro = numero });
+            await client.CloseAsync();
+            return WsfeMapper.ToComprobanteConsultado(r.Body.FECompConsultarResult);
+        }
+        catch { client.Abort(); throw; }
+    }
+
     public async Task<WsfeCaeResponse> SolicitarCaeAsync(string token, string sign, string cuit, WsfeCaeRequest request, bool usarHomologacion, CancellationToken ct = default)
     {
         var client = Crear(usarHomologacion);
@@ -59,6 +73,46 @@ public class WsfeSoapClient : IWsfeClient
             var r = await client.FECAESolicitarAsync(Auth(token, sign, cuit), feReq);
             await client.CloseAsync();
             return WsfeMapper.ToWsfeCaeResponse(r.Body.FECAESolicitarResult, request.Numero);
+        }
+        catch { client.Abort(); throw; }
+    }
+
+    public async Task<IReadOnlyList<WsfePuntoVenta>> ObtenerPuntosVentaAsync(string token, string sign, string cuit,
+        bool usarHomologacion, CancellationToken ct = default)
+    {
+        var client = Crear(usarHomologacion);
+        try
+        {
+            var r = await client.FEParamGetPtosVentaAsync(Auth(token, sign, cuit));
+            await client.CloseAsync();
+            return WsfeMapper.ToPuntosVenta(r.Body.FEParamGetPtosVentaResult);
+        }
+        catch { client.Abort(); throw; }
+    }
+
+    public async Task<IReadOnlyList<WsfeTipoComprobante>> ObtenerTiposComprobanteAsync(string token, string sign, string cuit,
+        bool usarHomologacion, CancellationToken ct = default)
+    {
+        var client = Crear(usarHomologacion);
+        try
+        {
+            var r = await client.FEParamGetTiposCbteAsync(Auth(token, sign, cuit));
+            await client.CloseAsync();
+            return WsfeMapper.ToTiposComprobante(r.Body.FEParamGetTiposCbteResult);
+        }
+        catch { client.Abort(); throw; }
+    }
+
+    public async Task<IReadOnlyList<WsfeCondicionIvaReceptor>> ObtenerCondicionesIvaReceptorAsync(string token, string sign, string cuit,
+        string? claseComprobante, bool usarHomologacion, CancellationToken ct = default)
+    {
+        var client = Crear(usarHomologacion);
+        try
+        {
+            // ClaseCmp tiene EmitDefaultValue=false en el contrato: null = AFIP devuelve todas las clases.
+            var r = await client.FEParamGetCondicionIvaReceptorAsync(Auth(token, sign, cuit), claseComprobante!);
+            await client.CloseAsync();
+            return WsfeMapper.ToCondicionesIvaReceptor(r.Body.FEParamGetCondicionIvaReceptorResult);
         }
         catch { client.Abort(); throw; }
     }

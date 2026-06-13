@@ -13,8 +13,8 @@
 
         <TextBlock Grid.Row="0" Text="Recibos" Style="{StaticResource PageTitle}" />
 
-        <!-- Filtros período + acciones -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+        <!-- Filtros período -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
             <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
             <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
@@ -34,6 +34,46 @@
             </ui:Button>
         </StackPanel>
 
+        <!-- Acciones sobre el recibo seleccionado en la grilla -->
+        <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+            <ui:Button Content="Emitir CAE" Command="{Binding ReintentarCommand}"
+                       Style="{StaticResource AccionIconButton}"
+                       ToolTip="Emitir / reintentar la emisión (obtener CAE) del recibo seleccionado">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Enviar mail" Command="{Binding ReenviarCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Enviar por mail el recibo seleccionado; si está anulado, envía la nota de crédito">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Marcar pagado" Command="{Binding MarcarPagadoCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Marcar el recibo seleccionado como pagado">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Ver PDF" Command="{Binding PrevisualizarCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Previsualizar el PDF del recibo seleccionado">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+            </ui:Button>
+            <Separator Margin="8,0,0,0" />
+            <ui:Button Content="Anular" Command="{Binding AnularCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Anular el recibo emitiendo una nota de crédito, sin enviar mail">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Prohibited24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="Anular y enviar" Command="{Binding AnularYEnviarCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Anular el recibo emitiendo una nota de crédito y enviarla por mail">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
+            </ui:Button>
+            <ui:Button Content="PDF NC" Command="{Binding PrevisualizarNotaCreditoCommand}"
+                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       ToolTip="Previsualizar el PDF de la nota de crédito del recibo anulado">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+            </ui:Button>
+        </WrapPanel>
+
         <DataGrid Grid.Row="3" ItemsSource="{Binding Recibos}" SelectedItem="{Binding Seleccionado}"
                   AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal" CanUserAddRows="False"
@@ -42,6 +82,7 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
                 <DataGridTextColumn Header="Comprobante" Binding="{Binding Comprobante}" Width="120" />
+                <DataGridTextColumn Header="CAE" Binding="{Binding Cae}" Width="140" />
                 <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="110" />
                 <DataGridTextColumn Header="Emisión" Binding="{Binding FechaEmision}" Width="90" />
                 <DataGridTemplateColumn Header="Estado" Width="110">
@@ -61,43 +102,6 @@
                         <DataTemplate>
                             <TextBlock Text="{Binding EstadoEnvio}" ToolTip="{Binding Error}"
                                        VerticalAlignment="Center" Margin="4,0" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Acciones" Width="230" CanUserResize="False" CanUserSort="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
-                                <ui:Button IsEnabled="{Binding EsReintentable}"
-                                           Style="{StaticResource AccionIconButtonCompact}"
-                                           Click="Reintentar_Click"
-                                           ToolTip="Emitir / reintentar emisión (obtener CAE)">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
-                                </ui:Button>
-                                <ui:Button IsEnabled="{Binding EsAnulable}"
-                                           Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
-                                           Click="Anular_Click"
-                                           ToolTip="Anular emitiendo nota de crédito">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Prohibited24" /></ui:Button.Icon>
-                                </ui:Button>
-                                <ui:Button IsEnabled="{Binding EsReenviable}"
-                                           Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
-                                           Click="Reenviar_Click"
-                                           ToolTip="Reenviar por correo">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
-                                </ui:Button>
-                                <ui:Button IsEnabled="{Binding EsPagable}"
-                                           Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
-                                           Click="MarcarPagado_Click"
-                                           ToolTip="Marcar como pagado">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
-                                </ui:Button>
-                                <ui:Button Style="{StaticResource AccionIconButtonCompact}" Margin="4,0,0,0"
-                                           Click="Previsualizar_Click"
-                                           ToolTip="Abrir PDF">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
-                                </ui:Button>
-                            </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

@@ -13,6 +13,8 @@ public record ComprobanteAfipRequest
     public required int             PuntoDeVenta    { get; init; }
 
     public required string   CuitReceptor { get; init; }            // sin guiones
+    /// <summary>Condición frente al IVA del receptor — código AFIP (RG 5616, obligatorio).</summary>
+    public required int      CondicionIvaReceptorId { get; init; }
     public required decimal  ImporteTotal { get; init; }
     public required DateTime FechaEmision { get; init; }
 

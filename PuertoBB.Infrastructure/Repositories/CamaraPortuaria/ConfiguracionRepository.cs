@@ -14,6 +14,10 @@ public class ConfiguracionRepository : IConfiguracionRepository
         => await _db.Configuraciones.Include(c => c.PuntosDeVenta).FirstOrDefaultAsync(c => c.Id == 1, ct)
            ?? throw new InvalidOperationException("La configuración singleton (Id=1) no existe.");
 
+    public async Task<Configuracion> GetSinTrackingAsync(CancellationToken ct = default)
+        => await _db.Configuraciones.AsNoTracking().Include(c => c.PuntosDeVenta).FirstOrDefaultAsync(c => c.Id == 1, ct)
+           ?? throw new InvalidOperationException("La configuración singleton (Id=1) no existe.");
+
     public async Task SaveAsync(Configuracion configuracion, CancellationToken ct = default)
     {
         configuracion.UpdatedAt = DateTime.Now;

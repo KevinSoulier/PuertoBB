@@ -26,8 +26,8 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     b.Property<bool>("Activa")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CondicionIva")
-                        .HasColumnType("TEXT");
+                    b.Property<int?>("CondicionIvaId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -163,10 +163,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("CuitApoderado")
-                        .HasMaxLength(13)
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("DiasVencimiento")
                         .HasColumnType("INTEGER");
 
@@ -181,10 +177,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("InicioActividades")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NombreApoderado")
-                        .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RazonSocial")
@@ -209,9 +201,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("UsarApoderado")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
                     b.ToTable("Configuraciones");
@@ -228,8 +217,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                             ImporteVoucherPredeterminado = 0m,
                             RazonSocial = "",
                             SmtpPort = 587,
-                            SmtpSeguridad = 0,
-                            UsarApoderado = false
+                            SmtpSeguridad = 0
                         });
                 });
 
@@ -457,6 +445,12 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     b.Property<bool>("Activo")
                         .HasColumnType("INTEGER");
 
+                    b.Property<byte[]>("CertificadoContenido")
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("CertificadoKeyContenido")
+                        .HasColumnType("BLOB");
+
                     b.Property<string>("CertificadoKeyRuta")
                         .HasColumnType("TEXT");
 
@@ -525,17 +519,10 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("CuitApoderado")
-                        .HasMaxLength(13)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Detalle")
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("EsApoderado")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("EsConsolidadoVouchers")
                         .HasColumnType("INTEGER");
@@ -563,10 +550,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     b.Property<decimal>("Importe")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("NombreApoderado")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
                     b.Property<long>("NumeroComprobante")
                         .HasColumnType("INTEGER");
 
@@ -582,6 +565,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     b.Property<string>("ReceptorCondicionIva")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("ReceptorCondicionIvaId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ReceptorCuit")
                         .IsRequired()

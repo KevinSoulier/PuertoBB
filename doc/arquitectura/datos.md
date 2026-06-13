@@ -14,7 +14,7 @@ public class Empresa : BaseEntity
     public string  RazonSocial { get; set; } = string.Empty;
     public string  Cuit        { get; set; } = string.Empty;
     public string? Domicilio   { get; set; }
-    public string? CondicionIva { get; set; }
+    public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor, RG 5616)
     public bool    Activa      { get; set; } = true;
     public bool    EsMoroso    { get; set; } = false;
 
@@ -91,7 +91,8 @@ public class Recibo : BaseEntity
     public string  ReceptorRazonSocial  { get; set; } = string.Empty;
     public string  ReceptorCuit         { get; set; } = string.Empty;
     public string? ReceptorDomicilio    { get; set; }
-    public string? ReceptorCondicionIva { get; set; }
+    public string? ReceptorCondicionIva { get; set; }   // texto derivado del catálogo (para PDF)
+    public int?    ReceptorCondicionIvaId { get; set; } // código AFIP snapshot (RG 5616)
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
@@ -164,9 +165,11 @@ public class PuntoDeVenta : BaseEntity
     public string  Nombre             { get; set; } = string.Empty;
     public int     Numero             { get; set; }
     public bool    UsarHomologacion   { get; set; }
-    public string? CertificadoRuta    { get; set; } // ruta al .p12 o .crt/.pem
-    public string? CertificadoPassword { get; set; } // cifrado con DPAPI
-    public string? CertificadoKeyRuta  { get; set; } // solo en modo CRT+KEY
+    public string? CertificadoRuta    { get; set; } // solo nombre de archivo (display)
+    public byte[]? CertificadoContenido { get; set; } // contenido del .p12 o .crt/.pem (texto plano)
+    public string? CertificadoPassword { get; set; } // texto plano
+    public string? CertificadoKeyRuta  { get; set; } // solo nombre de archivo (display), modo CRT+KEY
+    public byte[]? CertificadoKeyContenido { get; set; } // contenido del .key (texto plano), modo CRT+KEY
     public bool    Activo             { get; set; }
 }
 ```
@@ -188,7 +191,7 @@ public class Configuracion : BaseEntity
 
     public int DiasVencimiento { get; set; } = 30;
 
-    // Mail saliente (SmtpPassword cifrado con DPAPI al guardar)
+    // Mail saliente (SmtpPassword en texto plano)
     public string? SmtpHost       { get; set; }
     public int     SmtpPort       { get; set; }
     public int     SmtpSeguridad  { get; set; } = 0; // 0=Auto, 1=SslOnConnect, 2=None
@@ -210,7 +213,7 @@ public class Agencia : BaseEntity
     public string  RazonSocial  { get; set; } = string.Empty;
     public string  Cuit         { get; set; } = string.Empty;
     public string? Domicilio    { get; set; }
-    public string? CondicionIva { get; set; }
+    public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor, RG 5616)
     public bool    Activa       { get; set; } = true;
     public bool    EsMoroso     { get; set; } = false;
 
@@ -326,7 +329,8 @@ public class Recibo : BaseEntity
     public string  ReceptorRazonSocial  { get; set; } = string.Empty;
     public string  ReceptorCuit         { get; set; } = string.Empty;
     public string? ReceptorDomicilio    { get; set; }
-    public string? ReceptorCondicionIva { get; set; }
+    public string? ReceptorCondicionIva { get; set; }   // texto derivado del catálogo (para PDF)
+    public int?    ReceptorCondicionIvaId { get; set; } // código AFIP snapshot (RG 5616)
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
@@ -336,11 +340,6 @@ public class Recibo : BaseEntity
     public ICollection<ReciboLinea> Lineas { get; set; } = [];
 
     public bool EsConsolidadoVouchers { get; set; }
-
-    // Apoderado fiscal (copiado desde Configuracion al emitir)
-    public bool    EsApoderado     { get; set; }
-    public string? NombreApoderado { get; set; }
-    public string? CuitApoderado   { get; set; }
 
     // Comprobante AFIP
     public int             PuntoDeVenta        { get; set; }
@@ -406,9 +405,11 @@ public class PuntoDeVenta : BaseEntity
     public string  Nombre              { get; set; } = string.Empty;
     public int     Numero              { get; set; }
     public bool    UsarHomologacion    { get; set; }
-    public string? CertificadoRuta     { get; set; }
-    public string? CertificadoPassword { get; set; } // cifrado con DPAPI
-    public string? CertificadoKeyRuta  { get; set; }
+    public string? CertificadoRuta     { get; set; } // solo nombre de archivo (display)
+    public byte[]? CertificadoContenido { get; set; } // contenido (texto plano)
+    public string? CertificadoPassword { get; set; } // texto plano
+    public string? CertificadoKeyRuta  { get; set; } // solo nombre de archivo (display)
+    public byte[]? CertificadoKeyContenido { get; set; } // contenido del .key (texto plano)
     public bool    Activo              { get; set; }
 }
 ```
@@ -428,17 +429,12 @@ public class Configuracion : BaseEntity
     public List<PuntoDeVenta> PuntosDeVenta { get; set; } = new();
     // [NotMapped] PuntoDeVentaActivo => PuntosDeVenta.FirstOrDefault(p => p.Activo)
 
-    // Apoderado fiscal
-    public bool    UsarApoderado   { get; set; }
-    public string? NombreApoderado { get; set; }
-    public string? CuitApoderado   { get; set; }
-
     // Vouchers
     public decimal ImporteVoucherPredeterminado { get; set; } = 0;
 
     public int DiasVencimiento { get; set; } = 30;
 
-    // Mail saliente (SmtpPassword cifrado con DPAPI al guardar)
+    // Mail saliente (SmtpPassword en texto plano)
     public string? SmtpHost       { get; set; }
     public int     SmtpPort       { get; set; }
     public int     SmtpSeguridad  { get; set; } = 0;
@@ -488,7 +484,6 @@ public enum TipoComprobante { Recibo, NotaDeCredito }
 | `ReciboLinea` como entidad propia | Sí | Snapshot inmutable del detalle; el detalle mostrado/enviado sale siempre de las líneas |
 | Estado `Pendiente` | Persiste antes de pedir CAE | Hace la emisión idempotente y reintentable tras un fallo |
 | `PuntoDeVenta` como entidad | Sí | Permite cargar varios (ej. homologación + producción); el activo determina número, ambiente y certificado |
-| SMTP password | Cifrado DPAPI (`dpapi:`+Base64) | Migración suave: si no tiene prefijo se trata como texto plano legado |
+| Secretos (SMTP password, certificado, contraseña del cert) | Texto plano en la base | Sin cifrado por decisión del usuario (D-24); el certificado se guarda como BLOB en `PuntoDeVenta` e ingresa en el backup |
 | NC por mail | Opcional en el dialog | Checkbox al anular: "Enviar notificación por mail" (default: true) |
-| Apoderado en `Recibo` CM | Copiado desde `Configuracion` al emitir | Inmutabilidad: el apoderado puede cambiar sin afectar recibos pasados |
 | PDF de recibos | Regenerado a demanda | Volumen bajo; template consistente garantiza mismo resultado |

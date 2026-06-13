@@ -28,6 +28,23 @@ public class TicketCacheTests
     }
 
     [Fact]
+    public async Task GetOrRenew_DiscriminadorDistinto_Renueva()
+    {
+        var cache = new TicketCache(new InMemoryTicketStore());
+        var futuro = DateTime.Now.AddHours(12);
+        var llamadas = 0;
+
+        // Mismo CUIT + servicio + discriminador ⇒ reusa el TA cacheado.
+        await cache.GetOrRenewAsync("20111111112", "wsfe", Renovador(() => llamadas++, futuro), discriminador: "certA");
+        await cache.GetOrRenewAsync("20111111112", "wsfe", Renovador(() => llamadas++, futuro), discriminador: "certA");
+        Assert.Equal(1, llamadas);
+
+        // Otro discriminador (= cambió el certificado o el ambiente) ⇒ no reusa, vuelve a autenticar.
+        await cache.GetOrRenewAsync("20111111112", "wsfe", Renovador(() => llamadas++, futuro), discriminador: "certB");
+        Assert.Equal(2, llamadas);
+    }
+
+    [Fact]
     public async Task GetOrRenew_RenuevaCuandoElTicketExpiraDentroDelMargen()
     {
         var cache = new TicketCache(new InMemoryTicketStore());
@@ -60,6 +77,26 @@ public class FileTicketStoreTests
             Assert.Equal("tok-123", leido!.Token);
             Assert.Equal("sig-456", leido.Sign);
             Assert.Null(store.Load("clave-inexistente"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_BarreVencidosYConservaVigentes()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "afip-ta-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new FileTicketStore(dir);
+            store.Save("20111111112:wsfe:certA", new AfipTicket("tok-v", "sig-v", DateTime.Now.AddHours(12)));
+            // Guardar un TA ya vencido (p. ej. de un certificado anterior): el barrido en Save lo elimina.
+            store.Save("20111111112:wsfe:certB", new AfipTicket("tok-x", "sig-x", DateTime.Now.AddHours(-1)));
+
+            Assert.NotNull(store.Load("20111111112:wsfe:certA"));   // vigente sobrevive
+            Assert.Null(store.Load("20111111112:wsfe:certB"));      // vencido barrido
         }
         finally
         {

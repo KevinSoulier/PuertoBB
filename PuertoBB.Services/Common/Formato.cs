@@ -17,6 +17,9 @@ public static class Formato
 
     public static string Fecha(DateTime fecha) => fecha.ToString("dd/MM/yyyy", EsAr);
 
+    /// <summary>Comprobante AFIP formateado: "0001-00000094".</summary>
+    public static string Comprobante(int puntoDeVenta, long numero) => $"{puntoDeVenta:0000}-{numero:00000000}";
+
     public static string Cuit(string cuit)
         => cuit.Length == 11 ? $"{cuit[..2]}-{cuit[2..10]}-{cuit[10..]}" : cuit;
 

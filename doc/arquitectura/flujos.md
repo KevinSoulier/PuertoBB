@@ -32,7 +32,6 @@ Service (ICentroMaritimoReciboService.CerrarPeriodoAsync):
        → si null → construir Recibo con Estado=Pendiente, EsConsolidadoVouchers=true
          → poblar Lineas: una por voucher ("Voucher {n} — {barco} — {fecha}")
          → copiar snapshot Receptor* desde agencia
-         → copiar apoderado desde config si UsarApoderado=true
          → AddConVouchersAsync(recibo, voucherIds) [atómico: recibo + FK de vouchers]
     b. ProcesarReciboAsync(recibo, agencia, config, enviarMail, ct):
        → si string.IsNullOrEmpty(recibo.CAE): IAfipService.ObtenerCAEAsync → recibo.CAE, FechaVencimientoCAE

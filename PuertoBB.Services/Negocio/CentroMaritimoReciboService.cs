@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using PuertoBB.Core.Afip;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Enums;
@@ -138,10 +139,16 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                 {
                     // Recibo Pendiente: vincular nuevos vouchers (si los hay) y re-sincronizar snapshot.
                     if (vouchersAgencia.Count > 0)
+                    {
                         await _vouchers.MarcarConsolidadosAsync(vouchersAgencia.Select(v => v.Id), existente.Id, ct);
+                        // N-3: los vínculos se guardaron en OTRO DbContext (transient). Recargar para que
+                        // la colección Vouchers de ESTE contexto incluya los nuevos (mail y count correctos).
+                        existente = await _recibos.GetConsolidadoAsync(agenciaId, anio, mes, ct)
+                                    ?? throw new InvalidOperationException("El consolidado desapareció durante el reintento.");
+                    }
 
-                    var todosVouchers = existente.Vouchers.Concat(vouchersAgencia).OrderBy(v => v.Numero).ToList();
-                    existente.Importe = todosVouchers.Sum(v => v.Importe);
+                    var todosVouchers = existente.Vouchers.OrderBy(v => v.Numero).ToList();
+                    existente.Importe = todosVouchers.Sum(v => Round2(v.Importe));
                     existente.Detalle = "Vouchers Nros: " + string.Join(", ", todosVouchers.Select(v => v.Numero));
                     existente.Lineas.Clear();
                     foreach (var (v, i) in todosVouchers.Select((v, i) => (v, i)))
@@ -150,7 +157,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                             Descripcion    = $"Voucher {v.Numero} — {v.Barco?.Nombre ?? $"#{v.BarcoId}"} — {Formato.Fecha(v.Fecha)}",
                             Cantidad       = 1,
                             PrecioUnitario = v.Importe,
-                            Importe        = v.Importe,
+                            Importe        = Round2(v.Importe),
                             Orden          = i
                         });
                 }
@@ -166,7 +173,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             if (agencia is null)
                 return ResultadoCierrePorAgencia.Fallo(agenciaId, nombreAgencia, "La agencia no existe.");
 
-            var importe = vouchersAgencia.Sum(v => v.Importe);
+            var importe = vouchersAgencia.Sum(v => Round2(v.Importe));
             var detalle = "Vouchers Nros: " + string.Join(", ", vouchersAgencia.Select(v => v.Numero));
 
             var recibo = ConstruirRecibo(agencia, null, importe, detalle, anio, mes, config, esConsolidado: true);
@@ -179,7 +186,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                     Descripcion    = $"Voucher {v.Numero} — {v.Barco?.Nombre ?? $"#{v.BarcoId}"} — {Formato.Fecha(v.Fecha)}",
                     Cantidad       = 1,
                     PrecioUnitario = v.Importe,
-                    Importe        = v.Importe,
+                    Importe        = Round2(v.Importe),
                     Orden          = i
                 })
                 .ToList();
@@ -315,14 +322,18 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
 
         try
         {
-            var importe = lineas.Sum(l => l.Importe);
+            var importe = lineas.Sum(l => Round2(l.Importe));
             var detalle = string.Join(" · ", lineas.Select(l => l.Descripcion));
             var recibo = await _recibos.GetPorClaveAsync(agencia.Id, grupoId, anio, mes, ct);
+            // N-1: para individuales, un Pendiente con contenido DISTINTO no es un reintento — es otro
+            // cobro. Crear un recibo nuevo en lugar de pisar el snapshot (D-20 permite N por período).
+            if (recibo is not null && grupoId is null && !MismoContenido(recibo, lineas))
+                recibo = null;
             if (recibo is null)
             {
                 recibo = ConstruirReciboPendiente(agencia, grupoId, importe, detalle, fechaEmision, anio, mes, config);
                 // Snapshot multi-ítem (reemplaza la línea única por defecto que arma ConstruirRecibo).
-                recibo.Lineas = lineas.Select((l, i) => new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = l.Importe, Orden = i }).ToList();
+                recibo.Lineas = lineas.Select((l, i) => new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i }).ToList();
                 await _recibos.AddAsync(recibo, ct);
             }
             else
@@ -341,10 +352,11 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                     recibo.ReceptorRazonSocial = agencia.RazonSocial;
                     recibo.ReceptorCuit = agencia.Cuit;
                     recibo.ReceptorDomicilio = agencia.Domicilio;
-                    recibo.ReceptorCondicionIva = agencia.CondicionIva;
+                    recibo.ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(agencia.CondicionIvaId);
+                    recibo.ReceptorCondicionIvaId = agencia.CondicionIvaId;
                     recibo.Lineas.Clear();
                     foreach (var (l, i) in lineas.Select((l, i) => (l, i)))
-                        recibo.Lineas.Add(new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = l.Importe, Orden = i });
+                        recibo.Lineas.Add(new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i });
                 }
             }
 
@@ -360,6 +372,23 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
     /// <summary>Un recibo está "completo" cuando ya no hay nada que reintentar (lógica compartida CP/CM).</summary>
     private static bool EsCompleto(Recibo r) => EstadoReciboHelper.EsCompleto(r.Estado, r.UltimoErrorMail);
 
+    /// <summary>Redondea a 2 decimales (igual que el mapper AFIP) para que la suma de líneas
+    /// persistidas coincida exactamente con el total que se envía a AFIP.</summary>
+    private static decimal Round2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>True si el recibo tiene exactamente las mismas líneas que el pedido (mismo cobro).</summary>
+    private static bool MismoContenido(Recibo r, IReadOnlyList<ReciboLineaInput> lineas)
+    {
+        if (r.Lineas.Count != lineas.Count) return false;
+        var actuales = r.Lineas.OrderBy(l => l.Orden).ToList();
+        for (var i = 0; i < lineas.Count; i++)
+            if (actuales[i].Descripcion != lineas[i].Descripcion ||
+                actuales[i].Cantidad != lineas[i].Cantidad ||
+                actuales[i].PrecioUnitario != lineas[i].PrecioUnitario)
+                return false;
+        return true;
+    }
+
     /// <summary>
     /// Avanza un recibo persistido: pide el CAE solo si falta (idempotente), y manda el mail si
     /// corresponde. Para recibos consolidados arma el PDF de descarga; para cuotas, el recibo simple.
@@ -370,6 +399,25 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         // 1. CAE (idempotente: no se vuelve a pedir si ya está).
         if (string.IsNullOrEmpty(recibo.CAE))
         {
+            // Recuperación anti-duplicado: si un intento previo falló (UltimoErrorCae), el CAE pudo
+            // haberse autorizado sin que lo registráramos (crash/cancelación tras la autorización).
+            // Recuperarlo de AFIP antes de re-emitir evita un segundo comprobante.
+            if (!string.IsNullOrEmpty(recibo.UltimoErrorCae) && recibo.ReceptorCondicionIvaId is > 0)
+            {
+                var rec = await _afip.RecuperarComprobanteAsync(ConstruirAfipRequest(recibo), ct);
+                if (rec is { Success: true, Data: { } recuperado }
+                    && !await _recibos.ExisteComprobanteAsync(recibo.PuntoDeVenta, recibo.CodigoAfip, recuperado.NumeroComprobante, ct))
+                {
+                    AplicarCae(recibo, recuperado);
+                    recibo.UltimoErrorCae = null;
+                    recibo.Estado = ReciboEstado.Emitido;
+                    _logger.LogWarning("CAE recuperado de AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
+                        recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
+                    await _recibos.UpdateAsync(recibo, ct);
+                    return ResultadoEmisionPorEntidad.Ok(agencia.Id, agencia.Nombre, recibo.NumeroComprobante, recibo.UltimoErrorMail);
+                }
+            }
+
             var cae = await EmitirCaeAsync(recibo, config, ct);
             if (!cae.Success || cae.Data is null)
             {
@@ -381,6 +429,9 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             AplicarCae(recibo, cae.Data);
             recibo.UltimoErrorCae = null;
             recibo.Estado = ReciboEstado.Emitido;
+            // F: rastro del CAE autorizado ANTES de persistir (único registro si el guardado falla).
+            _logger.LogWarning("CAE autorizado por AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
+                recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
             await _recibos.UpdateAsync(recibo, ct);
         }
 
@@ -430,16 +481,14 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             ReceptorRazonSocial = agencia.RazonSocial,
             ReceptorCuit = agencia.Cuit,
             ReceptorDomicilio = agencia.Domicilio,
-            ReceptorCondicionIva = agencia.CondicionIva,
+            ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(agencia.CondicionIvaId),
+            ReceptorCondicionIvaId = agencia.CondicionIvaId,
             PeriodoAnio = anio,
             PeriodoMes = mes,
             Importe = importe,
             Detalle = detalle,
             Lineas = [new ReciboLinea { Descripcion = detalle, Cantidad = 1, PrecioUnitario = importe, Importe = importe, Orden = 0 }],
             EsConsolidadoVouchers = esConsolidado,
-            EsApoderado = config.UsarApoderado,
-            NombreApoderado = config.UsarApoderado ? config.NombreApoderado : null,
-            CuitApoderado = config.UsarApoderado ? config.CuitApoderado : null,
             PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
             TipoComprobante = TipoComprobante.Recibo,
             CodigoAfip = config.CodigoAfipRecibo,
@@ -460,18 +509,29 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
     }
 
     private Task<ServiceResult<CaeResult>> EmitirCaeAsync(Recibo recibo, Configuracion config, CancellationToken ct)
-        => _afip.ObtenerCAEAsync(new ComprobanteAfipRequest
-        {
-            TipoComprobante = TipoComprobante.Recibo,
-            CodigoAfip = recibo.CodigoAfip,
-            PuntoDeVenta = recibo.PuntoDeVenta,
-            CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
-            ImporteTotal = recibo.Importe,
-            FechaEmision = recibo.FechaEmision,
-            PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
-            PeriodoServicioHasta = PeriodoHelper.UltimoDia(recibo.PeriodoAnio, recibo.PeriodoMes),
-            FechaVencimientoPago = recibo.FechaVencimientoPago
-        }, ct);
+    {
+        // RG 5616: sin condición de IVA del receptor AFIP rechaza con 10242; cortar antes de llamar.
+        if (recibo.ReceptorCondicionIvaId is not (> 0))
+            return Task.FromResult(ServiceResult<CaeResult>.Fail(
+                $"'{recibo.ReceptorNombre}' no tiene asignada la condición frente al IVA (obligatoria por RG 5616). Asígnela en Agencias y reintente."));
+
+        return _afip.ObtenerCAEAsync(ConstruirAfipRequest(recibo), ct);
+    }
+
+    /// <summary>Arma el request AFIP de un recibo (requiere ReceptorCondicionIvaId &gt; 0, validado por el caller).</summary>
+    private static ComprobanteAfipRequest ConstruirAfipRequest(Recibo recibo) => new()
+    {
+        TipoComprobante = TipoComprobante.Recibo,
+        CodigoAfip = recibo.CodigoAfip,
+        PuntoDeVenta = recibo.PuntoDeVenta,
+        CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
+        CondicionIvaReceptorId = recibo.ReceptorCondicionIvaId!.Value,
+        ImporteTotal = recibo.Importe,
+        FechaEmision = recibo.FechaEmision,
+        PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
+        PeriodoServicioHasta = PeriodoHelper.UltimoDia(recibo.PeriodoAnio, recibo.PeriodoMes),
+        FechaVencimientoPago = recibo.FechaVencimientoPago
+    };
 
     private static void AplicarCae(Recibo recibo, CaeResult cae)
     {
@@ -519,25 +579,37 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         return envio.Success ? null : envio.ErrorMessage;
     }
 
-    public async Task<ServiceResult<bool>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
+    public async Task<ServiceResult<ResultadoAnulacion>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
     {
         var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
-        if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
-        if (recibo.Estado == ReciboEstado.Anulado) return ServiceResult<bool>.Fail("El recibo ya está anulado.");
+        if (recibo is null) return ServiceResult<ResultadoAnulacion>.Fail("El recibo no existe.");
+        if (recibo.Estado == ReciboEstado.Anulado) return ServiceResult<ResultadoAnulacion>.Fail("El recibo ya está anulado.");
         if (string.IsNullOrEmpty(recibo.CAE))
-            return ServiceResult<bool>.Fail("El recibo no tiene CAE: emítalo antes de anularlo.");
+            return ServiceResult<ResultadoAnulacion>.Fail("El recibo no tiene CAE: emítalo antes de anularlo.");
 
         var config = await _config.GetAsync(ct);
         if (config.PuntoDeVentaActivo is null)
-            return ServiceResult<bool>.Fail("Configure un punto de venta activo en Configuración.");
+            return ServiceResult<ResultadoAnulacion>.Fail("Configure un punto de venta activo en Configuración.");
+        // La NC debe emitirse desde el mismo PV que el recibo original (su serie/certificado). El PV
+        // activo provee el certificado de autenticación; si no coincide, no se anula sin cambiarlo.
+        if (recibo.PuntoDeVenta != config.PuntoDeVentaActivo.Numero)
+            return ServiceResult<ResultadoAnulacion>.Fail(
+                $"Para anular este recibo, activá el punto de venta {recibo.PuntoDeVenta} en Configuración (el recibo se emitió desde ese PV).");
         var hoy = DateTime.Today;
+
+        // RG 5616: condición IVA del snapshot; recibos viejos sin snapshot usan la actual de la agencia.
+        var condicionIvaId = recibo.ReceptorCondicionIvaId ?? recibo.Agencia.CondicionIvaId;
+        if (condicionIvaId is not (> 0))
+            return ServiceResult<ResultadoAnulacion>.Fail(
+                "El recibo no registra la condición frente al IVA del receptor: asígnela a la agencia en el ABM y reintente.");
 
         var afipReq = new ComprobanteAfipRequest
         {
             TipoComprobante = TipoComprobante.NotaDeCredito,
             CodigoAfip = config.CodigoAfipNotaDeCredito,
-            PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
+            PuntoDeVenta = recibo.PuntoDeVenta,
             CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
+            CondicionIvaReceptorId = condicionIvaId.Value,
             ImporteTotal = recibo.Importe,
             FechaEmision = hoy,
             PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
@@ -552,40 +624,67 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             }
         };
 
-        var cae = await _afip.ObtenerCAEAsync(afipReq, ct);
-        if (!cae.Success || cae.Data is null)
-            return ServiceResult<bool>.Fail(cae.ErrorMessage ?? "AFIP no devolvió CAE para la nota de crédito.");
+        // Recuperación anti-duplicado: si la respuesta del CAE de una NC previa se perdió, AFIP pudo
+        // haberla autorizado igual. Recuperarla antes de re-emitir evita una segunda NC sobre el mismo
+        // recibo. Confiable dentro del mismo día (la coincidencia incluye la fecha del comprobante);
+        // para reintentos en días posteriores queda el aviso de "posible emisión" de ObtenerCAEAsync.
+        CaeResult? caeNota = null;
+        var recuperada = await _afip.RecuperarComprobanteAsync(afipReq, ct);
+        if (recuperada is { Success: true, Data: { } ncRec }
+            && !await _recibos.ExisteComprobanteAsync(afipReq.PuntoDeVenta, afipReq.CodigoAfip, ncRec.NumeroComprobante, ct))
+        {
+            _logger.LogWarning("NC recuperada de AFIP: PV {Pv} Nro {Numero} CAE {Cae} (recibo {ReciboId}) — adoptando…",
+                afipReq.PuntoDeVenta, ncRec.NumeroComprobante, ncRec.Cae, recibo.Id);
+            caeNota = ncRec;
+        }
+
+        if (caeNota is null)
+        {
+            var cae = await _afip.ObtenerCAEAsync(afipReq, ct);
+            if (!cae.Success || cae.Data is null)
+                return ServiceResult<ResultadoAnulacion>.Fail(cae.ErrorMessage ?? "AFIP no devolvió CAE para la nota de crédito.");
+            caeNota = cae.Data;
+        }
 
         var nota = new NotaDeCredito
         {
             ReciboOriginalId = recibo.Id,
             ReciboOriginal = recibo,
-            PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
+            PuntoDeVenta = recibo.PuntoDeVenta,
             TipoComprobante = TipoComprobante.NotaDeCredito,
             CodigoAfip = config.CodigoAfipNotaDeCredito,
-            NumeroComprobante = cae.Data.NumeroComprobante,
-            CAE = cae.Data.Cae,
-            FechaVencimientoCAE = cae.Data.FechaVencimientoCae,
+            NumeroComprobante = caeNota.NumeroComprobante,
+            CAE = caeNota.Cae,
+            FechaVencimientoCAE = caeNota.FechaVencimientoCae,
             FechaEmision = hoy
         };
+
+        // N-2: si la persistencia local fallara, este log es el único registro del comprobante autorizado.
+        _logger.LogWarning("NC autorizada por AFIP: PV {Pv} Nro {Numero} CAE {Cae} (recibo {ReciboId}) — persistiendo…",
+            nota.PuntoDeVenta, nota.NumeroComprobante, nota.CAE, recibo.Id);
 
         // Anular recibo + NC + desvincular vouchers en un único SaveChanges (atómico).
         await _recibos.AnularConNotaAsync(recibo, nota, ct);
 
+        string? errorMail = null;
         if (enviarMail)
         {
             try
             {
                 var pdf = await _pdf.GenerarPdfNotaDeCreditoAsync(nota, ct);
-                await EnviarAsync(recibo.Agencia, pdf, $"NotaCredito_{recibo.Id}.pdf", "Nota de crédito — Centro Marítimo", ct);
+                errorMail = await EnviarAsync(recibo.Agencia, pdf,
+                    $"NotaCredito_{Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante)}.pdf",
+                    "Nota de crédito — Centro Marítimo", ct);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Falló envío de NC del recibo {ReciboId}", reciboId);
+                errorMail = ex.Message;
             }
         }
 
-        return ServiceResult<bool>.Ok(true);
+        return ServiceResult<ResultadoAnulacion>.Ok(
+            ResultadoAnulacion.Ok(nota.PuntoDeVenta, nota.NumeroComprobante, errorMail));
     }
 
     public async Task<ServiceResult<bool>> ReenviarMailAsync(int reciboId, CancellationToken ct = default)
@@ -593,6 +692,18 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
         if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
         if (string.IsNullOrEmpty(recibo.CAE)) return ServiceResult<bool>.Fail("El recibo no tiene CAE: emítalo antes de reenviar.");
+
+        if (recibo.Estado == ReciboEstado.Anulado)
+        {
+            if (recibo.NotaDeCredito is null)
+                return ServiceResult<bool>.Fail("El recibo está anulado pero no tiene nota de crédito registrada.");
+
+            var pdfNota = await _pdf.GenerarPdfNotaDeCreditoAsync(recibo.NotaDeCredito, ct);
+            var errorNota = await EnviarAsync(recibo.Agencia, pdfNota,
+                $"NotaCredito_{Formato.Comprobante(recibo.NotaDeCredito.PuntoDeVenta, recibo.NotaDeCredito.NumeroComprobante)}.pdf",
+                "Nota de crédito — Centro Marítimo", ct);
+            return errorNota is null ? ServiceResult<bool>.Ok(true) : ServiceResult<bool>.Fail(errorNota);
+        }
 
         byte[] pdf = recibo.EsConsolidadoVouchers
             ? await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.ToList(), recibo, ct)
@@ -607,6 +718,8 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         if (recibo.Estado == ReciboEstado.Emitido)
         {
             recibo.Estado = ReciboEstado.Enviado;
+            recibo.FechaEnvioMail = DateTime.Now;
+            recibo.UltimoErrorMail = null;
             await _recibos.UpdateAsync(recibo, ct);
         }
         return ServiceResult<bool>.Ok(true);

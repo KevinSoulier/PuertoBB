@@ -4,9 +4,11 @@ using System.Windows.Input;
 using CamaraPortuaria.UI.ViewModels.Base;
 using CamaraPortuaria.UI.ViewModels.Items;
 using PuertoBB.Core.Entities.CamaraPortuaria;
+using PuertoBB.Core.Enums;
 using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models;
+using PuertoBB.Core.Models.Resultados;
 using PuertoBB.Services.Common;
 
 namespace CamaraPortuaria.UI.ViewModels;
@@ -54,15 +56,22 @@ public class RecibosViewModel : PageViewModel
     }
 
     private ReciboItem? _seleccionado;
-    public ReciboItem? Seleccionado { get => _seleccionado; set => SetField(ref _seleccionado, value); }
+    public ReciboItem? Seleccionado
+    {
+        get => _seleccionado;
+        // La re-selección programática (post-recarga) no genera input: forzar el requery de la toolbar.
+        set { if (SetField(ref _seleccionado, value)) CommandManager.InvalidateRequerySuggested(); }
+    }
 
     public ICommand BuscarCommand { get; }
     public ICommand AbrirEmisionIndividualCommand { get; }
     public ICommand ReintentarCommand { get; }
     public ICommand AnularCommand { get; }
+    public ICommand AnularYEnviarCommand { get; }
     public ICommand ReenviarCommand { get; }
     public ICommand MarcarPagadoCommand { get; }
     public ICommand PrevisualizarCommand { get; }
+    public ICommand PrevisualizarNotaCreditoCommand { get; }
 
     public RecibosViewModel(
         ICamaraPortuariaReciboService service,
@@ -83,9 +92,11 @@ public class RecibosViewModel : PageViewModel
         AbrirEmisionIndividualCommand = new AsyncRelayCommand(AbrirEmisionIndividualAsync);
         ReintentarCommand = new AsyncRelayCommand(ReintentarAsync, () => Seleccionado?.EsReintentable == true);
         AnularCommand = new AsyncRelayCommand(AnularAsync, () => Seleccionado?.EsAnulable == true);
+        AnularYEnviarCommand = new AsyncRelayCommand(AnularYEnviarAsync, () => Seleccionado?.EsAnulable == true);
         ReenviarCommand = new AsyncRelayCommand(ReenviarAsync, () => Seleccionado?.EsReenviable == true);
         MarcarPagadoCommand = new AsyncRelayCommand(MarcarPagadoAsync, () => Seleccionado?.EsPagable == true);
         PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarAsync, () => Seleccionado is not null);
+        PrevisualizarNotaCreditoCommand = new AsyncRelayCommand(PrevisualizarNotaCreditoAsync, () => Seleccionado?.TieneNotaCredito == true);
 
         _ = InicializarAsync();
     }
@@ -130,9 +141,15 @@ public class RecibosViewModel : PageViewModel
                 r.Estado.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 r.EstadoEnvio.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 r.FechaEmision.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.Cae.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 (r.Error ?? "").Contains(texto, StringComparison.OrdinalIgnoreCase));
+        // Reconstruir la colección borra la selección del DataGrid: re-seleccionar por Id
+        // para que la toolbar (que opera sobre Seleccionado) sobreviva a recargas y filtrado.
+        var seleccionadoId = Seleccionado?.Id;
         Recibos = new ObservableCollection<ReciboItem>(lista);
         OnPropertyChanged(nameof(Recibos));
+        if (seleccionadoId is int id)
+            Seleccionado = Recibos.FirstOrDefault(r => r.Id == id);
     }
 
     private async Task AbrirEmisionIndividualAsync()
@@ -218,28 +235,57 @@ public class RecibosViewModel : PageViewModel
         finally { IsBusy = false; }
     }
 
-    private async Task AnularAsync()
+    private Task AnularAsync() => AnularInternoAsync(enviarMail: false);
+    private Task AnularYEnviarAsync() => AnularInternoAsync(enviarMail: true);
+
+    private async Task AnularInternoAsync(bool enviarMail)
     {
         if (Seleccionado is null) return;
+        var detalleMail = enviarMail
+            ? "Se generará una nota de crédito y se enviará por mail."
+            : "Se generará una nota de crédito. No se enviará por mail.";
         if (!await _dialog.ShowConfirmAsync("Anular recibo",
-                $"¿Anular el recibo {Seleccionado.Comprobante} de {Seleccionado.Empresa}? Se generará una nota de crédito.",
+                $"¿Anular el recibo {Seleccionado.Comprobante} de {Seleccionado.Empresa}? {detalleMail}",
                 "Anular", "Cancelar")) return;
 
         IsBusy = true;
         try
         {
-            var res = await _service.AnularReciboAsync(Seleccionado.Id, enviarMail: true);
-            if (res.Success) { MostrarExito("Recibo anulado y nota de crédito generada."); await BuscarAsync(); }
+            var res = await _service.AnularReciboAsync(Seleccionado.Id, enviarMail);
+            if (res.Success && res.Data is { } nc)
+            {
+                MostrarExito(MensajeAnulacion(nc, enviarMail));
+                await BuscarAsync();
+            }
             else MostrarError(res.ErrorMessage ?? "No se pudo anular.");
         }
         finally { IsBusy = false; }
     }
 
+    private static string MensajeAnulacion(ResultadoAnulacion nc, bool enviarMail)
+    {
+        var comp = Formato.Comprobante(nc.PuntoDeVenta, nc.NumeroComprobante);
+        if (!enviarMail)
+            return $"Recibo anulado. Nota de crédito {comp} emitida. Sin enviar mail.";
+        return nc.ErrorMail is null
+            ? $"Recibo anulado. Nota de crédito {comp} emitida y enviada por mail."
+            : $"Recibo anulado. Nota de crédito {comp} emitida. El mail no se pudo enviar: {nc.ErrorMail}";
+    }
+
     private async Task ReenviarAsync()
     {
         if (Seleccionado is null) return;
+        var esNotaCredito = Seleccionado.EstadoPersistido == ReciboEstado.Anulado;
 
-        if (Seleccionado.MailEnviado)
+        if (esNotaCredito)
+        {
+            // No se persiste el envío de la NC: confirmar siempre.
+            if (!await _dialog.ShowConfirmAsync("Enviar nota de crédito",
+                    $"Se enviará por mail la nota de crédito {Seleccionado.NotaCreditoComprobante} (anula el recibo {Seleccionado.Comprobante}).\n¿Continuar?",
+                    "Enviar", "Cancelar"))
+                return;
+        }
+        else if (Seleccionado.MailEnviado)
         {
             var fecha = Seleccionado.FechaEnvioMailFormateada ?? "fecha desconocida";
             if (!await _dialog.ShowConfirmAsync("Reenviar mail",
@@ -252,7 +298,11 @@ public class RecibosViewModel : PageViewModel
         try
         {
             var res = await _service.ReenviarMailAsync(Seleccionado.Id);
-            if (res.Success) { MostrarExito("Mail reenviado correctamente."); await BuscarAsync(); }
+            if (res.Success)
+            {
+                MostrarExito(esNotaCredito ? "Nota de crédito enviada por mail." : "Mail reenviado correctamente.");
+                await BuscarAsync();
+            }
             else MostrarError(res.ErrorMessage ?? "No se pudo reenviar.");
         }
         finally { IsBusy = false; }
@@ -277,6 +327,25 @@ public class RecibosViewModel : PageViewModel
             var bytes = await _pdf.GenerarPdfReciboAsync(recibo);
             var nombre = $"Recibo_{Seleccionado.Empresa}_{Seleccionado.Comprobante}";
             await _dialog.ShowPdfAsync(bytes, $"Recibo {Seleccionado.Comprobante}", nombre);
+        }
+        catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
+        finally { IsBusy = false; }
+    }
+
+    private async Task PrevisualizarNotaCreditoAsync()
+    {
+        if (Seleccionado is null) return;
+        // El PDF de NC necesita ReciboOriginal + Lineas: siempre desde el detalle, nunca desde el item de grilla.
+        var recibo = await _recibosRepo.GetConDetalleAsync(Seleccionado.Id);
+        if (recibo?.NotaDeCredito is null) { MostrarError("El recibo no tiene nota de crédito."); return; }
+        IsBusy = true;
+        try
+        {
+            var nota = recibo.NotaDeCredito;
+            nota.ReciboOriginal ??= recibo;
+            var bytes = await _pdf.GenerarPdfNotaDeCreditoAsync(nota);
+            var comp = Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante);
+            await _dialog.ShowPdfAsync(bytes, $"Nota de crédito {comp}", $"NotaCredito_{Seleccionado.Empresa}_{comp}");
         }
         catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
         finally { IsBusy = false; }

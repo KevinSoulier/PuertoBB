@@ -60,4 +60,22 @@ public class AfipQrPayloadTests
         Assert.Contains("12100", json);
         Assert.DoesNotContain("12100,", json);
     }
+
+    [Theory]
+    [InlineData("10000000.00")]   // 10 millones: un double serializaría 1E+07
+    [InlineData("1234.56")]       // centavos no redondos
+    public void BuildUrl_ImportesExtremos_SinNotacionCientifica(string importeStr)
+    {
+        // P3-20: ancla que `importe` es decimal y el JSON del QR nunca emite exponente
+        // (la especificación QR de AFIP exige un número JSON literal).
+        var importe = decimal.Parse(importeStr, System.Globalization.CultureInfo.InvariantCulture);
+        var url = (BuildPayload() with { Importe = importe }).BuildUrl();
+        var base64 = url["https://www.afip.gob.ar/fe/qr/?p=".Length..];
+        var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+        using var doc = JsonDocument.Parse(json);
+
+        var raw = doc.RootElement.GetProperty("importe").GetRawText();
+        Assert.DoesNotContain("e", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(importe, doc.RootElement.GetProperty("importe").GetDecimal());
+    }
 }

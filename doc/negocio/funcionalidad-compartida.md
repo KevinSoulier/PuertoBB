@@ -53,14 +53,14 @@ El **Grupo de Facturación** es el concepto central de la emisión masiva:
 | Vencido | `#FFEBEE` (rojo claro) | Calculado en presentación (no persistido) |
 | Anulado | `#F5F5F5` (gris claro) | Anulado con NC |
 
-"Vencido" no es un estado persistido: se calcula visualmente cuando `FechaVencimientoPago < hoy` y el estado no es `Pagado`/`Anulado`.
+"Vencido" no es un estado persistido: se calcula visualmente cuando `FechaVencimientoPago < hoy` y el estado es `Emitido` o `Enviado` (un `Pendiente` sin CAE no se considera vencido; `Pagado`/`Anulado` tampoco). Implementado en `EstadoReciboHelper`.
 
 ## Integración AFIP/ARCA
 
 - Librería `Afip.Net` (proyecto independiente): WSFE (SOAP) para CAE + WSAA para tickets.
 - Configuración por `PuntoDeVenta` (entidad propia): número, ambiente (homologación/producción), certificado PKCS#12 o PEM+KEY. Solo un PV puede estar activo; la app usa el activo al emitir.
-- `CertificadoPassword` cifrado en reposo (DPAPI, prefijo `dpapi:`).
-- Cache de ticket WSAA por servicio, persistido en disco cifrado.
+- Certificado (contenido del `.p12`/`.crt`/`.key`) y `CertificadoPassword` guardados en la base en texto plano (D-24); el certificado va como BLOB en `PuntoDeVenta` y entra en el backup.
+- Cache de ticket WSAA por servicio, persistido en disco como JSON (texto plano).
 - Botón "Probar conexión" en Configuración: valida servicio + autenticación + último comprobante.
 - Errores de AFIP descritos con `AfipErrores.Describir` (traduce códigos numéricos a texto).
 

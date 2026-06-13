@@ -24,6 +24,9 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
     public Task<bool> ExisteAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default)
         => FiltrarPorClave(_db.Recibos, empresaId, grupoId, anio, mes).AnyAsync(ct);
 
+    public Task<bool> ExisteComprobanteAsync(int puntoVenta, int codigoAfip, long numero, CancellationToken ct = default)
+        => _db.Recibos.AnyAsync(r => r.PuntoDeVenta == puntoVenta && r.CodigoAfip == codigoAfip && r.NumeroComprobante == numero, ct);
+
     public Task<Recibo?> GetPorClaveAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default)
         => FiltrarPorClave(_db.Recibos
                 .Include(r => r.Empresa).ThenInclude(e => e.Emails)
@@ -81,6 +84,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public async Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default)
         => await _db.Recibos.AsNoTracking().Include(r => r.Empresa)
+            .Include(r => r.NotaDeCredito)
             .Where(r => r.PeriodoAnio == anio && r.PeriodoMes == mes)
             .OrderBy(r => r.Empresa.Nombre).ToListAsync(ct);
 }

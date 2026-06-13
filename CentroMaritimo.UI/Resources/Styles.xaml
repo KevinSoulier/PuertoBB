@@ -16,6 +16,10 @@
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="MinHeight" Value="36" />
+        <!-- Estira el textbox interno para que el campo ocupe todo el ancho asignado (Width),
+             tenga o no fecha seleccionada. Sin esto, el template Fluent encoge el campo
+             al watermark cuando está vacío y queda más angosto que el resto. -->
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
 
     <!-- ui:CalendarDatePicker Fluent: mismo fondo sólido para que no se transparente sobre Mica -->

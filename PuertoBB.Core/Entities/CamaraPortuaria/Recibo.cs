@@ -23,6 +23,8 @@ public class Recibo : BaseEntity
     public string  ReceptorCuit         { get; set; } = string.Empty;
     public string? ReceptorDomicilio    { get; set; }
     public string? ReceptorCondicionIva { get; set; }
+    /// <summary>Código AFIP de la condición IVA del receptor al emitir (RG 5616); el texto de arriba se deriva del catálogo.</summary>
+    public int?    ReceptorCondicionIvaId { get; set; }
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }

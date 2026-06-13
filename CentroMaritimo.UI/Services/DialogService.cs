@@ -33,9 +33,9 @@ public class DialogService : IDialogService
         await ShowAsync(dialog, dialog.Result.ContinueWith(_ => true));
     }
 
-    public Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null)
+    public Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null, string? description = null)
     {
-        var dialog = new InputDialog(title, placeholder, initialValue);
+        var dialog = new InputDialog(title, placeholder, initialValue, description);
         return ShowAsync(dialog, dialog.Result);
     }
 
@@ -51,6 +51,12 @@ public class DialogService : IDialogService
         IReadOnlyList<string> conceptos)
     {
         var dialog = new EmisionIndividualDialog(labelEntidad, entidades, conceptos);
+        return ShowAsync(dialog, dialog.Result);
+    }
+
+    public Task<CertificadoWizardResult?> ShowCertificadoWizardAsync(string razonSocial, string cuit, bool usarHomologacion)
+    {
+        var dialog = new CertificadoWizardDialog(razonSocial, cuit, usarHomologacion);
         return ShowAsync(dialog, dialog.Result);
     }
 

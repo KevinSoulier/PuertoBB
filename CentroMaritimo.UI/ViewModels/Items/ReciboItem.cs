@@ -15,6 +15,7 @@ public class ReciboItem
     public string Periodo { get; }
     public string Importe { get; }
     public string Comprobante { get; }
+    public string Cae { get; }
     public string FechaEmision { get; }
     public string FechaVencimiento { get; }
     public bool Consolidado { get; }
@@ -29,10 +30,16 @@ public class ReciboItem
     public bool CaeOk { get; }
     public bool MailEnviado { get; }
     public string? FechaEnvioMailFormateada { get; }
+    public bool TieneNotaCredito { get; }
+    /// <summary>Comprobante de la nota de crédito formateado ("0001-00000095"); null si no hay NC.</summary>
+    public string? NotaCreditoComprobante { get; }
 
-    public bool EsReenviable => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado;
+    /// <summary>Reenviable: el recibo (Emitido/Enviado) o su nota de crédito si está Anulado.</summary>
+    public bool EsReenviable => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado
+                                || (EstadoPersistido is ReciboEstado.Anulado && TieneNotaCredito);
     public bool EsPagable    => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado;
-    public bool EsAnulable   => EstadoPersistido != ReciboEstado.Anulado;
+    /// <summary>Anulable: no anulado y con CAE (el service exige CAE para emitir la NC).</summary>
+    public bool EsAnulable   => EstadoPersistido != ReciboEstado.Anulado && CaeOk;
     /// <summary>El paso de emisión/CAE está pendiente (sin CAE). El mail fallido lo cubre <see cref="EsReenviable"/>.</summary>
     public bool EsReintentable { get; }
 
@@ -47,7 +54,10 @@ public class ReciboItem
         Periodo = Formato.Periodo(r.PeriodoAnio, r.PeriodoMes);
         Importe = Formato.Moneda(r.Importe);
         CaeOk = !string.IsNullOrEmpty(r.CAE);
-        Comprobante = CaeOk ? $"{r.PuntoDeVenta:0000}-{r.NumeroComprobante:00000000}" : "—";
+        Comprobante = CaeOk ? Formato.Comprobante(r.PuntoDeVenta, r.NumeroComprobante) : "—";
+        Cae = CaeOk ? r.CAE : "—";
+        TieneNotaCredito = r.NotaDeCredito is not null;
+        NotaCreditoComprobante = r.NotaDeCredito is { } nc ? Formato.Comprobante(nc.PuntoDeVenta, nc.NumeroComprobante) : null;
         FechaEmision = Formato.Fecha(r.FechaEmision);
         FechaVencimiento = Formato.Fecha(r.FechaVencimientoPago);
         Consolidado = r.EsConsolidadoVouchers;

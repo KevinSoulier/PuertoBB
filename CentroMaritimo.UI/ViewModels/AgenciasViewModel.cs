@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CentroMaritimo.UI.ViewModels.Base;
+using PuertoBB.Core.Afip;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
@@ -12,11 +13,13 @@ public class AgenciasViewModel : PageViewModel
 {
     private readonly IAgenciaRepository _repo;
     private readonly IDialogService _dialog;
+    private readonly IAfipPadronService _padron;
     private int _editId;
     private List<Agencia> _todasLasAgencias = [];
 
     private string _snapNombre = string.Empty, _snapRazonSocial = string.Empty, _snapCuit = string.Empty;
-    private string _snapDomicilio = string.Empty, _snapCondicionIva = string.Empty, _snapEmails = string.Empty;
+    private string _snapDomicilio = string.Empty, _snapEmails = string.Empty;
+    private int? _snapCondicionIvaId;
 
     public ObservableCollection<Agencia> AgenciasFiltradas { get; } = [];
 
@@ -38,8 +41,11 @@ public class AgenciasViewModel : PageViewModel
     public string RazonSocialEdit { get; set; } = string.Empty;
     public string CuitEdit { get; set; } = string.Empty;
     public string DomicilioEdit { get; set; } = string.Empty;
-    public string CondicionIvaEdit { get; set; } = string.Empty;
+    public int? CondicionIvaIdEdit { get; set; }
     public string EmailsEdit { get; set; } = string.Empty;
+
+    /// <summary>Catálogo AFIP de condiciones frente al IVA para el combo (RG 5616).</summary>
+    public IReadOnlyList<CondicionIvaReceptor> CondicionesIva { get; } = CatalogoCondicionesIvaReceptor.Todas;
 
     private bool _enEdicion;
     public bool EnEdicion
@@ -54,17 +60,45 @@ public class AgenciasViewModel : PageViewModel
     public ICommand AceptarCommand { get; }
     public ICommand CancelarCommand { get; }
     public ICommand EliminarCommand { get; }
+    public ICommand ValidarCuitCommand { get; }
 
-    public AgenciasViewModel(IAgenciaRepository repo, IDialogService dialog)
+    public AgenciasViewModel(IAgenciaRepository repo, IDialogService dialog, IAfipPadronService padron)
     {
         _repo = repo;
         _dialog = dialog;
+        _padron = padron;
         NuevoCommand = new RelayCommand(_ => Nuevo(), _ => !EnEdicion);
         EditarCommand = new RelayCommand(_ => Editar(), _ => Seleccionada is not null && !EnEdicion);
         AceptarCommand = new AsyncRelayCommand(AceptarAsync, () => EnEdicion);
         CancelarCommand = new RelayCommand(_ => Cancelar(), _ => EnEdicion);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionada is not null && !EnEdicion);
+        ValidarCuitCommand = new AsyncRelayCommand(ValidarCuitAsync, () => EnEdicion && !string.IsNullOrWhiteSpace(CuitEdit));
         _ = CargarListaAsync();
+    }
+
+    /// <summary>Consulta la constancia de inscripción en ARCA y autocompleta razón social,
+    /// domicilio y condición IVA (no pisa datos con vacío).</summary>
+    private async Task ValidarCuitAsync()
+    {
+        var res = await _padron.ConsultarCuitAsync(CuitEdit);
+        if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo consultar el padrón."); return; }
+        if (res.Data is null)
+        {
+            await _dialog.ShowAlertAsync("Padrón ARCA",
+                "El CUIT no figura en el padrón de ARCA. En homologación es esperable: esa base no tiene los contribuyentes reales.");
+            return;
+        }
+
+        var c = res.Data;
+        if (!string.IsNullOrWhiteSpace(c.RazonSocial)) RazonSocialEdit = c.RazonSocial;
+        if (!string.IsNullOrWhiteSpace(c.Domicilio)) DomicilioEdit = c.Domicilio;
+        if (c.CondicionIvaId is not null) CondicionIvaIdEdit = c.CondicionIvaId;
+        Notificar();
+
+        if (c.Observaciones.Count > 0)
+            await _dialog.ShowAlertAsync("Padrón ARCA", string.Join("\n", c.Observaciones));
+        else
+            MostrarExito("Datos validados contra el padrón de ARCA.");
     }
 
     private async Task CargarListaAsync()
@@ -89,7 +123,8 @@ public class AgenciasViewModel : PageViewModel
     private void Nuevo()
     {
         _editId = 0;
-        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
+        NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
+        CondicionIvaIdEdit = null;
         _seleccionada = null;
         OnPropertyChanged(nameof(Seleccionada));
         TomarSnapshot();
@@ -108,7 +143,8 @@ public class AgenciasViewModel : PageViewModel
     {
         if (_editId == 0)
         {
-            NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
+            NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
+            CondicionIvaIdEdit = null;
             _seleccionada = null;
             OnPropertyChanged(nameof(Seleccionada));
         }
@@ -118,7 +154,7 @@ public class AgenciasViewModel : PageViewModel
             RazonSocialEdit = _snapRazonSocial;
             CuitEdit = _snapCuit;
             DomicilioEdit = _snapDomicilio;
-            CondicionIvaEdit = _snapCondicionIva;
+            CondicionIvaIdEdit = _snapCondicionIvaId;
             EmailsEdit = _snapEmails;
         }
         Notificar();
@@ -132,7 +168,7 @@ public class AgenciasViewModel : PageViewModel
         _snapRazonSocial = RazonSocialEdit;
         _snapCuit = CuitEdit;
         _snapDomicilio = DomicilioEdit;
-        _snapCondicionIva = CondicionIvaEdit;
+        _snapCondicionIvaId = CondicionIvaIdEdit;
         _snapEmails = EmailsEdit;
     }
 
@@ -145,7 +181,7 @@ public class AgenciasViewModel : PageViewModel
         RazonSocialEdit = a.RazonSocial;
         CuitEdit = a.Cuit;
         DomicilioEdit = a.Domicilio ?? string.Empty;
-        CondicionIvaEdit = a.CondicionIva ?? string.Empty;
+        CondicionIvaIdEdit = a.CondicionIvaId;
         EmailsEdit = string.Join(Environment.NewLine, a.Emails.Select(x => x.Email));
         Notificar();
     }
@@ -164,7 +200,7 @@ public class AgenciasViewModel : PageViewModel
             RazonSocial = RazonSocialEdit.Trim(),
             Cuit = CuitEdit.Trim(),
             Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
-            CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim(),
+            CondicionIvaId = CondicionIvaIdEdit,
             Activa = true,
             Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
         } : null!;
@@ -183,7 +219,7 @@ public class AgenciasViewModel : PageViewModel
                 existente.RazonSocial = RazonSocialEdit.Trim();
                 existente.Cuit = CuitEdit.Trim();
                 existente.Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim();
-                existente.CondicionIva = string.IsNullOrWhiteSpace(CondicionIvaEdit) ? null : CondicionIvaEdit.Trim();
+                existente.CondicionIvaId = CondicionIvaIdEdit;
                 existente.Activa = true;
                 existente.Emails.Clear();
                 foreach (var em in emails) existente.Emails.Add(new EmailAgencia { Email = em, AgenciaId = existente.Id });
@@ -210,7 +246,8 @@ public class AgenciasViewModel : PageViewModel
             await _repo.DeleteAsync(Seleccionada.Id);
             MostrarExito("Agencia eliminada.");
             _editId = 0;
-            NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = CondicionIvaEdit = EmailsEdit = string.Empty;
+            NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
+            CondicionIvaIdEdit = null;
             _seleccionada = null;
             OnPropertyChanged(nameof(Seleccionada));
             Notificar();
@@ -226,7 +263,7 @@ public class AgenciasViewModel : PageViewModel
         OnPropertyChanged(nameof(RazonSocialEdit));
         OnPropertyChanged(nameof(CuitEdit));
         OnPropertyChanged(nameof(DomicilioEdit));
-        OnPropertyChanged(nameof(CondicionIvaEdit));
+        OnPropertyChanged(nameof(CondicionIvaIdEdit));
         OnPropertyChanged(nameof(EmailsEdit));
     }
 }

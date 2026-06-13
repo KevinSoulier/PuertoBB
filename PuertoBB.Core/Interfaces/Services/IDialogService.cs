@@ -14,8 +14,9 @@ public interface IDialogService
     /// <summary>Aviso/error/éxito con un solo botón.</summary>
     Task ShowAlertAsync(string title, string message, string closeText = "Aceptar");
 
-    /// <summary>Captura de texto. Devuelve null si se cancela.</summary>
-    Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null);
+    /// <summary>Captura de texto. Devuelve null si se cancela. <paramref name="description"/> (opcional)
+    /// muestra una línea de ayuda entre el título y el campo.</summary>
+    Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null, string? description = null);
 
     /// <summary>
     /// Previsualiza un PDF en un visor embebido (overlay). Cierra al aceptar.
@@ -28,4 +29,10 @@ public interface IDialogService
         string labelEntidad,
         IReadOnlyList<EntidadEmisionItem> entidades,
         IReadOnlyList<string> conceptos);
+
+    /// <summary>
+    /// Asistente para generar un certificado AFIP nuevo (clave privada + CSR). Devuelve la clave
+    /// generada para cargarla en el punto de venta (modo CRT+KEY), o null si el usuario canceló.
+    /// </summary>
+    Task<CertificadoWizardResult?> ShowCertificadoWizardAsync(string razonSocial, string cuit, bool usarHomologacion);
 }

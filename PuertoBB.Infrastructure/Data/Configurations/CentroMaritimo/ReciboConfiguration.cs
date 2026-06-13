@@ -12,8 +12,6 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
         b.Property(r => r.Importe).HasColumnType("TEXT");
         b.Property(r => r.Detalle).HasMaxLength(2000);
         b.Property(r => r.CAE).HasMaxLength(20);
-        b.Property(r => r.NombreApoderado).HasMaxLength(200);
-        b.Property(r => r.CuitApoderado).HasMaxLength(13);
         b.Property(r => r.Estado).HasConversion<string>().HasMaxLength(20);
         b.Property(r => r.TipoComprobante).HasConversion<string>().HasMaxLength(20);
 

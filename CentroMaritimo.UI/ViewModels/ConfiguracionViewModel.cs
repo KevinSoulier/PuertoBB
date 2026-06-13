@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using Afip.Wsaa;
 using CentroMaritimo.UI.ViewModels.Base;
 using CentroMaritimo.UI.ViewModels.Items;
 using Microsoft.Win32;
@@ -10,7 +11,6 @@ using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Mail;
-using PuertoBB.Services.Security;
 
 namespace CentroMaritimo.UI.ViewModels;
 
@@ -21,7 +21,6 @@ public class ConfiguracionViewModel : PageViewModel
     private readonly IBackupService _backup;
     private readonly IAfipService _afip;
     private readonly IMailService _mail;
-    private readonly ISecretProtector _protector;
     private readonly IDialogService _dialog;
     private Configuracion _config = new();
 
@@ -66,46 +65,6 @@ public class ConfiguracionViewModel : PageViewModel
     {
         if (string.IsNullOrWhiteSpace(Cuit)) { MostrarError("El CUIT del emisor es obligatorio."); return; }
         try   { await _repo.SaveAsync(_config); EmisorEditando = false; MostrarExito("Emisor guardado."); }
-        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
-    }
-
-    // ══════════════════════════════════════════
-    // APODERADO FISCAL
-    // ══════════════════════════════════════════
-    public bool    UsarApoderado    { get => _config.UsarApoderado;    set { _config.UsarApoderado = value; OnPropertyChanged(); } }
-    public string? NombreApoderado  { get => _config.NombreApoderado;  set { _config.NombreApoderado = value; OnPropertyChanged(); } }
-    public string? CuitApoderado    { get => _config.CuitApoderado;    set { _config.CuitApoderado = value; OnPropertyChanged(); } }
-
-    private bool _apoderadoEditando;
-    public bool ApoderadoEditando   { get => _apoderadoEditando; set { SetField(ref _apoderadoEditando, value); OnPropertyChanged(nameof(ApoderadoNoEditando)); } }
-    public bool ApoderadoNoEditando => !_apoderadoEditando;
-
-    private bool    _snapUsarApoderado;
-    private string? _snapNombreApoderado;
-    private string? _snapCuitApoderado;
-
-    public ICommand EditarApoderadoCommand   { get; }
-    public ICommand GuardarApoderadoCommand  { get; }
-    public ICommand CancelarApoderadoCommand { get; }
-
-    private void EditarApoderado()
-    {
-        _snapUsarApoderado   = UsarApoderado;
-        _snapNombreApoderado = NombreApoderado;
-        _snapCuitApoderado   = CuitApoderado;
-        ApoderadoEditando    = true;
-    }
-    private void CancelarApoderado()
-    {
-        UsarApoderado    = _snapUsarApoderado;
-        NombreApoderado  = _snapNombreApoderado;
-        CuitApoderado    = _snapCuitApoderado;
-        ApoderadoEditando = false;
-    }
-    private async Task GuardarApoderadoAsync()
-    {
-        if (UsarApoderado && string.IsNullOrWhiteSpace(CuitApoderado)) { MostrarError("Indique el CUIT del apoderado."); return; }
-        try   { await _repo.SaveAsync(_config); ApoderadoEditando = false; MostrarExito("Datos del apoderado guardados."); }
         catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
     }
 
@@ -182,10 +141,16 @@ public class ConfiguracionViewModel : PageViewModel
     private int     _edNumero              = 1;
     private bool    _edUsarHomologacion;
     private string? _edCertificadoRuta;
+    private byte[]? _edCertificadoContenido;
     private string? _edCertificadoPassword;
     private string? _edCertificadoKeyRuta;
-    private bool    _edUsarModoCrtKey;
+    private byte[]? _edCertificadoKeyContenido;
+    private ModoCertificado _edModo = ModoCertificado.P12;
     private bool    _edMostrarPassword;
+
+    /// <summary>Cómo se aporta el certificado del punto de venta. La creación de un certificado nuevo
+    /// vive en el asistente (<see cref="AbrirWizardCertificadoAsync"/>), no en un modo del formulario.</summary>
+    private enum ModoCertificado { P12, CrtKey }
 
     public string  EdNombre              { get => _edNombre;              set => SetField(ref _edNombre, value); }
     public int     EdNumero              { get => _edNumero;              set => SetField(ref _edNumero, value); }
@@ -193,18 +158,32 @@ public class ConfiguracionViewModel : PageViewModel
     public string? EdCertificadoRuta     { get => _edCertificadoRuta;     set => SetField(ref _edCertificadoRuta, value); }
     public string? EdCertificadoPassword { get => _edCertificadoPassword; set => SetField(ref _edCertificadoPassword, value); }
     public string? EdCertificadoKeyRuta  { get => _edCertificadoKeyRuta;  set => SetField(ref _edCertificadoKeyRuta, value); }
-    public bool    EdUsarModoCrtKey
+    // Modo de certificado: P12 (con password) | CRT+KEY (archivos).
+    public bool EdModoP12     { get => _edModo == ModoCertificado.P12;     set { if (value) SetModo(ModoCertificado.P12); } }
+    public bool EdModoCrtKey  { get => _edModo == ModoCertificado.CrtKey;  set { if (value) SetModo(ModoCertificado.CrtKey); } }
+
+    private void SetModo(ModoCertificado modo)
     {
-        get => _edUsarModoCrtKey;
-        set
-        {
-            if (!SetField(ref _edUsarModoCrtKey, value)) return;
-            OnPropertyChanged(nameof(EdUsarModoP12));
-            if (value) EdCertificadoPassword = null;
-            else       EdCertificadoKeyRuta  = null;
-        }
+        if (_edModo == modo) return;
+        _edModo = modo;
+        OnPropertyChanged(nameof(EdModoP12));
+        OnPropertyChanged(nameof(EdModoCrtKey));
+        if (modo != ModoCertificado.P12) EdCertificadoPassword = null;
+        if (modo == ModoCertificado.P12) EdCertificadoKeyRuta  = null;
+        NotificarEstadoCert();
     }
-    public bool EdUsarModoP12 { get => !_edUsarModoCrtKey; set => EdUsarModoCrtKey = !value; }
+
+    // Piezas del certificado cargadas en el form (habilitan "Exportar .p12" en modo CRT+KEY).
+    public bool EdTieneCrt => _edCertificadoContenido    is { Length: > 0 };
+    public bool EdTieneKey => _edCertificadoKeyContenido is { Length: > 0 };
+    public bool EdPuedeExportarP12 => EdTieneCrt && EdTieneKey;
+
+    private void NotificarEstadoCert()
+    {
+        OnPropertyChanged(nameof(EdTieneCrt));
+        OnPropertyChanged(nameof(EdTieneKey));
+        OnPropertyChanged(nameof(EdPuedeExportarP12));
+    }
 
     public bool EdMostrarPassword
     {
@@ -223,9 +202,11 @@ public class ConfiguracionViewModel : PageViewModel
     private int     _snapEdNumero              = 1;
     private bool    _snapEdUsarHomologacion;
     private string? _snapEdCertificadoRuta;
+    private byte[]? _snapEdCertificadoContenido;
     private string? _snapEdCertificadoPassword;
     private string? _snapEdCertificadoKeyRuta;
-    private bool    _snapEdUsarModoCrtKey;
+    private byte[]? _snapEdCertificadoKeyContenido;
+    private ModoCertificado _snapEdModo;
 
     public string TituloEdicion => _edId == 0 ? "Nuevo punto de venta" : $"Editando: {EdNombre}";
     public string AmbienteEdicion => EdUsarHomologacion
@@ -245,6 +226,10 @@ public class ConfiguracionViewModel : PageViewModel
     public ICommand SeleccionarClaveKeyCommand    { get; }
     public ICommand ProbarConexionCommand         { get; }
     public ICommand ToggleMostrarPasswordCommand  { get; }
+    public ICommand GenerarCertificadoCommand     { get; }
+    public ICommand DescargarCrtCommand           { get; }
+    public ICommand DescargarKeyCommand           { get; }
+    public ICommand ExportarP12Command            { get; }
 
     private void NuevoPunto()
     {
@@ -252,12 +237,15 @@ public class ConfiguracionViewModel : PageViewModel
         _edActivo             = false;
         EdNombre              = string.Empty;
         EdNumero              = 1;
-        EdUsarHomologacion    = false;
-        EdCertificadoRuta     = null;
-        EdCertificadoPassword = null;
-        EdCertificadoKeyRuta  = null;
-        EdUsarModoCrtKey      = false;
-        EdMostrarPassword     = false;
+        EdUsarHomologacion        = false;
+        EdCertificadoRuta         = null;
+        _edCertificadoContenido   = null;
+        EdCertificadoPassword     = null;
+        EdCertificadoKeyRuta      = null;
+        _edCertificadoKeyContenido = null;
+        SetModo(ModoCertificado.P12);
+        NotificarEstadoCert();
+        EdMostrarPassword         = false;
         CapturaSnapshotPv();
         PvFormEditando = true;
         OnPropertyChanged(nameof(TituloEdicion));
@@ -271,15 +259,18 @@ public class ConfiguracionViewModel : PageViewModel
 
     private void CancelarPunto()
     {
-        _edId                 = _snapEdId;
-        EdNombre              = _snapEdNombre;
-        EdNumero              = _snapEdNumero;
-        EdUsarHomologacion    = _snapEdUsarHomologacion;
-        EdCertificadoRuta     = _snapEdCertificadoRuta;
-        EdCertificadoPassword = _snapEdCertificadoPassword;
-        EdCertificadoKeyRuta  = _snapEdCertificadoKeyRuta;
-        EdUsarModoCrtKey      = _snapEdUsarModoCrtKey;
-        EdMostrarPassword     = false;
+        _edId                      = _snapEdId;
+        EdNombre                   = _snapEdNombre;
+        EdNumero                   = _snapEdNumero;
+        EdUsarHomologacion         = _snapEdUsarHomologacion;
+        EdCertificadoRuta          = _snapEdCertificadoRuta;
+        _edCertificadoContenido    = _snapEdCertificadoContenido;
+        EdCertificadoPassword      = _snapEdCertificadoPassword;
+        EdCertificadoKeyRuta       = _snapEdCertificadoKeyRuta;
+        _edCertificadoKeyContenido = _snapEdCertificadoKeyContenido;
+        SetModo(_snapEdModo);
+        NotificarEstadoCert();
+        EdMostrarPassword          = false;
         PvFormEditando = false;
         OnPropertyChanged(nameof(TituloEdicion));
     }
@@ -289,11 +280,13 @@ public class ConfiguracionViewModel : PageViewModel
         _snapEdId                  = _edId;
         _snapEdNombre              = EdNombre;
         _snapEdNumero              = EdNumero;
-        _snapEdUsarHomologacion    = EdUsarHomologacion;
-        _snapEdCertificadoRuta     = EdCertificadoRuta;
-        _snapEdCertificadoPassword = EdCertificadoPassword;
-        _snapEdCertificadoKeyRuta  = EdCertificadoKeyRuta;
-        _snapEdUsarModoCrtKey      = EdUsarModoCrtKey;
+        _snapEdUsarHomologacion        = EdUsarHomologacion;
+        _snapEdCertificadoRuta         = EdCertificadoRuta;
+        _snapEdCertificadoContenido    = _edCertificadoContenido;
+        _snapEdCertificadoPassword     = EdCertificadoPassword;
+        _snapEdCertificadoKeyRuta      = EdCertificadoKeyRuta;
+        _snapEdCertificadoKeyContenido = _edCertificadoKeyContenido;
+        _snapEdModo                    = _edModo;
     }
 
     private void CargarEnEdicion(PuntoDeVentaItem item)
@@ -302,12 +295,20 @@ public class ConfiguracionViewModel : PageViewModel
         _edActivo             = item.Activo;
         EdNombre              = item.Nombre;
         EdNumero              = item.Numero;
-        EdUsarHomologacion    = item.UsarHomologacion;
-        EdCertificadoRuta     = item.CertificadoRuta;
-        EdCertificadoPassword = _protector.Unprotect(item.CertificadoPassword);
-        EdCertificadoKeyRuta  = item.CertificadoKeyRuta;
-        EdUsarModoCrtKey      = item.CertificadoKeyRuta is not null;
-        EdMostrarPassword     = false;
+        EdUsarHomologacion         = item.UsarHomologacion;
+        EdCertificadoRuta          = item.CertificadoRuta;
+        _edCertificadoContenido    = item.CertificadoContenido;
+        EdCertificadoPassword      = item.CertificadoPassword;
+        EdCertificadoKeyRuta       = item.CertificadoKeyRuta;
+        _edCertificadoKeyContenido = item.CertificadoKeyContenido;
+        // La presencia de la clave indica modo CRT+KEY; en última instancia, P12.
+        _edModo = item.CertificadoKeyContenido is { Length: > 0 } || item.CertificadoKeyRuta is not null
+                ? ModoCertificado.CrtKey
+                : ModoCertificado.P12;
+        OnPropertyChanged(nameof(EdModoP12));
+        OnPropertyChanged(nameof(EdModoCrtKey));
+        NotificarEstadoCert();
+        EdMostrarPassword          = false;
         // NO habilitar: solo el botón Editar habilita el formulario
         OnPropertyChanged(nameof(TituloEdicion));
     }
@@ -440,8 +441,6 @@ public class ConfiguracionViewModel : PageViewModel
     }
     private async Task GuardarCorreoAsync()
     {
-        var rawPwd = _config.SmtpPassword;
-        _config.SmtpPassword = _protector.Protect(rawPwd);
         try
         {
             await _repo.SaveAsync(_config);
@@ -449,7 +448,6 @@ public class ConfiguracionViewModel : PageViewModel
             MostrarExito("Configuración de correo guardada.");
         }
         catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
-        finally { _config.SmtpPassword = rawPwd; }
     }
     private async Task ProbarMailAsync()
     {
@@ -486,7 +484,6 @@ public class ConfiguracionViewModel : PageViewModel
         IBackupService backup,
         IAfipService afip,
         IMailService mail,
-        ISecretProtector protector,
         IDialogService dialog)
     {
         _repo      = repo;
@@ -495,17 +492,11 @@ public class ConfiguracionViewModel : PageViewModel
         _afip      = afip;
         _mail      = mail;
         _dialog    = dialog;
-        _protector = protector;
 
         // Emisor
         EditarEmisorCommand   = new RelayCommand(_ => EditarEmisor());
         GuardarEmisorCommand  = new AsyncRelayCommand(GuardarEmisorAsync);
         CancelarEmisorCommand = new RelayCommand(_ => CancelarEmisor());
-
-        // Apoderado
-        EditarApoderadoCommand   = new RelayCommand(_ => EditarApoderado());
-        GuardarApoderadoCommand  = new AsyncRelayCommand(GuardarApoderadoAsync);
-        CancelarApoderadoCommand = new RelayCommand(_ => CancelarApoderado());
 
         // Códigos AFIP
         EditarCodigosAfipCommand   = new RelayCommand(_ => EditarCodigosAfip());
@@ -523,6 +514,10 @@ public class ConfiguracionViewModel : PageViewModel
         SeleccionarClaveKeyCommand    = new RelayCommand(_ => SeleccionarClaveKey());
         ProbarConexionCommand         = new AsyncRelayCommand(ProbarConexionAsync);
         ToggleMostrarPasswordCommand  = new RelayCommand(_ => EdMostrarPassword = !EdMostrarPassword);
+        GenerarCertificadoCommand     = new AsyncRelayCommand(AbrirWizardCertificadoAsync);
+        DescargarCrtCommand           = new RelayCommand(_ => GuardarBytes(_edCertificadoContenido,    $"{AliasArchivo()}.crt", "Certificado (*.crt)|*.crt;*.pem|Todos|*.*",  "certificado"));
+        DescargarKeyCommand           = new RelayCommand(_ => GuardarBytes(_edCertificadoKeyContenido, $"{AliasArchivo()}.key", "Clave privada (*.key)|*.key;*.pem|Todos|*.*", "clave privada"));
+        ExportarP12Command            = new AsyncRelayCommand(ExportarP12Async);
 
         // Vouchers
         EditarVouchersCommand   = new RelayCommand(_ => EditarVouchers());
@@ -557,12 +552,10 @@ public class ConfiguracionViewModel : PageViewModel
     private async Task CargarAsync()
     {
         _config = await _repo.GetAsync();
-        _config.SmtpPassword = _protector.Unprotect(_config.SmtpPassword);
         var contadorEntity = await _contador.GetAsync();
         UltimoNumeroVoucher = contadorEntity.UltimoNumero;
         foreach (var p in new[] { nameof(RazonSocial), nameof(Cuit), nameof(IngresosBrutos), nameof(InicioActividades),
                                    nameof(CodigoAfipRecibo), nameof(CodigoAfipNotaDeCredito),
-                                   nameof(UsarApoderado), nameof(NombreApoderado), nameof(CuitApoderado),
                                    nameof(ImporteVoucherPredeterminado),
                                    nameof(DiasVencimiento), nameof(SmtpHost), nameof(SmtpPort), nameof(SmtpSeguridad),
                                    nameof(SmtpUsuario), nameof(SmtpPassword), nameof(EmailRemitente) })
@@ -582,74 +575,148 @@ public class ConfiguracionViewModel : PageViewModel
     // ══════════════════════════════════════════
     private void SeleccionarCertificado()
     {
-        var filter = _edUsarModoCrtKey
-            ? "Certificado PEM (*.crt;*.pem)|*.crt;*.pem|Todos|*.*"
-            : "Certificado PKCS#12 (*.p12;*.pfx)|*.p12;*.pfx|Todos|*.*";
+        // En modo P12 se elige un .p12; en CRT+KEY (incluido el .crt que devuelve AFIP) un PEM.
+        var filter = _edModo == ModoCertificado.P12
+            ? "Certificado PKCS#12 (*.p12;*.pfx)|*.p12;*.pfx|Todos|*.*"
+            : "Certificado PEM (*.crt;*.pem)|*.crt;*.pem|Todos|*.*";
         var dlg = new OpenFileDialog { Filter = filter };
         if (dlg.ShowDialog() != true) return;
-        try   { EdCertificadoRuta = ImportarArchivoCertificado(dlg.FileName); }
-        catch (Exception ex)
+        try
         {
-            EdCertificadoRuta = dlg.FileName;
-            MostrarError($"No se pudo copiar el certificado al almacén local: {ex.Message}");
+            _edCertificadoContenido = File.ReadAllBytes(dlg.FileName);
+            EdCertificadoRuta       = Path.GetFileName(dlg.FileName);
+            NotificarEstadoCert();
         }
+        catch (Exception ex) { MostrarError($"No se pudo leer el certificado: {ex.Message}"); }
     }
 
     private void SeleccionarClaveKey()
     {
         var dlg = new OpenFileDialog { Filter = "Clave privada PEM (*.key;*.pem)|*.key;*.pem|Todos|*.*" };
         if (dlg.ShowDialog() != true) return;
-        try   { EdCertificadoKeyRuta = ImportarArchivoCertificado(dlg.FileName); }
-        catch (Exception ex)
+        try
         {
-            EdCertificadoKeyRuta = dlg.FileName;
-            MostrarError($"No se pudo copiar la clave privada al almacén local: {ex.Message}");
+            _edCertificadoKeyContenido = File.ReadAllBytes(dlg.FileName);
+            EdCertificadoKeyRuta       = Path.GetFileName(dlg.FileName);
+            NotificarEstadoCert();
         }
+        catch (Exception ex) { MostrarError($"No se pudo leer la clave privada: {ex.Message}"); }
     }
 
-    private static string ImportarArchivoCertificado(string origen)
+    // Abre el asistente para generar un certificado nuevo (clave + CSR). La clave generada queda
+    // cargada en el form en modo CRT+KEY; el usuario sube el .csr a AFIP e importa luego el .crt.
+    private async Task AbrirWizardCertificadoAsync()
     {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PuertoBB", "CentroMaritimo", "Certificados");
-        Directory.CreateDirectory(dir);
-        var destino = Path.Combine(dir, Path.GetFileName(origen));
-        if (!string.Equals(Path.GetFullPath(origen), Path.GetFullPath(destino), StringComparison.OrdinalIgnoreCase))
-            File.Copy(origen, destino, overwrite: true);
-        return destino;
+        var cuit = new string((Cuit ?? "").Where(char.IsDigit).ToArray());
+        if (cuit.Length == 0)                       { MostrarError("Cargá el CUIT del emisor antes de generar el certificado."); return; }
+        if (string.IsNullOrWhiteSpace(RazonSocial)) { MostrarError("Cargá la razón social del emisor antes de generar el certificado."); return; }
+        if (!PvFormEditando)                        { MostrarError("Creá (Nuevo) o abrí (Editar) un punto de venta antes de generar el certificado."); return; }
+
+        var res = await _dialog.ShowCertificadoWizardAsync(RazonSocial, cuit, EdUsarHomologacion);
+        if (res is null) return;
+
+        // Cargar la clave generada en modo CRT+KEY; el .crt se importa cuando AFIP lo devuelva.
+        SetModo(ModoCertificado.CrtKey);
+        _edCertificadoKeyContenido = res.ClavePrivadaPem;
+        EdCertificadoKeyRuta       = $"{res.Alias}.key (generada)";
+        _edCertificadoContenido    = null;
+        EdCertificadoRuta          = null;
+        EdCertificadoPassword      = null;
+        NotificarEstadoCert();
+        EstadoConexion = "Clave cargada. Guardá el punto y, cuando AFIP te devuelva el .crt, importalo en modo CRT+KEY.";
+        MostrarExito("Clave generada y cargada. Guardá el punto de venta.");
+    }
+
+    // Arma un .p12 (clave + .crt de AFIP) con contraseña para reutilizar el certificado en otras apps.
+    private async Task ExportarP12Async()
+    {
+        if (!EdPuedeExportarP12) { MostrarError("Necesitás el certificado (.crt) y la clave para exportar el .p12."); return; }
+        var pass = await _dialog.ShowInputAsync(
+            "Exportar .p12",
+            "Contraseña para el archivo .p12",
+            description: "Elegí una contraseña nueva para proteger el archivo .p12. Te la van a pedir cada vez que importes este certificado en otra aplicación o equipo; no necesita coincidir con ninguna otra.");
+        if (string.IsNullOrEmpty(pass)) return;
+        try
+        {
+            var p12 = CsrGenerator.ArmarP12(_edCertificadoContenido!, _edCertificadoKeyContenido!, pass);
+            GuardarBytes(p12, $"{AliasArchivo()}.p12", "Certificado PKCS#12 (*.p12)|*.p12|Todos|*.*", "certificado");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo exportar el .p12: {ex.Message}"); }
+    }
+
+    private string AliasArchivo()
+    {
+        var a = string.IsNullOrWhiteSpace(EdNombre) ? "certificado" : EdNombre.Trim();
+        return string.Concat(a.Split(Path.GetInvalidFileNameChars()));
+    }
+
+    private void GuardarBytes(byte[]? datos, string nombreSugerido, string filtro, string queCosa)
+    {
+        if (datos is not { Length: > 0 }) { MostrarError($"No hay {queCosa} para guardar."); return; }
+        var dlg = new SaveFileDialog { FileName = nombreSugerido, Filter = filtro };
+        if (dlg.ShowDialog() != true) return;
+        try   { File.WriteAllBytes(dlg.FileName, datos); MostrarExito($"Guardado: {Path.GetFileName(dlg.FileName)}"); }
+        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+    }
+
+    // Valida que el certificado esté cargado según el modo. Devuelve null si es válido, o un mensaje.
+    // En CRT+KEY se permite guardar con solo la clave (el .crt de AFIP se importa más tarde).
+    private string? ValidarCertificado()
+    {
+        if (_edModo == ModoCertificado.P12)
+        {
+            if (_edCertificadoContenido is not { Length: > 0 }) return "Seleccioná el archivo .p12 del certificado.";
+            if (string.IsNullOrWhiteSpace(EdCertificadoPassword)) return "Ingresá la contraseña del certificado .p12.";
+            return null;
+        }
+        // CRT+KEY
+        if (_edCertificadoKeyContenido is not { Length: > 0 } && EdCertificadoKeyRuta is null)
+            return "Cargá la clave privada (.key), o usá «Generar certificado nuevo…».";
+        return null;
     }
 
     private async Task GuardarPuntoAsync()
     {
         if (string.IsNullOrWhiteSpace(EdNombre)) { MostrarError("Indique un nombre para el punto de venta."); return; }
         if (EdNumero <= 0) { MostrarError("El número de punto de venta debe ser mayor a cero."); return; }
+        if (ValidarCertificado() is { } errorCert) { MostrarError(errorCert); return; }
         try
         {
             var esPrimero = PuntosDeVenta.Count == 0;
             var pv = new PuntoDeVenta
             {
-                Id                  = _edId,
-                Nombre              = EdNombre.Trim(),
-                Numero              = EdNumero,
-                UsarHomologacion    = EdUsarHomologacion,
-                CertificadoRuta     = EdCertificadoRuta,
-                CertificadoPassword = _edUsarModoCrtKey ? null : _protector.Protect(EdCertificadoPassword),
-                CertificadoKeyRuta  = EdCertificadoKeyRuta,
-                Activo              = _edId == 0 ? esPrimero : _edActivo
+                Id                      = _edId,
+                Nombre                  = EdNombre.Trim(),
+                Numero                  = EdNumero,
+                UsarHomologacion        = EdUsarHomologacion,
+                CertificadoRuta         = EdCertificadoRuta,
+                CertificadoContenido    = _edCertificadoContenido,
+                CertificadoPassword     = _edModo == ModoCertificado.P12 ? EdCertificadoPassword : null,
+                CertificadoKeyRuta      = _edModo == ModoCertificado.P12 ? null : EdCertificadoKeyRuta,
+                CertificadoKeyContenido = _edModo == ModoCertificado.P12 ? null : _edCertificadoKeyContenido,
+                Activo                  = _edId == 0 ? esPrimero : _edActivo
             };
+            // En CRT+KEY sin .crt todavía, el punto queda "pendiente": guardado, pero falta importar el .crt.
+            var pendienteCrt = _edModo == ModoCertificado.CrtKey && _edCertificadoContenido is not { Length: > 0 };
             var guardado = await _repo.GuardarPuntoDeVentaAsync(pv);
             await RecargarPuntosAsync();
-            _edId                 = 0;
-            EdNombre              = string.Empty;
-            EdNumero              = 1;
-            EdUsarHomologacion    = false;
-            EdCertificadoRuta     = null;
-            EdCertificadoPassword = null;
-            EdCertificadoKeyRuta  = null;
-            EdUsarModoCrtKey      = false;
-            EdMostrarPassword     = false;
-            PvFormEditando        = false;
+            _edId                      = 0;
+            EdNombre                   = string.Empty;
+            EdNumero                   = 1;
+            EdUsarHomologacion         = false;
+            EdCertificadoRuta          = null;
+            _edCertificadoContenido    = null;
+            EdCertificadoPassword      = null;
+            EdCertificadoKeyRuta       = null;
+            _edCertificadoKeyContenido = null;
+            SetModo(ModoCertificado.P12);
+            NotificarEstadoCert();
+            EdMostrarPassword          = false;
+            PvFormEditando             = false;
             OnPropertyChanged(nameof(TituloEdicion));
-            MostrarExito($"Punto de venta «{guardado.Nombre}» guardado.");
+            MostrarExito(pendienteCrt
+                ? $"Punto de venta «{guardado.Nombre}» guardado. Falta importar el .crt de AFIP para poder emitir."
+                : $"Punto de venta «{guardado.Nombre}» guardado.");
         }
         catch (Exception ex) { MostrarError($"No se pudo guardar el punto de venta: {ex.Message}"); }
     }
@@ -666,9 +733,12 @@ public class ConfiguracionViewModel : PageViewModel
             EdNumero              = 1;
             EdUsarHomologacion    = false;
             EdCertificadoRuta     = null;
+            _edCertificadoContenido    = null;
             EdCertificadoPassword = null;
             EdCertificadoKeyRuta  = null;
-            EdUsarModoCrtKey      = false;
+            _edCertificadoKeyContenido = null;
+            SetModo(ModoCertificado.P12);
+            NotificarEstadoCert();
             PvFormEditando        = false;
             OnPropertyChanged(nameof(TituloEdicion));
             MostrarExito("Punto de venta eliminado.");

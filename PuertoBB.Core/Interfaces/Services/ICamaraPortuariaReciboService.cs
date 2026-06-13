@@ -43,10 +43,14 @@ public interface ICamaraPortuariaReciboService
     /// </summary>
     Task<ServiceResult<ResultadoEmisionPorEntidad>> ReintentarAsync(int reciboId, bool enviarMail, CancellationToken ct = default);
 
-    /// <summary>Anula un recibo emitido generando una nota de crédito.</summary>
-    Task<ServiceResult<bool>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default);
+    /// <summary>
+    /// Anula un recibo emitido generando una nota de crédito. Si <paramref name="enviarMail"/> es true
+    /// además envía la NC por mail; el fallo del mail NO falla la operación y se informa en
+    /// <see cref="ResultadoAnulacion.ErrorMail"/>.
+    /// </summary>
+    Task<ServiceResult<ResultadoAnulacion>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default);
 
-    /// <summary>Reenvía el mail de un recibo (típicamente en estado Emitido).</summary>
+    /// <summary>Reenvía el mail del comprobante: el recibo, o su nota de crédito si está Anulado (sin tocar estado).</summary>
     Task<ServiceResult<bool>> ReenviarMailAsync(int reciboId, CancellationToken ct = default);
 
     /// <summary>Marca un recibo como pagado y registra la fecha.</summary>

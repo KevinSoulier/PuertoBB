@@ -15,6 +15,16 @@ public record DiagnosticoAfip
     /// <summary>Último número autorizado para el punto de venta/tipo consultado (si la autenticación funcionó).</summary>
     public long? UltimoComprobante { get; init; }
 
+    /// <summary>El punto de venta activo figura habilitado para WS y no está bloqueado (FEParamGetPtosVenta).
+    /// null = no se pudo verificar (lista vacía es habitual en homologación).</summary>
+    public bool? PuntoVentaOk { get; init; }
+
+    /// <summary>El tipo de comprobante configurado existe y está vigente (FEParamGetTiposCbte). null = no verificado.</summary>
+    public bool? TipoComprobanteOk { get; init; }
+
+    /// <summary>Condiciones IVA de receptor válidas para la clase del comprobante (RG 5616), ya formateadas. null = no verificado.</summary>
+    public IReadOnlyList<string>? CondicionesIvaReceptor { get; init; }
+
     /// <summary>Detalle legible del diagnóstico (éxitos y errores).</summary>
     public string? Detalle { get; init; }
 }

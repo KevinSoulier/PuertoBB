@@ -23,11 +23,6 @@ public class Configuracion : BaseEntity
     [NotMapped]
     public PuntoDeVenta? PuntoDeVentaActivo => PuntosDeVenta.FirstOrDefault(p => p.Activo);
 
-    // Apoderado fiscal
-    public bool    UsarApoderado   { get; set; }
-    public string? NombreApoderado { get; set; }
-    public string? CuitApoderado   { get; set; }
-
     // Vouchers
     public decimal ImporteVoucherPredeterminado { get; set; } = 0;
 

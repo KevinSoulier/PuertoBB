@@ -9,8 +9,6 @@ public class ConfiguracionConfiguration : IEntityTypeConfiguration<Configuracion
     public void Configure(EntityTypeBuilder<Configuracion> b)
     {
         b.HasKey(c => c.Id);
-        b.Property(c => c.NombreApoderado).HasMaxLength(200);
-        b.Property(c => c.CuitApoderado).HasMaxLength(13);
         b.Property(c => c.IngresosBrutos).HasMaxLength(50);
 
         b.HasData(new Configuracion
@@ -22,7 +20,6 @@ public class ConfiguracionConfiguration : IEntityTypeConfiguration<Configuracion
             CodigoAfipNotaDeCredito = 13,
             DiasVencimiento = 30,
             SmtpPort = 587,
-            UsarApoderado = false,
             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
     }

@@ -17,6 +17,7 @@ public class WsfeMapperRequestTests
         Concepto = 2,
         DocTipo = 80,
         DocNro = 30711234561,
+        CondicionIvaReceptorId = 1,
         FechaComprobante = new DateTime(2026, 6, 15),
         ImporteTotal = 12345.67m,
         ServicioDesde = 20260601,
@@ -26,7 +27,7 @@ public class WsfeMapperRequestTests
     };
 
     [Fact]
-    public void ToFECAERequest_TipoC_Exento_SinArrayIva()
+    public void ToFECAERequest_TipoC_TotalEnNeto_SinArrayIva()
     {
         var fe = WsfeMapper.ToFECAERequest(BaseReq());
 
@@ -36,14 +37,15 @@ public class WsfeMapperRequestTests
 
         var det = Assert.Single(fe.FeDetReq);
         Assert.Null(det.Iva);                       // CRÍTICO: sin IVA para tipo C
-        Assert.Equal(0d, det.ImpNeto);
+        Assert.Equal(12345.67d, det.ImpNeto, 3);    // tipo C: el total va en Neto (no se discrimina IVA)
         Assert.Equal(0d, det.ImpIVA);
-        Assert.Equal(12345.67d, det.ImpOpEx, 3);    // todo exento
-        Assert.Equal(12345.67d, det.ImpTotal, 3);
+        Assert.Equal(0d, det.ImpOpEx);              // tipo C: exento SIEMPRE 0 (rechazo 10044 si no)
+        Assert.Equal(12345.67d, det.ImpTotal, 3);   // ImpTotal == ImpNeto + ImpTrib (rechazo 10048 si no)
         Assert.Equal("PES", det.MonId);
         Assert.Equal(1d, det.MonCotiz);
         Assert.Equal(2, det.Concepto);
         Assert.Equal(80, det.DocTipo);
+        Assert.Equal(1, det.CondicionIVAReceptorId);   // RG 5616: obligatorio (0 = rechazo 10242)
         Assert.Equal(42, det.CbteDesde);
         Assert.Equal(42, det.CbteHasta);
         Assert.Equal("20260615", det.CbteFch);
@@ -103,6 +105,83 @@ public class WsfeMapperResponseTests
         Assert.False(r.Aprobado);
         Assert.Contains("10071", r.Observaciones);
         Assert.Contains("600", r.Observaciones);
+    }
+}
+
+public class WsfeMapperParametrosTests
+{
+    [Fact]
+    public void ToPuntosVenta_ParseaBloqueadoYFechaBaja()
+    {
+        var resp = new FEPtoVentaResponse
+        {
+            ResultGet =
+            [
+                new PtoVenta { Nro = 1, EmisionTipo = "CAE",  Bloqueado = "N", FchBaja = "NULL" },
+                new PtoVenta { Nro = 2, EmisionTipo = "CAEA", Bloqueado = "S", FchBaja = "20260101" },
+            ]
+        };
+
+        var pvs = WsfeMapper.ToPuntosVenta(resp);
+
+        Assert.Equal(2, pvs.Count);
+        Assert.False(pvs[0].Bloqueado);
+        Assert.Null(pvs[0].FechaBaja);
+        Assert.True(pvs[1].Bloqueado);
+        Assert.Equal(new DateTime(2026, 1, 1), pvs[1].FechaBaja);
+        Assert.Equal("CAEA", pvs[1].EmisionTipo);
+    }
+
+    [Fact]
+    public void ToPuntosVenta_SinResultados_O_Error602_DevuelveVacio()
+    {
+        Assert.Empty(WsfeMapper.ToPuntosVenta(new FEPtoVentaResponse()));
+        Assert.Empty(WsfeMapper.ToPuntosVenta(new FEPtoVentaResponse
+        {
+            Errors = [new Err { Code = 602, Msg = "Sin resultados" }]
+        }));
+    }
+
+    [Fact]
+    public void ToPuntosVenta_ErrorReal_LanzaConCodigo()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => WsfeMapper.ToPuntosVenta(new FEPtoVentaResponse
+        {
+            Errors = [new Err { Code = 600, Msg = "Credenciales inválidas" }]
+        }));
+        Assert.Contains("[600]", ex.Message);
+    }
+
+    [Fact]
+    public void ToTiposComprobante_ParseaVigencias()
+    {
+        var resp = new CbteTipoResponse
+        {
+            ResultGet = [new CbteTipo { Id = 15, Desc = "Recibo C", FchDesde = "20100917", FchHasta = "NULL" }]
+        };
+
+        var tipos = WsfeMapper.ToTiposComprobante(resp);
+
+        var t = Assert.Single(tipos);
+        Assert.Equal(15, t.Id);
+        Assert.Equal(new DateTime(2010, 9, 17), t.VigenteDesde);
+        Assert.Null(t.VigenteHasta);
+    }
+
+    [Fact]
+    public void ToCondicionesIvaReceptor_MapeaIdDescripcionYClase()
+    {
+        var resp = new CondicionIvaReceptorResponse
+        {
+            ResultGet = [new CondicionIvaReceptor { Id = 6, Desc = "Responsable Monotributo", Cmp_Clase = "C" }]
+        };
+
+        var conds = WsfeMapper.ToCondicionesIvaReceptor(resp);
+
+        var c = Assert.Single(conds);
+        Assert.Equal(6, c.Id);
+        Assert.Equal("Responsable Monotributo", c.Descripcion);
+        Assert.Equal("C", c.ClaseComprobante);
     }
 }
 

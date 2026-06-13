@@ -47,18 +47,25 @@
                         <TextBlock Text="Razón social" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding RazonSocialEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                         <TextBlock Text="CUIT" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding CuitEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding CuitEdit, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:Button Grid.Column="1" Content="Validar en ARCA" Command="{Binding ValidarCuitCommand}"
+                                       Margin="8,0,0,0"
+                                       ToolTip="Consulta la constancia de inscripción en ARCA y completa razón social, domicilio y condición IVA">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="CloudCheckmark24" /></ui:Button.Icon>
+                            </ui:Button>
+                        </Grid>
                         <TextBlock Text="Domicilio" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding DomicilioEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                         <TextBlock Text="Condición frente al IVA" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <ComboBox Text="{Binding CondicionIvaEdit, UpdateSourceTrigger=PropertyChanged}"
-                                  IsEditable="True" Margin="0,0,0,8">
-                            <ComboBoxItem Content="IVA Responsable Inscripto" />
-                            <ComboBoxItem Content="IVA Exento" />
-                            <ComboBoxItem Content="Monotributista" />
-                            <ComboBoxItem Content="Consumidor Final" />
-                            <ComboBoxItem Content="No Responsable" />
-                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding CondicionesIva}"
+                                  SelectedValue="{Binding CondicionIvaIdEdit, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Codigo" DisplayMemberPath="Display"
+                                  Margin="0,0,0,8" />
                         <TextBlock Text="Emails (uno por línea)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding EmailsEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
                                  AcceptsReturn="True" Height="80" VerticalContentAlignment="Top"

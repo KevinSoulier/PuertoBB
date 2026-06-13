@@ -24,12 +24,6 @@ Al igual que en Cámara Portuaria, las agencias se organizan en **Grupos de Fact
   - Leyenda con los números de voucher incluidos
   - Total = suma de importes de los vouchers
 
-## Apoderado fiscal
-
-- Posibilidad de facturar como persona apoderada
-- El emisor fiscal es el apoderado
-- El documento identifica al Centro Marítimo como receptor real
-
 ## Cobros extraordinarios
 
 - Cobros extraordinarios independientes posibles (no relacionados con vouchers)

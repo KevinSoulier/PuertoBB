@@ -55,7 +55,10 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
     public async Task<byte[]> GenerarPdfNotaDeCreditoAsync(NotaDeCredito nc, CancellationToken ct = default)
     {
         var config = await _configProvider.GetAsync(ct);
-        var recibo = nc.ReciboOriginal;
+        // N-7: sin el recibo original la NC saldría sin receptor ni comprobante asociado (normativa).
+        var recibo = nc.ReciboOriginal
+            ?? throw new InvalidOperationException("GenerarPdfNotaDeCredito requiere ReciboOriginal cargado (Include).");
+        var comprobanteOriginal = Formato.Comprobante(recibo.PuntoDeVenta, recibo.NumeroComprobante);
         var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.ReceptorCuit);
         var receptorNombre = recibo?.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
@@ -78,11 +81,11 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
             FechaVencimientoCae = nc.FechaVencimientoCAE,
             ImporteTotal  = recibo?.Importe ?? 0,
             Items         = items.Count > 0 ? items : [],
-            Leyendas      = [$"Anula el recibo original Nro. {nc.ReciboOriginalId}"],
+            Leyendas      = [$"Anula el recibo original Nro. {comprobanteOriginal}"],
             ComprobanteAsociado = recibo is not null
                 ? new ComprobanteAsociado(recibo.CodigoAfip, recibo.PuntoDeVenta, recibo.NumeroComprobante)
                 : null,
-            Emisor  = BuildEmisor(config, recibo),
+            Emisor  = BuildEmisor(config),
             Receptor = new ReceptorDocumento
             {
                 RazonSocial  = receptorNombre,
@@ -154,8 +157,6 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
             }).ToList();
 
         var leyendas = new List<string>();
-        if (recibo.EsApoderado && !string.IsNullOrWhiteSpace(recibo.NombreApoderado))
-            leyendas.Add($"Emite (apoderado): {recibo.NombreApoderado} — CUIT {Formato.Cuit(recibo.CuitApoderado ?? "")}");
 
         var periodoDesde = new DateOnly(recibo.PeriodoAnio, recibo.PeriodoMes, 1);
         var periodoHasta = periodoDesde.AddMonths(1).AddDays(-1);
@@ -176,7 +177,7 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
             PeriodoServicioDesde = periodoDesde,
             PeriodoServicioHasta = periodoHasta,
             FechaVencimientoPago = recibo.FechaVencimientoPago,
-            Emisor  = BuildEmisor(config, recibo),
+            Emisor  = BuildEmisor(config),
             Receptor = new ReceptorDocumento
             {
                 RazonSocial   = receptorNombre,
@@ -188,17 +189,12 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
         };
     }
 
-    private EmisorDocumento BuildEmisor(AfipConfig config, Recibo? recibo)
+    private EmisorDocumento BuildEmisor(AfipConfig config)
     {
-        // Si el recibo fue emitido por un apoderado, el QR debe llevar el CUIT del apoderado.
-        var (razonSocial, cuitStr) = recibo is { EsApoderado: true, NombreApoderado: { Length: > 0 } nombre }
-            ? (nombre, recibo.CuitApoderado ?? config.CuitEmisor)
-            : (RazonSocialEmisor, config.CuitEmisor);
-
         return new EmisorDocumento
         {
-            RazonSocial       = razonSocial,
-            Cuit              = Formato.ParseCuit(cuitStr),
+            RazonSocial       = string.IsNullOrWhiteSpace(config.RazonSocial) ? RazonSocialEmisor : config.RazonSocial,
+            Cuit              = Formato.ParseCuit(config.CuitEmisor),
             CondicionIva      = "IVA Exento",
             ColorAcentoHex    = _theme.AcentoHex,
             LogoPng           = LogoBytes is { Length: > 0 } ? LogoBytes : null,

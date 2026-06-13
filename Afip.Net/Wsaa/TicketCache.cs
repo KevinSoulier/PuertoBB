@@ -5,7 +5,7 @@ namespace Afip.Wsaa;
 /// <summary>
 /// Cache thread-safe del Ticket de Acceso WSAA, indexado por (CUIT, servicio).
 /// AFIP emite un TA por servicio (wsfe, wsremcarne, ...) válido ~12 hs; se renueva con 10 min de margen.
-/// La persistencia real (memoria o disco cifrado) la define el <see cref="ITicketStore"/> inyectado.
+/// La persistencia real (memoria o disco) la define el <see cref="ITicketStore"/> inyectado.
 /// </summary>
 public sealed class TicketCache
 {
@@ -15,9 +15,14 @@ public sealed class TicketCache
     public TicketCache(ITicketStore store) => _store = store;
 
     public async Task<AfipTicket> GetOrRenewAsync(
-        string cuit, string servicio, Func<Task<AfipTicket>> renovar, CancellationToken ct = default)
+        string cuit, string servicio, Func<Task<AfipTicket>> renovar, CancellationToken ct = default,
+        string? discriminador = null)
     {
-        var clave = $"{cuit}:{servicio}";
+        // El discriminador (huella del certificado + ambiente) hace que un cambio de credenciales o de
+        // ambiente use otra clave: así no se reutiliza un TA viejo y se fuerza una autenticación real.
+        var clave = string.IsNullOrEmpty(discriminador)
+            ? $"{cuit}:{servicio}"
+            : $"{cuit}:{servicio}:{discriminador}";
 
         var actual = _store.Load(clave);
         if (Vigente(actual)) return actual!;

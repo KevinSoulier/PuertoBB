@@ -1,0 +1,44 @@
+<UserControl x:Class="CamaraPortuaria.UI.Dialogs.CertificadoWizardDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border CornerRadius="8" MinWidth="480" MaxWidth="600"
+            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+            Effect="{DynamicResource ElevationShadow16Effect}"
+            Padding="24">
+        <StackPanel>
+            <TextBlock Text="Generar certificado AFIP" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4"/>
+            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,16"
+                       Text="Crea la clave privada y el pedido (CSR). Guardá ambos archivos: el .csr se sube al portal de AFIP y, cuando te devuelvan el .crt, lo importás en el punto de venta junto con la clave."/>
+
+            <!-- Paso 1: alias -->
+            <TextBlock Text="Alias (CN)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="AliasBox" Margin="0,0,0,4"/>
+            <TextBlock Text="Letras, números, guion (-) y guion bajo (_). Máx. 64 caracteres."
+                       FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,0,0,12"/>
+            <Button x:Name="GenerarButton" Content="Generar clave y CSR" Click="Generar_Click"
+                    Style="{DynamicResource AccentButtonStyle}" Margin="0,0,0,12"/>
+
+            <!-- Estado + acciones (visibles tras generar) -->
+            <TextBlock x:Name="EstadoText" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <WrapPanel Margin="0,0,0,8">
+                <Button x:Name="GuardarCsrButton" Content="Guardar CSR…" Click="GuardarCsr_Click"
+                        IsEnabled="False" MinWidth="130" Margin="0,0,8,8"/>
+                <Button x:Name="GuardarKeyButton" Content="Guardar clave (.key)…" Click="GuardarKey_Click"
+                        IsEnabled="False" MinWidth="130" Margin="0,0,8,8"/>
+            </WrapPanel>
+            <TextBlock x:Name="InstruccionesText" TextWrapping="Wrap" Margin="0,0,0,12" Visibility="Collapsed"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
+            <TextBlock x:Name="ErrorText" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,12" Visibility="Collapsed"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="CancelarButton" Content="Cancelar" MinWidth="90" Margin="0,0,8,0" Click="Cancelar_Click"/>
+                <Button x:Name="FinalizarButton" Content="Usar esta clave" MinWidth="120" Click="Finalizar_Click"
+                        IsEnabled="False" Style="{DynamicResource AccentButtonStyle}"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

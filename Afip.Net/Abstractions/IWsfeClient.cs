@@ -14,9 +14,63 @@ public interface IWsfeClient
 
     /// <summary>FECAESolicitar — solicita el CAE para un comprobante.</summary>
     Task<WsfeCaeResponse> SolicitarCaeAsync(string token, string sign, string cuit, WsfeCaeRequest request, bool usarHomologacion, CancellationToken ct = default);
+
+    /// <summary>FECompConsultar — datos de un comprobante ya autorizado; null si no existe (error 602).</summary>
+    Task<WsfeComprobanteConsultado?> ConsultarComprobanteAsync(string token, string sign, string cuit,
+        int puntoVenta, int tipoComprobante, long numero, bool usarHomologacion, CancellationToken ct = default);
+
+    /// <summary>FEParamGetPtosVenta — puntos de venta habilitados para Web Services del CUIT.</summary>
+    Task<IReadOnlyList<WsfePuntoVenta>> ObtenerPuntosVentaAsync(string token, string sign, string cuit,
+        bool usarHomologacion, CancellationToken ct = default);
+
+    /// <summary>FEParamGetTiposCbte — tipos de comprobante vigentes según AFIP.</summary>
+    Task<IReadOnlyList<WsfeTipoComprobante>> ObtenerTiposComprobanteAsync(string token, string sign, string cuit,
+        bool usarHomologacion, CancellationToken ct = default);
+
+    /// <summary>FEParamGetCondicionIvaReceptor — condiciones IVA de receptor válidas (RG 5616).
+    /// <paramref name="claseComprobante"/> = "A"/"B"/"C" para filtrar; null = todas.</summary>
+    Task<IReadOnlyList<WsfeCondicionIvaReceptor>> ObtenerCondicionesIvaReceptorAsync(string token, string sign, string cuit,
+        string? claseComprobante, bool usarHomologacion, CancellationToken ct = default);
 }
 
-/// <summary>Datos de un comprobante para FECAESolicitar. ImpNeto/IVA = 0 para tipo C (exento).</summary>
+/// <summary>Punto de venta informado por FEParamGetPtosVenta.</summary>
+public record WsfePuntoVenta
+{
+    public required int    Numero      { get; init; }
+    public string?         EmisionTipo { get; init; }   // "CAE" | "CAEA"
+    public bool            Bloqueado   { get; init; }
+    public DateTime?       FechaBaja   { get; init; }
+}
+
+/// <summary>Tipo de comprobante informado por FEParamGetTiposCbte.</summary>
+public record WsfeTipoComprobante
+{
+    public required int    Id          { get; init; }
+    public string?         Descripcion { get; init; }
+    public DateTime?       VigenteDesde { get; init; }
+    public DateTime?       VigenteHasta { get; init; }
+}
+
+/// <summary>Condición IVA del receptor informada por FEParamGetCondicionIvaReceptor.</summary>
+public record WsfeCondicionIvaReceptor
+{
+    public required int    Id          { get; init; }
+    public string?         Descripcion { get; init; }
+    public string?         ClaseComprobante { get; init; }
+}
+
+/// <summary>Comprobante ya autorizado, devuelto por FECompConsultar.</summary>
+public record WsfeComprobanteConsultado
+{
+    public required long     Numero              { get; init; }
+    public required decimal  ImporteTotal        { get; init; }
+    public required long     DocNro              { get; init; }
+    public required DateTime FechaComprobante    { get; init; }
+    public string?           Cae                 { get; init; }
+    public DateTime?         FechaVencimientoCae { get; init; }
+}
+
+/// <summary>Datos de un comprobante para FECAESolicitar. Tipo C: el total va en ImpNeto; IVA y OpEx = 0, sin array Iva.</summary>
 public record WsfeCaeRequest
 {
     public required int      TipoComprobante { get; init; }
@@ -25,6 +79,7 @@ public record WsfeCaeRequest
     public required int      Concepto        { get; init; } // 2 = Servicios
     public required int      DocTipo         { get; init; } // 80 = CUIT
     public required long     DocNro          { get; init; }
+    public required int      CondicionIvaReceptorId { get; init; } // RG 5616, obligatorio
     public required DateTime FechaComprobante { get; init; }
     public required decimal  ImporteTotal    { get; init; }
     public required int      ServicioDesde   { get; init; } // yyyyMMdd

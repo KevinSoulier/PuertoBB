@@ -68,8 +68,10 @@ período expandibles. El flag de estado por agencia se deriva del `Recibo` conso
 | **Emitido** | Recibo persistido con CAE, mail aún no enviado | `Emitido` |
 | **Completo** | Recibo enviado por mail (o ya pagado) | `Enviado` / `Pagado` |
 
-`Anulado` se trata transitoriamente como `Pendiente` en la UI para permitir reemisión.
-Caso borde a refinar en iteraciones siguientes.
+Al **anular** un consolidado se emite la nota de crédito y sus vouchers quedan
+**desvinculados** (vuelven a estar libres): la agencia aparece de nuevo como **Pendiente**
+y el período se puede reemitir con un consolidado nuevo (el anulado y su NC quedan en el
+historial de Recibos).
 
 El mapeo está implementado en `VoucherService.MapEstado` y se sirve a través de
 `VoucherService.GetCierrePeriodoAsync`, que devuelve `AgenciaCierrePeriodoVm` con los
@@ -83,8 +85,9 @@ vouchers, el total y el estado calculado.
 |---|---|---|
 | **Descargar PDF** (parcial) | Pendiente | Concatenación de los PDFs de vouchers del período. |
 | **Descargar PDF** (completa) | Emitido / Completo | Recibo (con CAE+QR) + vouchers concatenados. |
-| **Generar recibo** | Pendiente | (Próxima iteración) Ejecuta fases 1→4 para una agencia. |
-| **Cerrar período** (masivo) | — | (Próxima iteración) Ejecuta el cierre para todas las agencias pendientes. |
+| **Emitir recibos** | Pendiente | Fases 1→2 (consolidar + CAE) para todas las agencias, sin mail. |
+| **Enviar mails** | Emitido | Fases 3→4 (PDF único + mail) de los ya emitidos. |
+| **Cerrar período** (masivo) | — | Fases 1→4 completas para todas las agencias pendientes (también disponible por agencia). |
 
 En la página de **Vouchers** además se puede:
 
@@ -98,13 +101,11 @@ Ambas operaciones usan `CentroMaritimoPdfService.GenerarPdfVoucherAsync`.
 
 ## Plan de iteraciones
 
-1. **Iteración 1 (hecha):** UI agrupada por agencia, flag de 3 estados, descarga de PDF
+1. **Iteración 1 (✅ hecha):** UI agrupada por agencia, flag de 3 estados, descarga de PDF
    adaptativo (parcial/completo), acciones de voucher individual (descargar / previsualizar),
-   capa `IPdfMerger` + `GenerarPdfDescargaAsync`. Botones de emisión visibles pero deshabilitados.
-2. **Iteración 2:** habilitar **Generar recibo** por fila y **Cerrar período** masivo. Reusar
-   `CentroMaritimoReciboService.CerrarPeriodoAsync` refactorizado para exponer emisión por
-   agencia individual con reintentos. El PDF persistido/enviado pasa a ser el de
-   `GenerarPdfDescargaAsync` (reemplaza al actual `GenerarPdfConsolidadoAsync` con tabla
-   embebida).
-3. **Iteración 3:** cablear el envío automático del PDF único en el cierre masivo,
-   reusando `GenerarPdfDescargaAsync` + `IMailService`.
+   capa `IPdfMerger` + `GenerarPdfDescargaAsync`.
+2. **Iteración 2 (✅ hecha):** emisión por fila y **Cerrar período** masivo operativos, con
+   reintento idempotente (consolidado Pendiente-first; el reintento incorpora vouchers
+   nuevos del período).
+3. **Iteración 3 (✅ hecha):** envío automático del PDF único (recibo + vouchers
+   concatenados con `GenerarPdfDescargaAsync`) en el cierre y en el reenvío.

@@ -88,6 +88,7 @@ public static class SeedData
         Nombre = nombre,
         RazonSocial = razon,
         Cuit = cuit,
+        CondicionIvaId = 1, // IVA Responsable Inscripto (dato demo; verificar con "Validar CUIT en ARCA")
         CreatedAt = DateTime.Now,
         Emails = emails.Select(e => new EmailEmpresa { Email = e, CreatedAt = DateTime.Now }).ToList()
     };

@@ -17,6 +17,9 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         DataContext = vm;
         _nav = nav;
+        // Versión visible para soporte (checklist de entrega, ítem 10).
+        var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        Title += $" · v{ver?.ToString(3)}";
         if (App.ModoDemo) Title += " — MODO DEMO";
 
         // En modo "System" seguimos el tema y el acento del SO en vivo.

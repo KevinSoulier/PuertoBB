@@ -11,6 +11,8 @@ public sealed record AfipComprobanteRequest
     public required int      CodigoComprobante { get; init; }
     public required int      PuntoDeVenta      { get; init; }
     public required long     DocNroReceptor    { get; init; }
+    /// <summary>Condición frente al IVA del receptor — código AFIP (RG 5616, obligatorio; error 10242 si falta).</summary>
+    public required int      CondicionIvaReceptorId { get; init; }
     public required decimal  ImporteTotal      { get; init; }
     public required DateTime FechaComprobante  { get; init; }
 

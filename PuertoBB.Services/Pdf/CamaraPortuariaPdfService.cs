@@ -2,6 +2,7 @@ using Afip.Documentos;
 using Afip.Documentos.Pdf;
 using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
+using AfipConfig = PuertoBB.Core.Models.Afip.AfipConfig;
 using PuertoBB.Services.Common;
 
 namespace PuertoBB.Services.Pdf;
@@ -53,15 +54,7 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
             PeriodoServicioDesde = periodoDesde,
             PeriodoServicioHasta = periodoHasta,
             FechaVencimientoPago = recibo.FechaVencimientoPago,
-            Emisor = new EmisorDocumento
-            {
-                RazonSocial       = RazonSocialEmisor,
-                Cuit              = Formato.ParseCuit(config.CuitEmisor),
-                CondicionIva      = "IVA Exento",
-                ColorAcentoHex    = _theme.AcentoHex,
-                IngresosBrutos    = config.IngresosBrutos,
-                InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
-            },
+            Emisor = BuildEmisor(config),
             Receptor = new ReceptorDocumento
             {
                 RazonSocial   = receptorNombre,
@@ -78,7 +71,10 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
     public async Task<byte[]> GenerarPdfNotaDeCreditoAsync(NotaDeCredito nc, CancellationToken ct = default)
     {
         var config = await _configProvider.GetAsync(ct);
-        var recibo = nc.ReciboOriginal;
+        // N-7: sin el recibo original la NC saldría sin receptor ni comprobante asociado (normativa).
+        var recibo = nc.ReciboOriginal
+            ?? throw new InvalidOperationException("GenerarPdfNotaDeCredito requiere ReciboOriginal cargado (Include).");
+        var comprobanteOriginal = Formato.Comprobante(recibo.PuntoDeVenta, recibo.NumeroComprobante);
         var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo?.ReceptorCuit);
         var receptorNombre = recibo?.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
@@ -101,19 +97,11 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
             FechaVencimientoCae = nc.FechaVencimientoCAE,
             ImporteTotal  = recibo?.Importe ?? 0,
             Items         = items.Count > 0 ? items : [],
-            Leyendas      = [$"Anula el recibo original Nro. {nc.ReciboOriginalId}"],
+            Leyendas      = [$"Anula el recibo original Nro. {comprobanteOriginal}"],
             ComprobanteAsociado = recibo is not null
                 ? new ComprobanteAsociado(recibo.CodigoAfip, recibo.PuntoDeVenta, recibo.NumeroComprobante)
                 : null,
-            Emisor = new EmisorDocumento
-            {
-                RazonSocial       = RazonSocialEmisor,
-                Cuit              = Formato.ParseCuit(config.CuitEmisor),
-                CondicionIva      = "IVA Exento",
-                ColorAcentoHex    = _theme.AcentoHex,
-                IngresosBrutos    = config.IngresosBrutos,
-                InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
-            },
+            Emisor = BuildEmisor(config),
             Receptor = new ReceptorDocumento
             {
                 RazonSocial  = receptorNombre,
@@ -124,4 +112,16 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
 
         return _documentos.GenerarPdf(doc);
     }
+
+    // Identidad fiscal del emisor para el PDF. La razón social sale de la configuración;
+    // RazonSocialEmisor queda solo como respaldo si la base aún no tiene una cargada.
+    private static EmisorDocumento BuildEmisor(AfipConfig config) => new()
+    {
+        RazonSocial       = string.IsNullOrWhiteSpace(config.RazonSocial) ? RazonSocialEmisor : config.RazonSocial,
+        Cuit              = Formato.ParseCuit(config.CuitEmisor),
+        CondicionIva      = "IVA Exento",
+        ColorAcentoHex    = _theme.AcentoHex,
+        IngresosBrutos    = config.IngresosBrutos,
+        InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
+    };
 }

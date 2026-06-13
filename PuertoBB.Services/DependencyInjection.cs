@@ -35,8 +35,9 @@ public static class DependencyInjection
         if (!string.IsNullOrWhiteSpace(ticketCacheDir))
             services.AddSingleton<ITicketStore>(new FileTicketStore(ticketCacheDir));
 
-        services.AddAfip();                                   // Afip.Net: WSAA + WSFE
+        services.AddAfip();                                   // Afip.Net: WSAA + WSFE + Padrón
         services.AddTransient<IAfipService, AfipService>();   // adaptador dominio ↔ librería
+        services.AddTransient<IAfipPadronService, AfipPadronService>();
         return services;
     }
 
@@ -48,6 +49,7 @@ public static class DependencyInjection
     {
         services.AddAfipMock();
         services.AddTransient<IAfipService, AfipService>();
+        services.AddTransient<IAfipPadronService, AfipPadronService>();
         return services;
     }
 

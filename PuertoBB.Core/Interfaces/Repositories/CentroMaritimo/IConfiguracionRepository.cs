@@ -6,6 +6,9 @@ namespace PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
 public interface IConfiguracionRepository
 {
     Task<Configuracion> GetAsync(CancellationToken ct = default);
+    /// <summary>Lectura fresca (sin tracking) para servicios que solo leen (AFIP/Mail): siempre refleja
+    /// el estado actual de la base, incluso desde un <c>DbContext</c> de larga vida.</summary>
+    Task<Configuracion> GetSinTrackingAsync(CancellationToken ct = default);
     Task SaveAsync(Configuracion configuracion, CancellationToken ct = default);
 
     Task<IReadOnlyList<PuntoDeVenta>> GetPuntosDeVentaAsync(CancellationToken ct = default);

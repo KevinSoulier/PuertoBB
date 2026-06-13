@@ -441,11 +441,13 @@ internal class ComprobanteTemplate : IDocument
                     t.Span("CAE Nº: ").FontColor(Gris);
                     t.Span(_doc.Cae).Bold();
                 });
-                col.Item().Text(t =>
-                {
-                    t.Span("Fecha de Vto. de CAE: ").FontColor(Gris);
-                    t.Span(_doc.FechaVencimientoCae.ToString("dd/MM/yyyy")).Bold();
-                });
+                // N-5: si AFIP no devolvió el vencimiento (default), no imprimir "01/01/0001".
+                if (_doc.FechaVencimientoCae > DateTime.MinValue)
+                    col.Item().Text(t =>
+                    {
+                        t.Span("Fecha de Vto. de CAE: ").FontColor(Gris);
+                        t.Span(_doc.FechaVencimientoCae.ToString("dd/MM/yyyy")).Bold();
+                    });
             });
         });
     }

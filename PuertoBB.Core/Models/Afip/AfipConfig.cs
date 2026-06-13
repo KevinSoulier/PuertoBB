@@ -6,11 +6,12 @@ namespace PuertoBB.Core.Models.Afip;
 /// </summary>
 public record AfipConfig
 {
-    public required string   CuitEmisor          { get; init; } // sin guiones
-    public string?           CertificadoRuta     { get; init; }
-    public string?           CertificadoPassword { get; init; }
-    public string?           CertificadoKeyRuta  { get; init; }
-    public required bool     UsarHomologacion    { get; init; }
+    public required string   CuitEmisor              { get; init; } // sin guiones
+    public string?           RazonSocial             { get; init; } // razón social del emisor (para el PDF)
+    public byte[]?           CertificadoContenido    { get; init; } // bytes del .p12 o .crt/.pem
+    public string?           CertificadoPassword     { get; init; }
+    public byte[]?           CertificadoKeyContenido { get; init; } // bytes del .key (modo CRT+KEY)
+    public required bool     UsarHomologacion        { get; init; }
     public string?           IngresosBrutos      { get; init; }
     public DateTime?         InicioActividades   { get; init; }
 }

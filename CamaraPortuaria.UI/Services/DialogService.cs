@@ -36,9 +36,9 @@ public class DialogService : IDialogService
         await ShowAsync(dialog, dialog.Result.ContinueWith(_ => true));
     }
 
-    public Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null)
+    public Task<string?> ShowInputAsync(string title, string placeholder, string? initialValue = null, string? description = null)
     {
-        var dialog = new InputDialog(title, placeholder, initialValue);
+        var dialog = new InputDialog(title, placeholder, initialValue, description);
         return ShowAsync(dialog, dialog.Result);
     }
 
@@ -46,11 +46,29 @@ public class DialogService : IDialogService
     {
         // Cámara Portuaria aún no tiene visor embebido: abre el PDF en el visor externo del sistema.
         // Subdir único para que el archivo conserve el nombre lindo sin chocar con otros.
+        LimpiarPreviewsViejos();
         var carpeta = Path.Combine(Path.GetTempPath(), $"pbb_preview_{Guid.NewGuid():N}");
         Directory.CreateDirectory(carpeta);
         var ruta = Path.Combine(carpeta, $"{Formato.NombreArchivoSeguro(nombreArchivo)}.pdf");
         await File.WriteAllBytesAsync(ruta, pdfBytes);
         Process.Start(new ProcessStartInfo(ruta) { UseShellExecute = true });
+    }
+
+    /// <summary>P3-15 (parcial): borra los subdirectorios de preview de corridas anteriores (> 1 día).</summary>
+    private static void LimpiarPreviewsViejos()
+    {
+        try
+        {
+            var limite = DateTime.Now.AddDays(-1);
+            foreach (var dir in Directory.EnumerateDirectories(Path.GetTempPath(), "pbb_preview_*"))
+                try
+                {
+                    if (Directory.GetCreationTime(dir) < limite)
+                        Directory.Delete(dir, recursive: true);
+                }
+                catch { /* archivo en uso por el visor: se reintenta en la próxima corrida */ }
+        }
+        catch { /* nunca romper la preview por la limpieza */ }
     }
 
     public Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
@@ -59,6 +77,12 @@ public class DialogService : IDialogService
         IReadOnlyList<string> conceptos)
     {
         var dialog = new EmisionIndividualDialog(labelEntidad, entidades, conceptos);
+        return ShowAsync(dialog, dialog.Result);
+    }
+
+    public Task<CertificadoWizardResult?> ShowCertificadoWizardAsync(string razonSocial, string cuit, bool usarHomologacion)
+    {
+        var dialog = new CertificadoWizardDialog(razonSocial, cuit, usarHomologacion);
         return ShowAsync(dialog, dialog.Result);
     }
 

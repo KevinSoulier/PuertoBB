@@ -16,7 +16,6 @@ using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Infrastructure;
 using PuertoBB.Infrastructure.Data;
 using PuertoBB.Services;
-using PuertoBB.Services.Security;
 using Wpf.Ui;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -110,7 +109,6 @@ public partial class App : Application
             services.AddPuertoBBAfipMock();
         services.AddPuertoBBMail(usarFake: ModoDemo);
 
-        services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddTransient<IAfipConfigProvider, AfipConfigProvider>();
         services.AddTransient<IMailConfigProvider, MailConfigProvider>();
         services.AddTransient<IBackupService, BackupService>();

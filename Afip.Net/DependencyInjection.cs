@@ -1,4 +1,5 @@
 using Afip.Abstractions;
+using Afip.Padron;
 using Afip.Soap;
 using Afip.Wsaa;
 using Afip.Wsfe;
@@ -7,12 +8,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Afip;
 
-/// <summary>Registro del cliente AFIP (WSAA + WSFE) en el contenedor DI.</summary>
+/// <summary>Registro del cliente AFIP (WSAA + WSFE + Padrón) en el contenedor DI.</summary>
 public static class DependencyInjection
 {
     /// <summary>
     /// Registra el cliente AFIP. Por defecto cachea el Ticket de Acceso en memoria.
-    /// Para persistirlo cifrado a disco (recomendado en escritorio), registrá un
+    /// Para persistirlo en disco (recomendado en escritorio), registrá un
     /// <see cref="ITicketStore"/> antes de llamar a este método:
     /// <code>
     /// services.AddSingleton&lt;ITicketStore&gt;(new FileTicketStore(carpeta));
@@ -27,6 +28,8 @@ public static class DependencyInjection
         services.AddSingleton<TicketCache>();
         services.AddSingleton<ITicketProvider, TicketProvider>();
         services.AddSingleton<IWsfeService, WsfeService>();
+        services.AddSingleton<IPadronClient, PadronSoapClient>();
+        services.AddSingleton<IPadronService, PadronService>();
         return services;
     }
 }

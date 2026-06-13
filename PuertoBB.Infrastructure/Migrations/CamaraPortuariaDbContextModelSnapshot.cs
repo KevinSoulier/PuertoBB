@@ -192,8 +192,8 @@ namespace PuertoBB.Infrastructure.Migrations
                     b.Property<bool>("Activa")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CondicionIva")
-                        .HasColumnType("TEXT");
+                    b.Property<int?>("CondicionIvaId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -388,6 +388,12 @@ namespace PuertoBB.Infrastructure.Migrations
                     b.Property<bool>("Activo")
                         .HasColumnType("INTEGER");
 
+                    b.Property<byte[]>("CertificadoContenido")
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("CertificadoKeyContenido")
+                        .HasColumnType("BLOB");
+
                     b.Property<string>("CertificadoKeyRuta")
                         .HasColumnType("TEXT");
 
@@ -499,6 +505,9 @@ namespace PuertoBB.Infrastructure.Migrations
                     b.Property<string>("ReceptorCondicionIva")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("ReceptorCondicionIvaId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ReceptorCuit")
                         .IsRequired()

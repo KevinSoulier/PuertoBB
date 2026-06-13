@@ -1,5 +1,9 @@
 # Prompt de inicialización — PuertoBB
 
+> **Documento histórico** (anterior a la decisión D-21, 2026-06-11): el feature "apoderado
+> fiscal" descripto más abajo fue **eliminado** del producto. No usar este documento como
+> referencia del diseño actual — la fuente de verdad es `doc/`.
+
 Copiá todo el texto debajo de esta línea y pegalo como primer mensaje al agente.
 
 ---

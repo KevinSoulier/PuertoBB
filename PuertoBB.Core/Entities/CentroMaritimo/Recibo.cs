@@ -18,12 +18,14 @@ public class Recibo : BaseEntity
     /// <summary>Vínculo con la emisión de grupo que lo originó; null = individual o consolidado.</summary>
     public EmisionGrupo? EmisionGrupo { get; set; }
 
-    // Snapshot fiscal del receptor (copiado al emitir, inmutable — como los campos de apoderado)
+    // Snapshot fiscal del receptor (copiado al emitir, inmutable)
     public string  ReceptorNombre       { get; set; } = string.Empty;
     public string  ReceptorRazonSocial  { get; set; } = string.Empty;
     public string  ReceptorCuit         { get; set; } = string.Empty;
     public string? ReceptorDomicilio    { get; set; }
     public string? ReceptorCondicionIva { get; set; }
+    /// <summary>Código AFIP de la condición IVA del receptor al emitir (RG 5616); el texto de arriba se deriva del catálogo.</summary>
+    public int?    ReceptorCondicionIvaId { get; set; }
 
     public int     PeriodoAnio { get; set; }
     public int     PeriodoMes  { get; set; }
@@ -34,11 +36,6 @@ public class Recibo : BaseEntity
     public ICollection<ReciboLinea> Lineas { get; set; } = [];
 
     public bool EsConsolidadoVouchers { get; set; }
-
-    // Apoderado fiscal (copiado desde Configuracion al emitir, para inmutabilidad)
-    public bool    EsApoderado     { get; set; }
-    public string? NombreApoderado { get; set; }
-    public string? CuitApoderado   { get; set; }
 
     // Comprobante AFIP
     public int             PuntoDeVenta        { get; set; }

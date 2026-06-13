@@ -18,16 +18,12 @@ public static class CatalogoComprobantesAfip
 {
     /// <summary>
     /// Comprobantes principales seleccionables como "comprobante a emitir".
-    /// Recibos primero (uso actual), luego Facturas (futuro).
+    /// Solo clase C: la entidad emisora es IVA-exenta y no puede emitir A/B (AFIP las rechazaría).
     /// </summary>
     public static IReadOnlyList<ComprobanteAfipTipo> Principales { get; } =
     [
         new(15, "Recibo C",  ClaseFiscal.C),
-        new(9,  "Recibo B",  ClaseFiscal.B),
-        new(4,  "Recibo A",  ClaseFiscal.A),
         new(11, "Factura C", ClaseFiscal.C),
-        new(6,  "Factura B", ClaseFiscal.B),
-        new(1,  "Factura A", ClaseFiscal.A),
     ];
 
     /// <summary>Código AFIP de la Nota de Crédito por clase fiscal (A→3, B→8, C→13).</summary>

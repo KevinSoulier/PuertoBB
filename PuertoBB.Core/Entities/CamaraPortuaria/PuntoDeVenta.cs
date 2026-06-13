@@ -20,14 +20,24 @@ public class PuntoDeVenta : BaseEntity
     /// <summary>true = homologación (pruebas); false = producción.</summary>
     public bool UsarHomologacion { get; set; }
 
-    /// <summary>Ruta al certificado (.p12 en modo P12, .crt/.pem en modo CRT+KEY).</summary>
+    /// <summary>Nombre del archivo del certificado (solo para mostrar en la UI). El contenido real
+    /// va en <see cref="CertificadoContenido"/>.</summary>
     public string? CertificadoRuta { get; set; }
 
-    /// <summary>Contraseña del certificado cifrada en reposo. Null en modo CRT+KEY.</summary>
+    /// <summary>Contenido del certificado (.p12 en modo P12, .crt/.pem en modo CRT+KEY) guardado en la
+    /// base. Texto plano. Null si no hay certificado cargado.</summary>
+    public byte[]? CertificadoContenido { get; set; }
+
+    /// <summary>Contraseña del certificado en texto plano. Null en modo CRT+KEY.</summary>
     public string? CertificadoPassword { get; set; }
 
-    /// <summary>Ruta a la clave privada PEM (.key). Presente solo en modo CRT+KEY.</summary>
+    /// <summary>Nombre del archivo de la clave privada PEM (.key), solo para mostrar. El contenido va
+    /// en <see cref="CertificadoKeyContenido"/>. Presente solo en modo CRT+KEY.</summary>
     public string? CertificadoKeyRuta { get; set; }
+
+    /// <summary>Contenido de la clave privada PEM (.key) guardado en la base. Texto plano. Presente
+    /// solo en modo CRT+KEY.</summary>
+    public byte[]? CertificadoKeyContenido { get; set; }
 
     /// <summary>Punto de venta activo: el que usa la app para emitir. Solo uno puede estar activo.</summary>
     public bool Activo { get; set; }

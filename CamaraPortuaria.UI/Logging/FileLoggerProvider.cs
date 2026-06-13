@@ -94,7 +94,9 @@ internal sealed class FileLogger(string categoryName, FileLoggerProvider provide
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
-        if (exception is null) return;
+        // N-4: Warning+ se escribe siempre (rechazos AFIP, etc. llegan sin Exception);
+        // Information/Debug solo si traen excepción (logs chicos).
+        if (exception is null && logLevel < LogLevel.Warning) return;
         provider.Write(categoryName, logLevel, formatter(state, exception), exception);
     }
 }

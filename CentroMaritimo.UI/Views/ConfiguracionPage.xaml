@@ -16,84 +16,6 @@
         <TabControl Grid.Row="1" Margin="24,0,24,0" Background="Transparent" BorderThickness="0">
 
             <!-- ══════════════════════════════════════════
-                 EMISOR
-                 ══════════════════════════════════════════ -->
-            <TabItem Header="Emisor">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="False">
-                    <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="0,12,0,12">
-                        <TextBlock Text="Razón social" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding RazonSocial, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding EmisorEditando}" Margin="0,0,0,8" />
-                        <TextBlock Text="CUIT" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding Cuit, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding EmisorEditando}"
-                                 Width="200" HorizontalAlignment="Left" Margin="0,0,0,8" />
-                        <TextBlock Text="Ingresos Brutos" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding IngresosBrutos, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding EmisorEditando}"
-                                 Width="200" HorizontalAlignment="Left" Margin="0,0,0,8" />
-                        <TextBlock Text="Inicio de Actividades" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <DatePicker SelectedDate="{Binding InicioActividades, UpdateSourceTrigger=PropertyChanged}"
-                                    IsEnabled="{Binding EmisorEditando}"
-                                    Width="200" HorizontalAlignment="Left" Margin="0,0,0,16" />
-                        <StackPanel Orientation="Horizontal">
-                            <ui:Button Content="Editar" Command="{Binding EditarEmisorCommand}"
-                                       Style="{StaticResource AccionIconButton}"
-                                       Visibility="{Binding EmisorNoEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
-                            </ui:Button>
-                            <ui:Button Content="Guardar" Command="{Binding GuardarEmisorCommand}"
-                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
-                                       Visibility="{Binding EmisorEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                            </ui:Button>
-                            <ui:Button Content="Cancelar" Command="{Binding CancelarEmisorCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
-                                       Visibility="{Binding EmisorEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
-                            </ui:Button>
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ══════════════════════════════════════════
-                 APODERADO FISCAL
-                 ══════════════════════════════════════════ -->
-            <TabItem Header="Apoderado fiscal">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="False">
-                    <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="0,12,0,12">
-                        <CheckBox Content="Facturar como apoderado" IsChecked="{Binding UsarApoderado}"
-                                  IsEnabled="{Binding ApoderadoEditando}" Margin="0,0,0,8" />
-                        <TextBlock Text="Nombre del apoderado" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding NombreApoderado, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding ApoderadoEditando}" Margin="0,0,0,8" />
-                        <TextBlock Text="CUIT del apoderado" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding CuitApoderado, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding ApoderadoEditando}"
-                                 Width="200" HorizontalAlignment="Left" Margin="0,0,0,16" />
-                        <StackPanel Orientation="Horizontal">
-                            <ui:Button Content="Editar" Command="{Binding EditarApoderadoCommand}"
-                                       Style="{StaticResource AccionIconButton}"
-                                       Visibility="{Binding ApoderadoNoEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
-                            </ui:Button>
-                            <ui:Button Content="Guardar" Command="{Binding GuardarApoderadoCommand}"
-                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
-                                       Visibility="{Binding ApoderadoEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                            </ui:Button>
-                            <ui:Button Content="Cancelar" Command="{Binding CancelarApoderadoCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
-                                       Visibility="{Binding ApoderadoEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
-                            </ui:Button>
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ══════════════════════════════════════════
                  AFIP / ARCA
                  ══════════════════════════════════════════ -->
             <TabItem Header="AFIP / ARCA">
@@ -103,12 +25,61 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Sección: Códigos AFIP -->
+                        <!-- Sección: Datos del emisor -->
                         <StackPanel Grid.Row="0" Margin="0,0,0,8">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Bottom">
-                                <StackPanel>
+                            <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+                                <TextBlock Text="Datos del emisor" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                <!-- Campos en línea que se apilan al no entrar en el ancho (MaxWidth=640 del contenedor) -->
+                                <WrapPanel Margin="0,0,0,8">
+                                    <StackPanel Width="300" Margin="0,0,16,8">
+                                        <TextBlock Text="Razón social" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding RazonSocial, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding EmisorEditando}" />
+                                    </StackPanel>
+                                    <StackPanel Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="CUIT" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding Cuit, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding EmisorEditando}" />
+                                    </StackPanel>
+                                    <StackPanel Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="Ingresos Brutos" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding IngresosBrutos, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding EmisorEditando}" />
+                                    </StackPanel>
+                                    <StackPanel Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="Inicio de Actividades" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <DatePicker SelectedDate="{Binding InicioActividades, UpdateSourceTrigger=PropertyChanged}"
+                                                    IsEnabled="{Binding EmisorEditando}" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Button Content="Editar" Command="{Binding EditarEmisorCommand}"
+                                               Style="{StaticResource AccionIconButton}"
+                                               Visibility="{Binding EmisorNoEditando, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Guardar" Command="{Binding GuardarEmisorCommand}"
+                                               Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                               Visibility="{Binding EmisorEditando, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Cancelar" Command="{Binding CancelarEmisorCommand}"
+                                               Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               Visibility="{Binding EmisorEditando, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </StackPanel>
+                            </StackPanel>
+                            <Separator Margin="0,12,0,8" />
+                        </StackPanel>
+
+                        <!-- Sección: Códigos AFIP -->
+                        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                            <WrapPanel Margin="0,0,0,8">
+                                <StackPanel Margin="0,0,16,8">
                                     <TextBlock Text="Comprobante a emitir" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                                     <ComboBox ItemsSource="{Binding ComprobantesDisponibles}"
                                               DisplayMemberPath="Display"
@@ -116,11 +87,11 @@
                                               SelectedValue="{Binding CodigoAfipRecibo}"
                                               IsEnabled="{Binding CodigosAfipEditando}" Width="200" />
                                 </StackPanel>
-                                <StackPanel Margin="16,0,0,0">
+                                <StackPanel Margin="0,0,16,8">
                                     <TextBlock Text="Nota de Crédito (automática)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                                     <TextBlock Text="{Binding NotaDeCreditoDisplay}" VerticalAlignment="Center" Margin="0,6,0,0" />
                                 </StackPanel>
-                            </StackPanel>
+                            </WrapPanel>
                             <StackPanel Orientation="Horizontal">
                                 <ui:Button Content="Editar" Command="{Binding EditarCodigosAfipCommand}"
                                            Style="{StaticResource AccionIconButton}"
@@ -141,22 +112,22 @@
                         </StackPanel>
 
                         <!-- Header Puntos de venta -->
-                        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                        <StackPanel Grid.Row="2" Margin="0,0,0,8">
                             <Separator Margin="0,0,0,8" />
                             <TextBlock Text="Puntos de venta" FontWeight="SemiBold" Margin="0,0,0,2" />
                             <TextBlock Text="Cargá uno o más puntos de venta (ej. uno de homologación y otro de producción) y marcá cuál está activo. El activo define el número, el ambiente y el certificado que usa la app al emitir."
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" />
                         </StackPanel>
 
-                        <!-- Layout master-detail -->
-                        <Grid Grid.Row="2">
+                        <!-- Layout master-detail: formulario izquierda | lista derecha -->
+                        <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="300" />
+                                <ColumnDefinition Width="360" />
                                 <ColumnDefinition Width="16" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Columna izquierda: card + botones fuera del Border -->
+                            <!-- Columna izquierda: formulario de alta/edición (IsEnabled deshabilita campos internos) -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Top">
                                 <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -164,29 +135,37 @@
                                         IsEnabled="{Binding PvFormEditando}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding TituloEdicion}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                        <!-- Campos del punto de venta: ancho uniforme (estiran al ancho del formulario) -->
                                         <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding EdNombre, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
-                                        <TextBlock Text="Número de punto de venta" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                        <TextBox Text="{Binding EdNumero, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left" Margin="0,0,0,8" />
                                         <CheckBox Content="Usar homologación (solo pruebas)" IsChecked="{Binding EdUsarHomologacion}" Margin="0,0,0,4" />
                                         <TextBlock Text="{Binding AmbienteEdicion}" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" FontSize="11" />
-                                        <!-- Selector de modo de certificado -->
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" Margin="0,0,0,8" />
+                                        <TextBlock Text="Número de punto de venta" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding EdNumero, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                                         <TextBlock Text="Tipo de certificado" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                            <RadioButton Content="P12 (con contraseña)" IsChecked="{Binding EdUsarModoP12}" GroupName="CertModo" Margin="0,0,16,0" />
-                                            <RadioButton Content="CRT + KEY (sin contraseña)" IsChecked="{Binding EdUsarModoCrtKey}" GroupName="CertModo" />
-                                        </StackPanel>
+                                        <RadioButton Content="P12 (con contraseña)" IsChecked="{Binding EdModoP12}" />
+                                        <RadioButton Content="CRT + KEY (sin contraseña)" IsChecked="{Binding EdModoCrtKey}" Margin="0,0,0,8" />
+                                        <ui:Button Content="Generar certificado nuevo…" Command="{Binding GenerarCertificadoCommand}"
+                                                   Style="{StaticResource AccionIconButton}" Margin="0,0,0,8"
+                                                   ToolTip="Crea la clave privada y el CSR para tramitar un certificado en AFIP. Al terminar, la clave queda cargada en modo CRT+KEY.">
+                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Key24" /></ui:Button.Icon>
+                                        </ui:Button>
                                         <!-- Modo P12 -->
-                                        <StackPanel Visibility="{Binding EdUsarModoP12, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Visibility="{Binding EdModoP12, Converter={StaticResource BoolToVis}}">
                                             <TextBlock Text="Certificado (.p12)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <TextBox Text="{Binding EdCertificadoRuta}" MinWidth="120" HorizontalAlignment="Stretch" IsReadOnly="True" />
-                                                <ui:Button Content="Examinar…" Command="{Binding SeleccionarCertificadoCommand}"
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Text="{Binding EdCertificadoRuta}" IsReadOnly="True"
+                                                         VerticalAlignment="Center" ToolTip="{Binding EdCertificadoRuta}" />
+                                                <ui:Button Grid.Column="1" Content="Examinar…" Command="{Binding SeleccionarCertificadoCommand}"
                                                            Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
                                                     <ui:Button.Icon><ui:SymbolIcon Symbol="FolderOpen24" /></ui:Button.Icon>
                                                 </ui:Button>
-                                            </StackPanel>
+                                            </Grid>
                                             <TextBlock Text="Contraseña del certificado" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -209,33 +188,55 @@
                                             </Grid>
                                         </StackPanel>
                                         <!-- Modo CRT + KEY -->
-                                        <StackPanel Visibility="{Binding EdUsarModoCrtKey, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Visibility="{Binding EdModoCrtKey, Converter={StaticResource BoolToVis}}">
                                             <TextBlock Text="Certificado (.crt / .pem)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <TextBox Text="{Binding EdCertificadoRuta}" MinWidth="120" HorizontalAlignment="Stretch" IsReadOnly="True" />
-                                                <ui:Button Content="Examinar…" Command="{Binding SeleccionarCertificadoCommand}"
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Text="{Binding EdCertificadoRuta}" IsReadOnly="True"
+                                                         VerticalAlignment="Center" ToolTip="{Binding EdCertificadoRuta}" />
+                                                <ui:Button Grid.Column="1" Content="Examinar…" Command="{Binding SeleccionarCertificadoCommand}"
                                                            Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
                                                     <ui:Button.Icon><ui:SymbolIcon Symbol="FolderOpen24" /></ui:Button.Icon>
                                                 </ui:Button>
-                                            </StackPanel>
+                                            </Grid>
                                             <TextBlock Text="Clave privada (.key / .pem)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
-                                                <TextBox Text="{Binding EdCertificadoKeyRuta}" MinWidth="120" HorizontalAlignment="Stretch" IsReadOnly="True" />
-                                                <ui:Button Content="Examinar…" Command="{Binding SeleccionarClaveKeyCommand}"
+                                            <Grid Margin="0,0,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Text="{Binding EdCertificadoKeyRuta}" IsReadOnly="True"
+                                                         VerticalAlignment="Center" ToolTip="{Binding EdCertificadoKeyRuta}" />
+                                                <ui:Button Grid.Column="1" Content="Examinar…" Command="{Binding SeleccionarClaveKeyCommand}"
                                                            Style="{StaticResource AccionIconButton}" Margin="8,0,0,0">
                                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Key24" /></ui:Button.Icon>
                                                 </ui:Button>
-                                            </StackPanel>
+                                            </Grid>
+                                            <WrapPanel Margin="0,8,0,0">
+                                                <ui:Button Content="Descargar .crt…" Command="{Binding DescargarCrtCommand}" IsEnabled="{Binding EdTieneCrt}"
+                                                           Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                                           ToolTip="Guarda el certificado (.crt) cargado a un archivo.">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                                <ui:Button Content="Descargar .key…" Command="{Binding DescargarKeyCommand}" IsEnabled="{Binding EdTieneKey}"
+                                                           Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                                           ToolTip="Guarda la clave privada (.key) a un archivo. Útil para respaldo si el certificado se generó en la app.">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                                <ui:Button Content="Exportar .p12…" Command="{Binding ExportarP12Command}" IsEnabled="{Binding EdPuedeExportarP12}"
+                                                           Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                                           ToolTip="Combina el .crt y la clave en un único archivo .p12 protegido por contraseña.">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                            </WrapPanel>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
-                                <!-- Botones FUERA del Border: siempre habilitados -->
+                                <!-- Botones FUERA del Border: Guardar/Cancelar (Nuevo y Editar van arriba de la lista) -->
                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <ui:Button Content="Editar" Command="{Binding EditarPuntoCommand}"
-                                               Style="{StaticResource AccionIconButton}"
-                                               Visibility="{Binding PvFormNoEditando, Converter={StaticResource BoolToVis}}">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
-                                    </ui:Button>
                                     <ui:Button Content="Guardar punto" Command="{Binding GuardarPuntoCommand}"
                                                Style="{StaticResource AccionIconButton}" Appearance="Primary"
                                                Visibility="{Binding PvFormEditando, Converter={StaticResource BoolToVis}}">
@@ -249,9 +250,10 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <!-- Lista y acciones -->
+                            <!-- Columna derecha: lista y acciones (deshabilitadas mientras se edita un punto: PvFormNoEditando) -->
                             <StackPanel Grid.Column="2">
                                 <DataGrid ItemsSource="{Binding PuntosDeVenta}" SelectedItem="{Binding PuntoSeleccionado}"
+                                          IsEnabled="{Binding PvFormNoEditando}"
                                           AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                                           CanUserAddRows="False" CanUserResizeRows="False" GridLinesVisibility="Horizontal"
                                           Height="180" Margin="0,0,0,6" SelectionMode="Single">
@@ -264,18 +266,27 @@
                                 </DataGrid>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                     <ui:Button Content="Nuevo" Command="{Binding NuevoPuntoCommand}" Style="{StaticResource AccionIconButton}"
+                                               IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Agregar un nuevo punto de venta">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                                     </ui:Button>
+                                    <ui:Button Content="Editar" Command="{Binding EditarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               IsEnabled="{Binding PvFormNoEditando}"
+                                               ToolTip="Editar el punto de venta seleccionado">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                                    </ui:Button>
                                     <ui:Button Content="Marcar activo" Command="{Binding MarcarActivoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Usar este punto de venta para emitir (solo uno puede estar activo)">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Checkmark24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Content="Eliminar" Command="{Binding EliminarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Eliminar el punto de venta seleccionado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Content="Probar conexión" Command="{Binding ProbarConexionCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Verificar el servicio AFIP y la autenticación con el certificado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
                                     </ui:Button>

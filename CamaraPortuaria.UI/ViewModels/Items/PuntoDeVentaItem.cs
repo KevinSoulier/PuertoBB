@@ -8,11 +8,13 @@ public class PuntoDeVentaItem
     public int     Id                  { get; init; }
     public string  Nombre              { get; init; } = string.Empty;
     public int     Numero              { get; init; }
-    public bool    UsarHomologacion    { get; init; }
-    public string? CertificadoRuta     { get; init; }
-    public string? CertificadoPassword { get; init; }
-    public string? CertificadoKeyRuta  { get; init; }
-    public bool    Activo              { get; init; }
+    public bool    UsarHomologacion        { get; init; }
+    public string? CertificadoRuta         { get; init; }
+    public byte[]? CertificadoContenido    { get; init; }
+    public string? CertificadoPassword     { get; init; }
+    public string? CertificadoKeyRuta      { get; init; }
+    public byte[]? CertificadoKeyContenido { get; init; }
+    public bool    Activo                  { get; init; }
 
     public string Ambiente    => UsarHomologacion ? "Homologación" : "Producción";
     public string ActivoTexto => Activo ? "● Activo" : string.Empty;
@@ -24,8 +26,10 @@ public class PuntoDeVentaItem
         Numero = p.Numero,
         UsarHomologacion = p.UsarHomologacion,
         CertificadoRuta = p.CertificadoRuta,
+        CertificadoContenido = p.CertificadoContenido,
         CertificadoPassword = p.CertificadoPassword,
         CertificadoKeyRuta = p.CertificadoKeyRuta,
+        CertificadoKeyContenido = p.CertificadoKeyContenido,
         Activo = p.Activo
     };
 }

@@ -7,7 +7,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -15,7 +14,7 @@
         <TextBlock Grid.Row="0" Text="Vouchers" Style="{StaticResource PageTitle}" />
 
         <!-- Barra de búsqueda: período con mes por nombre y año editable -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
             <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
@@ -47,8 +46,8 @@
             </ui:Button>
         </StackPanel>
 
-        <!-- Grilla: los vouchers consolidados quedan como referencia con su estado (VOU-8). Doble-click en la fila → editar -->
-        <DataGrid Grid.Row="3" ItemsSource="{Binding Vouchers}" SelectedItem="{Binding Seleccionado}"
+        <!-- Grilla: los vouchers consolidados quedan visibles como referencia (sin estado; el estado se ve en Cierre de Período). Doble-click en la fila → editar -->
+        <DataGrid Grid.Row="2" ItemsSource="{Binding Vouchers}" SelectedItem="{Binding Seleccionado}"
                   AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal" CanUserAddRows="False"
                   SelectionMode="Single"
@@ -59,23 +58,11 @@
                 <DataGridTextColumn Header="Barco" Binding="{Binding Barco}" Width="*" />
                 <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha}" Width="100" />
                 <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="120" />
-                <DataGridTemplateColumn Header="Estado" Width="110">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Border Background="{Binding EstadoTexto, Converter={StaticResource EstadoReciboToBrushConverter}}"
-                                    CornerRadius="10" Padding="10,3" HorizontalAlignment="Left" Margin="4,0">
-                                <TextBlock Text="{Binding EstadoTexto}"
-                                           FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{Binding EstadoTexto, Converter={StaticResource EstadoReciboToFgBrushConverter}}" />
-                            </Border>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 
         <!-- Formulario nuevo / edición (VOU-2, VOU-3, VOU-7) -->
-        <Border Grid.Row="4" Margin="0,16,0,0" Padding="16" CornerRadius="8"
+        <Border Grid.Row="3" Margin="0,16,0,0" Padding="16" CornerRadius="8"
                 Background="{DynamicResource LayerFillColorDefaultBrush}">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
