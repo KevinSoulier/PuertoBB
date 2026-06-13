@@ -191,13 +191,26 @@ public class Configuracion : BaseEntity
 
     public int DiasVencimiento { get; set; } = 30;
 
-    // Mail saliente (SmtpPassword en texto plano)
+    // Mail saliente (secretos en texto plano)
     public string? SmtpHost       { get; set; }
     public int     SmtpPort       { get; set; }
     public int     SmtpSeguridad  { get; set; } = 0; // 0=Auto, 1=SslOnConnect, 2=None
     public string? SmtpUsuario    { get; set; }
     public string? SmtpPassword   { get; set; }
     public string? EmailRemitente { get; set; }
+
+    // Autenticación de correo (ver D-26)
+    public int Autenticacion  { get; set; } = 1; // 0=Ninguna, 1=Básica, 2=OAuth2
+    public int OAuthProveedor { get; set; } = 0; // 0=Microsoft, 1=Google, 2=Personalizado
+    public int OAuthFlujo     { get; set; } = 0; // 0=Interactivo, 1=Cliente
+    public string? OAuthClientId          { get; set; }
+    public string? OAuthClientSecret      { get; set; }
+    public string? OAuthTenantId          { get; set; }
+    public string? OAuthScope             { get; set; }
+    public string? OAuthAuthorizeEndpoint { get; set; } // solo Personalizado
+    public string? OAuthTokenEndpoint     { get; set; } // solo Personalizado
+    public string? OAuthRefreshToken      { get; set; } // del flujo interactivo
+    public string? OAuthUsuario           { get; set; } // email autenticado (login XOAUTH2)
 }
 ```
 
@@ -434,13 +447,22 @@ public class Configuracion : BaseEntity
 
     public int DiasVencimiento { get; set; } = 30;
 
-    // Mail saliente (SmtpPassword en texto plano)
+    // Mail saliente (secretos en texto plano)
     public string? SmtpHost       { get; set; }
     public int     SmtpPort       { get; set; }
     public int     SmtpSeguridad  { get; set; } = 0;
     public string? SmtpUsuario    { get; set; }
     public string? SmtpPassword   { get; set; }
     public string? EmailRemitente { get; set; }
+
+    // Autenticación de correo (ver D-26): mismos campos que CentroMaritimo.Configuracion
+    public int Autenticacion  { get; set; } = 1; // 0=Ninguna, 1=Básica, 2=OAuth2
+    public int OAuthProveedor { get; set; } = 0; // 0=Microsoft, 1=Google, 2=Personalizado
+    public int OAuthFlujo     { get; set; } = 0; // 0=Interactivo, 1=Cliente
+    public string? OAuthClientId, OAuthClientSecret, OAuthTenantId, OAuthScope;
+    public string? OAuthAuthorizeEndpoint, OAuthTokenEndpoint; // solo Personalizado
+    public string? OAuthRefreshToken; // del flujo interactivo
+    public string? OAuthUsuario;      // email autenticado (login XOAUTH2)
 }
 ```
 
@@ -484,6 +506,7 @@ public enum TipoComprobante { Recibo, NotaDeCredito }
 | `ReciboLinea` como entidad propia | Sí | Snapshot inmutable del detalle; el detalle mostrado/enviado sale siempre de las líneas |
 | Estado `Pendiente` | Persiste antes de pedir CAE | Hace la emisión idempotente y reintentable tras un fallo |
 | `PuntoDeVenta` como entidad | Sí | Permite cargar varios (ej. homologación + producción); el activo determina número, ambiente y certificado |
-| Secretos (SMTP password, certificado, contraseña del cert) | Texto plano en la base | Sin cifrado por decisión del usuario (D-24); el certificado se guarda como BLOB en `PuntoDeVenta` e ingresa en el backup |
+| Secretos (SMTP password, OAuth client secret / refresh token, certificado, contraseña del cert) | Texto plano en la base | Sin cifrado por decisión del usuario (D-24); el certificado se guarda como BLOB en `PuntoDeVenta` e ingresa en el backup |
+| Autenticación de correo | `Ninguna`/`Básica`/`OAuth2` en `Configuracion` | OAuth2 (XOAUTH2) es obligatorio para Microsoft 365/Outlook; básica cubre Gmail (app password), servicios y SMTP propios (D-26) |
 | NC por mail | Opcional en el dialog | Checkbox al anular: "Enviar notificación por mail" (default: true) |
 | PDF de recibos | Regenerado a demanda | Volumen bajo; template consistente garantiza mismo resultado |

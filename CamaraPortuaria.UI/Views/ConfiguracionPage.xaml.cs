@@ -25,6 +25,7 @@ public partial class ConfiguracionPage : Page
     {
         CertPasswordBox.Password = _vm.EdCertificadoPassword ?? string.Empty;
         SmtpPasswordBox.Password = _vm.SmtpPassword ?? string.Empty;
+        OAuthClientSecretBox.Password = _vm.OAuthClientSecret ?? string.Empty;
         ThemeSelector.SelectedIndex = PreferenciasUsuario.GetTema() switch
         {
             "Light" => 0,
@@ -49,6 +50,11 @@ public partial class ConfiguracionPage : Page
             var actual = _vm.SmtpPassword ?? string.Empty;
             if (SmtpPasswordBox.Password != actual) SmtpPasswordBox.Password = actual;
         }
+        else if (e.PropertyName == nameof(_vm.OAuthClientSecret))
+        {
+            var actual = _vm.OAuthClientSecret ?? string.Empty;
+            if (OAuthClientSecretBox.Password != actual) OAuthClientSecretBox.Password = actual;
+        }
     }
 
     private void CertPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -56,6 +62,9 @@ public partial class ConfiguracionPage : Page
 
     private void SmtpPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         => _vm.SmtpPassword = SmtpPasswordBox.Password;
+
+    private void OAuthClientSecretBox_PasswordChanged(object sender, RoutedEventArgs e)
+        => _vm.OAuthClientSecret = OAuthClientSecretBox.Password;
 
     private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

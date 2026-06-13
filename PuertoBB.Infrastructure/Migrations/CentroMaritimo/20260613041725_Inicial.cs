@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
+namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 {
     /// <inheritdoc />
     public partial class Inicial : Migration
@@ -82,6 +82,17 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                     SmtpUsuario = table.Column<string>(type: "TEXT", nullable: true),
                     SmtpPassword = table.Column<string>(type: "TEXT", nullable: true),
                     EmailRemitente = table.Column<string>(type: "TEXT", nullable: true),
+                    Autenticacion = table.Column<int>(type: "INTEGER", nullable: false),
+                    OAuthProveedor = table.Column<int>(type: "INTEGER", nullable: false),
+                    OAuthFlujo = table.Column<int>(type: "INTEGER", nullable: false),
+                    OAuthClientId = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthClientSecret = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthTenantId = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthScope = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthAuthorizeEndpoint = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthTokenEndpoint = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthRefreshToken = table.Column<string>(type: "TEXT", nullable: true),
+                    OAuthUsuario = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
@@ -402,8 +413,8 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
 
             migrationBuilder.InsertData(
                 table: "Configuraciones",
-                columns: new[] { "Id", "CodigoAfipNotaDeCredito", "CodigoAfipRecibo", "CreatedAt", "Cuit", "DiasVencimiento", "EmailRemitente", "ImporteVoucherPredeterminado", "IngresosBrutos", "InicioActividades", "RazonSocial", "SmtpHost", "SmtpPassword", "SmtpPort", "SmtpSeguridad", "SmtpUsuario", "UpdatedAt" },
-                values: new object[] { 1, 13, 11, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "", 30, null, 0m, null, null, "", null, null, 587, 0, null, null });
+                columns: new[] { "Id", "Autenticacion", "CodigoAfipNotaDeCredito", "CodigoAfipRecibo", "CreatedAt", "Cuit", "DiasVencimiento", "EmailRemitente", "ImporteVoucherPredeterminado", "IngresosBrutos", "InicioActividades", "OAuthAuthorizeEndpoint", "OAuthClientId", "OAuthClientSecret", "OAuthFlujo", "OAuthProveedor", "OAuthRefreshToken", "OAuthScope", "OAuthTenantId", "OAuthTokenEndpoint", "OAuthUsuario", "RazonSocial", "SmtpHost", "SmtpPassword", "SmtpPort", "SmtpSeguridad", "SmtpUsuario", "UpdatedAt" },
+                values: new object[] { 1, 1, 13, 11, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "", 30, null, 0m, null, null, null, null, null, 0, 0, null, null, null, null, null, "", null, null, 587, 0, null, null });
 
             migrationBuilder.InsertData(
                 table: "Contadores",

@@ -19,6 +19,14 @@
 > **"Validar en ARCA"** en el ABM de empresas/agencias. Tests: **159 verdes**. Las apps corren con
 > `Afip = "Real"` apuntando a homologación.
 
+> **Actualización 2026-06-13 (D-26):** **autenticación de correo flexible** — selector
+> `Ninguna`/`Básica`/`OAuth2` en Configuración → Correo. OAuth2 (XOAUTH2 vía `SaslMechanismOAuth2`) con
+> proveedor Microsoft/Google/Personalizado y **ambos flujos** (Interactivo con PKCE+loopback / Cliente con
+> client-credentials). Resuelve el `535 5.7.139` de Microsoft 365/Outlook. `MailService` ahora autentica por
+> OAuth2; nuevas piezas `OAuthPresets`/`OAuthTokenProvider`/`OAuthInteractiveFlow`/`MailErrores`. Migraciones
+> reorganizadas a una carpeta por contexto (`Migrations/CamaraPortuaria` y `Migrations/CentroMaritimo`).
+> Tests: **195 verdes**. Docs: `doc/usuario/correo-oauth.md`.
+
 ---
 
 ## Qué quedó implementado

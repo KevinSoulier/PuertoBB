@@ -80,19 +80,21 @@ public class CierrePeriodoViewModel : PageViewModel
         EmitirReciboAgenciaCommand = new AsyncRelayCommand(
             p => EmitirReciboAgenciaAsync(p as AgenciaCierrePeriodoVm),
             p => (p as AgenciaCierrePeriodoVm)?.Estado == EstadoCierreAgencia.Pendiente);
+        // Reenviable siempre que haya recibo (Emitido o Completo); en Pendiente no hay nada que enviar.
         EnviarMailAgenciaCommand = new AsyncRelayCommand(
             p => EnviarMailAgenciaAsync(p as AgenciaCierrePeriodoVm),
-            p => (p as AgenciaCierrePeriodoVm)?.Estado == EstadoCierreAgencia.Emitido
-                 && (p as AgenciaCierrePeriodoVm)?.ReciboId is not null);
+            p => (p as AgenciaCierrePeriodoVm)?.ReciboId is not null);
         EmitirRecibosCommand = new AsyncRelayCommand(
             EmitirRecibosPeriodoAsync,
             () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Pendiente));
+        // Envía/reenvía a todas las agencias con recibo (incluye las ya enviadas).
         EnviarMailsCommand = new AsyncRelayCommand(
             EnviarMailsPeriodoAsync,
-            () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Emitido && a.ReciboId is not null));
+            () => Agencias.Any(a => a.ReciboId is not null));
+        // Genera+envía los pendientes; si ya está todo generado, reenvía los mails.
         CerrarCommand = new AsyncRelayCommand(
             CerrarPeriodoAsync,
-            () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Pendiente));
+            () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Pendiente || a.ReciboId is not null));
 
         _ = CargarAsync();
     }
@@ -182,12 +184,20 @@ public class CierrePeriodoViewModel : PageViewModel
 
     private async Task EnviarMailsPeriodoAsync()
     {
-        var conRecibo = Agencias.Where(a => a.Estado == EstadoCierreAgencia.Emitido && a.ReciboId is not null).ToList();
-        if (conRecibo.Count == 0) { MostrarError("No hay recibos emitidos pendientes de envío."); return; }
+        // Todas las agencias con recibo generado (incluye las ya enviadas → reenvío).
+        var conRecibo = Agencias.Where(a => a.ReciboId is not null).ToList();
+        if (conRecibo.Count == 0) { MostrarError("No hay recibos generados para enviar."); return; }
 
         if (!await _dialog.ShowConfirmAsync("Enviar mails",
-                $"Se enviará el mail con el PDF consolidado a {conRecibo.Count} agencia(s) con recibo emitido del período {Formato.Periodo(Anio, _mes)}. ¿Continuar?")) return;
+                $"Se enviará (o reenviará) el mail con el PDF consolidado a {conRecibo.Count} agencia(s) con recibo del período {Formato.Periodo(Anio, _mes)}. ¿Continuar?")) return;
 
+        await ReenviarMailsAsync(conRecibo);
+        await CargarAsync();
+    }
+
+    /// <summary>Reenvía el mail del recibo de cada agencia (siempre, sin importar si ya fue enviado) y resume el resultado.</summary>
+    private async Task ReenviarMailsAsync(IReadOnlyList<AgenciaCierrePeriodoVm> conRecibo)
+    {
         IsBusy = true;
         int ok = 0;
         var errores = new List<string>();
@@ -205,28 +215,40 @@ public class CierrePeriodoViewModel : PageViewModel
             else MostrarAdvertencia($"Envío parcial: {ok} correctos, {errores.Count} con error. Primer error: {errores[0]}");
         }
         finally { IsBusy = false; }
-
-        await CargarAsync();
     }
 
     private async Task CerrarPeriodoAsync()
     {
         var pendientes = Agencias.Count(a => a.Estado == EstadoCierreAgencia.Pendiente);
-        if (pendientes == 0) { MostrarError("No hay agencias pendientes en el período."); return; }
 
-        if (!await _dialog.ShowConfirmAsync("Cerrar período",
-                $"Se generará un recibo consolidado para {pendientes} agencia(s) pendiente(s) del período {Formato.Periodo(Anio, _mes)} y se enviarán por mail. ¿Continuar?")) return;
-
-        IsBusy = true;
-        try
+        // Con agencias pendientes: generar+enviar solo esas (no reenvía las ya enviadas).
+        if (pendientes > 0)
         {
-            var res = await _reciboService.CerrarPeriodoAsync(Anio, _mes);
-            if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo cerrar el período."); return; }
+            if (!await _dialog.ShowConfirmAsync("Cerrar período",
+                    $"Se generará un recibo consolidado para {pendientes} agencia(s) pendiente(s) del período {Formato.Periodo(Anio, _mes)} y se enviarán por mail. ¿Continuar?")) return;
 
-            MostrarResultadoMasivo(res.Data, "Cierre", "Mails enviados.");
+            IsBusy = true;
+            try
+            {
+                var res = await _reciboService.CerrarPeriodoAsync(Anio, _mes);
+                if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo cerrar el período."); return; }
+
+                MostrarResultadoMasivo(res.Data, "Cierre", "Mails enviados.");
+            }
+            finally { IsBusy = false; }
+
+            await CargarAsync();
+            return;
         }
-        finally { IsBusy = false; }
 
+        // Todo el período ya está generado → reenviar el mail a todas las agencias con recibo.
+        var conRecibo = Agencias.Where(a => a.ReciboId is not null).ToList();
+        if (conRecibo.Count == 0) { MostrarError("No hay agencias con vouchers ni recibos en el período."); return; }
+
+        if (!await _dialog.ShowConfirmAsync("Reenviar mails",
+                $"El período ya está cerrado: todos los recibos están generados. Se reenviará el mail con el PDF consolidado a {conRecibo.Count} agencia(s). ¿Continuar?")) return;
+
+        await ReenviarMailsAsync(conRecibo);
         await CargarAsync();
     }
 

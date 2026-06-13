@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Services.Afip;
 using PuertoBB.Services.Mail;
+using PuertoBB.Services.Mail.Oauth;
 using PuertoBB.Services.Negocio;
 using PuertoBB.Services.Pdf;
 
@@ -53,9 +54,13 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>Mail: real (MailKit) o FakeMailService para desarrollo/testing.</summary>
+    /// <summary>Mail: real (MailKit) o FakeMailService para desarrollo/testing.
+    /// El proveedor de tokens OAuth2 y el flujo interactivo se registran siempre para que la pantalla de
+    /// Configuración pueda gestionar OAuth aun en modo demo.</summary>
     public static IServiceCollection AddPuertoBBMail(this IServiceCollection services, bool usarFake)
     {
+        services.AddSingleton<IMailTokenProvider, OAuthTokenProvider>();
+        services.AddTransient<IOAuthInteractiveFlow, OAuthInteractiveFlow>();
         if (usarFake)
             services.AddSingleton<IMailService, FakeMailService>();
         else

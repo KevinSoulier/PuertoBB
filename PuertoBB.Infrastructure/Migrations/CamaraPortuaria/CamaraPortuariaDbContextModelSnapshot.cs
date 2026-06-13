@@ -7,7 +7,7 @@ using PuertoBB.Infrastructure.Data;
 
 #nullable disable
 
-namespace PuertoBB.Infrastructure.Migrations
+namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 {
     [DbContext(typeof(CamaraPortuariaDbContext))]
     partial class CamaraPortuariaDbContextModelSnapshot : ModelSnapshot
@@ -48,6 +48,9 @@ namespace PuertoBB.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Autenticacion")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("CodigoAfipNotaDeCredito")
                         .HasColumnType("INTEGER");
 
@@ -72,6 +75,36 @@ namespace PuertoBB.Infrastructure.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("InicioActividades")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthAuthorizeEndpoint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthClientSecret")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OAuthFlujo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OAuthProveedor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OAuthRefreshToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthScope")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthTenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthTokenEndpoint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthUsuario")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RazonSocial")
@@ -104,11 +137,14 @@ namespace PuertoBB.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
+                            Autenticacion = 1,
                             CodigoAfipNotaDeCredito = 13,
                             CodigoAfipRecibo = 11,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 30,
+                            OAuthFlujo = 0,
+                            OAuthProveedor = 0,
                             RazonSocial = "",
                             SmtpPort = 587,
                             SmtpSeguridad = 0

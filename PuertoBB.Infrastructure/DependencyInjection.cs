@@ -15,7 +15,10 @@ public static class DependencyInjection
     {
         // Transient: cada repositorio recibe su propio DbContext de vida corta (app unipersonal,
         // operaciones secuenciales) — evita un contexto compartido con tracking obsoleto entre páginas.
-        services.AddDbContext<CamaraPortuariaDbContext>(o => o.UseSqlite($"Data Source={dbPath}"), ServiceLifetime.Transient);
+        services.AddDbContext<CamaraPortuariaDbContext>(
+            o => o.UseSqlite($"Data Source={dbPath}",
+                sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)),
+            ServiceLifetime.Transient);
 
         services.AddTransient<CpIntf.IEmpresaRepository, CpRepos.EmpresaRepository>();
         services.AddTransient<CpIntf.IGrupoFacturacionRepository, CpRepos.GrupoFacturacionRepository>();
@@ -29,7 +32,10 @@ public static class DependencyInjection
 
     public static IServiceCollection AddCentroMaritimoInfrastructure(this IServiceCollection services, string dbPath)
     {
-        services.AddDbContext<CentroMaritimoDbContext>(o => o.UseSqlite($"Data Source={dbPath}"), ServiceLifetime.Transient);
+        services.AddDbContext<CentroMaritimoDbContext>(
+            o => o.UseSqlite($"Data Source={dbPath}",
+                sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)),
+            ServiceLifetime.Transient);
 
         services.AddTransient<CmIntf.IAgenciaRepository, CmRepos.AgenciaRepository>();
         services.AddTransient<CmIntf.IGrupoFacturacionRepository, CmRepos.GrupoFacturacionRepository>();

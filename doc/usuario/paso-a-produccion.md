@@ -45,9 +45,16 @@ orden, todo desde la página **Configuración**:
    [afip-configuracion.md](afip-configuracion.md).
 3. **Probar conexión**: el botón valida servicio + autenticación y muestra el último
    comprobante emitido. No emitir nada hasta que esta prueba dé OK.
-4. **Correo**: servidor SMTP, puerto, seguridad, usuario, contraseña y remitente. La
-   contraseña se guarda cifrada. Probar con un reenvío a una casilla propia antes del primer
-   envío masivo.
+4. **Correo**: servidor SMTP, puerto, seguridad, remitente y **autenticación**:
+   - **Básica** (usuario + contraseña): cubre Gmail con **contraseña de aplicación**,
+     servicios como Brevo/SendGrid/SES (API key como contraseña), Yahoo, Zoho y SMTP propios.
+   - **OAuth2**: obligatorio para **Microsoft 365 / Outlook**, que deshabilitó la auth básica
+     (error `535 5.7.139`). Soporta flujo *Interactivo* (iniciar sesión en el navegador, una vez)
+     o *Cliente* (Azure app, sin navegador). El paso a paso está en [correo-oauth.md](correo-oauth.md).
+
+   Los secretos (contraseña, client secret, refresh token) se guardan en texto plano en la
+   base (app unipersonal; ver decisión D-24). Probar con un reenvío a una casilla propia antes
+   del primer envío masivo.
 5. **Comprobante a emitir** (pestaña AFIP/ARCA): verificar el tipo (por defecto Recibo C,
    código 15; la nota de crédito asociada se deriva sola).
 6. Cargar las **entidades** (Empresas o Agencias, con sus emails), los **Grupos de

@@ -2,20 +2,17 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PuertoBB.Infrastructure.Data;
 
 #nullable disable
 
-namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
+namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 {
     [DbContext(typeof(CentroMaritimoDbContext))]
-    [Migration("20260612162603_Inicial")]
-    partial class Inicial
+    partial class CentroMaritimoDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -153,6 +150,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Autenticacion")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("CodigoAfipNotaDeCredito")
                         .HasColumnType("INTEGER");
 
@@ -180,6 +180,36 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("InicioActividades")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthAuthorizeEndpoint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthClientSecret")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OAuthFlujo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OAuthProveedor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OAuthRefreshToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthScope")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthTenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthTokenEndpoint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OAuthUsuario")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RazonSocial")
@@ -212,12 +242,15 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimoDb
                         new
                         {
                             Id = 1,
+                            Autenticacion = 1,
                             CodigoAfipNotaDeCredito = 13,
                             CodigoAfipRecibo = 11,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 30,
                             ImporteVoucherPredeterminado = 0m,
+                            OAuthFlujo = 0,
+                            OAuthProveedor = 0,
                             RazonSocial = "",
                             SmtpPort = 587,
                             SmtpSeguridad = 0

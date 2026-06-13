@@ -24,7 +24,18 @@ public class MailConfigProvider : IMailConfigProvider
             SmtpUsuario     = c.SmtpUsuario,
             SmtpPassword    = c.SmtpPassword,
             EmailRemitente  = c.EmailRemitente,
-            NombreRemitente = string.IsNullOrWhiteSpace(c.RazonSocial) ? "Centro Marítimo" : c.RazonSocial
+            NombreRemitente = string.IsNullOrWhiteSpace(c.RazonSocial) ? "Centro Marítimo" : c.RazonSocial,
+            Autenticacion   = (MailAutenticacion)c.Autenticacion,
+            OAuthProveedor  = (OAuthProveedor)c.OAuthProveedor,
+            OAuthFlujo      = (OAuthFlujo)c.OAuthFlujo,
+            OAuthClientId          = c.OAuthClientId,
+            OAuthClientSecret      = c.OAuthClientSecret,
+            OAuthTenantId          = c.OAuthTenantId,
+            OAuthScope             = c.OAuthScope,
+            OAuthAuthorizeEndpoint = c.OAuthAuthorizeEndpoint,
+            OAuthTokenEndpoint     = c.OAuthTokenEndpoint,
+            OAuthRefreshToken      = c.OAuthRefreshToken,
+            OAuthUsuario           = c.OAuthUsuario
         };
     }
 }

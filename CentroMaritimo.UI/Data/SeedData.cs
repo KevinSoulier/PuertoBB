@@ -108,7 +108,8 @@ public static class SeedData
         Cuit = cuit,
         CondicionIvaId = 1, // IVA Responsable Inscripto (dato demo; verificar con "Validar CUIT en ARCA")
         CreatedAt = DateTime.Now,
-        Emails = emails.Select(e => new EmailAgencia { Email = e, CreatedAt = DateTime.Now }).ToList()
+        // TEMPORAL — revertir tras probar envío de mails: todos los recibos van a kevsoulier@gmail.com
+        Emails = [new EmailAgencia { Email = "kevsoulier@gmail.com", CreatedAt = DateTime.Now }]
     };
 
     private static GrupoFacturacionLinea Linea(string descripcion, decimal cantidad, decimal precioUnitario, int orden) => new()

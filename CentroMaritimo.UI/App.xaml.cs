@@ -44,6 +44,12 @@ public partial class App : Application
     public static bool ModoDemo { get; private set; } = true;
 
     /// <summary>
+    /// Fuerza el envío de mail real (MailKit) aunque <see cref="ModoDemo"/> sea true, para poder
+    /// probar el envío con datos sembrados. Configurable en appsettings.json → PuertoBB:MailReal.
+    /// </summary>
+    public static bool MailReal { get; private set; }
+
+    /// <summary>
     /// Modo de integración AFIP. Configurable en appsettings.json → PuertoBB:Afip (Mock|Real).
     /// </summary>
     public static AfipModo Afip { get; private set; } = AfipModo.Mock;
@@ -65,6 +71,7 @@ public partial class App : Application
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true).Build();
             ModoDemo = cfg.GetValue("PuertoBB:ModoDemo", true);
+            MailReal = cfg.GetValue("PuertoBB:MailReal", false);
             Afip     = Enum.TryParse<AfipModo>(cfg["PuertoBB:Afip"], out var m) ? m : AfipModo.Mock;
 
             _host = Host.CreateDefaultBuilder()
@@ -107,7 +114,7 @@ public partial class App : Application
             services.AddPuertoBBAfip(ticketCacheDir: Path.Combine(AppDataDir, "afip-ticket-cache"));
         else
             services.AddPuertoBBAfipMock();
-        services.AddPuertoBBMail(usarFake: ModoDemo);
+        services.AddPuertoBBMail(usarFake: ModoDemo && !MailReal);
 
         services.AddTransient<IAfipConfigProvider, AfipConfigProvider>();
         services.AddTransient<IMailConfigProvider, MailConfigProvider>();

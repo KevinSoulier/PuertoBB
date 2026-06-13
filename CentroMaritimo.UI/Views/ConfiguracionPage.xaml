@@ -401,17 +401,93 @@
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Margin="16,0,0,0">
-                                <TextBlock Text="Remitente" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                <TextBox Text="{Binding EmailRemitente, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{Binding CorreoEditando}" Width="220" />
+                                <TextBlock Text="Email remitente" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                <ui:TextBox Text="{Binding EmailRemitente, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="ej. info@tudominio.com"
+                                            IsEnabled="{Binding CorreoEditando}" Width="220" />
                             </StackPanel>
                         </StackPanel>
-                        <TextBlock Text="Usuario" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding SmtpUsuario, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
-                        <TextBlock Text="Contraseña" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <PasswordBox x:Name="SmtpPasswordBox" IsEnabled="{Binding CorreoEditando}"
-                                     Margin="0,0,0,16" PasswordChanged="SmtpPasswordBox_PasswordChanged" />
+                        <!-- Modo de autenticación -->
+                        <TextBlock Text="Autenticación" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                        <ComboBox SelectedIndex="{Binding Autenticacion, UpdateSourceTrigger=PropertyChanged}"
+                                  IsEnabled="{Binding CorreoEditando}" Width="260" HorizontalAlignment="Left" Margin="0,0,0,12">
+                            <ComboBoxItem Content="Ninguna" />
+                            <ComboBoxItem Content="Básica (usuario y contraseña)" />
+                            <ComboBoxItem Content="OAuth2 (Microsoft, Google…)" />
+                        </ComboBox>
+
+                        <!-- Autenticación básica -->
+                        <StackPanel Visibility="{Binding EsBasica, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Usuario" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding SmtpUsuario, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+                            <TextBlock Text="Contraseña" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                            <PasswordBox x:Name="SmtpPasswordBox" IsEnabled="{Binding CorreoEditando}"
+                                         Margin="0,0,0,16" PasswordChanged="SmtpPasswordBox_PasswordChanged" />
+                        </StackPanel>
+
+                        <!-- Autenticación OAuth2 -->
+                        <StackPanel Visibility="{Binding EsOAuth2, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Proveedor" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                    <ComboBox SelectedIndex="{Binding OAuthProveedor, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CorreoEditando}" Width="200">
+                                        <ComboBoxItem Content="Microsoft 365 (empresa)" />
+                                        <ComboBoxItem Content="Google / Gmail" />
+                                        <ComboBoxItem Content="Personalizado" />
+                                        <ComboBoxItem Content="Outlook.com (personal)" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Margin="16,0,0,0" VerticalAlignment="Bottom">
+                                    <TextBlock Text="Flujo" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="Interactivo (navegador)" GroupName="OAuthFlujo"
+                                                     IsChecked="{Binding OAuthFlujoInteractivo}" IsEnabled="{Binding CorreoEditando}" />
+                                        <RadioButton Content="Cliente (sin navegador)" GroupName="OAuthFlujo" Margin="12,0,0,0"
+                                                     IsChecked="{Binding OAuthFlujoCliente}" IsEnabled="{Binding CorreoEditando}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock Text="Client ID" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding OAuthClientId, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+
+                            <TextBlock Text="Tenant ID (Microsoft; vacío = común)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding OAuthTenantId, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+
+                            <TextBlock Text="Client Secret (requerido para «Cliente»)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                            <PasswordBox x:Name="OAuthClientSecretBox" IsEnabled="{Binding CorreoEditando}"
+                                         Margin="0,0,0,8" PasswordChanged="OAuthClientSecretBox_PasswordChanged" />
+
+                            <!-- Endpoints: solo proveedor Personalizado -->
+                            <StackPanel Visibility="{Binding EsProveedorPersonalizado, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Authorize endpoint" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding OAuthAuthorizeEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+                                <TextBlock Text="Token endpoint" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding OAuthTokenEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+                            </StackPanel>
+
+                            <TextBlock Text="Scope (vacío = el del proveedor)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding OAuthScope, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,12" />
+
+                            <!-- Flujo interactivo: iniciar sesión en el navegador -->
+                            <StackPanel Visibility="{Binding EsFlujoInteractivo, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
+                                <ui:Button Content="Iniciar sesión…" Command="{Binding IniciarSesionOAuthCommand}"
+                                           Style="{StaticResource AccionIconButton}" IsEnabled="{Binding CorreoEditando}"
+                                           HorizontalAlignment="Left"
+                                           ToolTip="Abre el navegador para consentir una vez. Después guardá la configuración.">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Person24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <TextBlock Text="{Binding OAuthEstado}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontSize="11" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <ui:Button Content="Editar" Command="{Binding EditarCorreoCommand}"
                                        Style="{StaticResource AccionIconButton}"

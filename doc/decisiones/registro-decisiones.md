@@ -490,3 +490,72 @@ Además se **revierte el cifrado DPAPI** introducido proactivamente en D-16 (no 
 7. `NoWarn CS8981` en `Afip.Net.csproj`: el contrato generado del padrón trae nombres en minúscula del WSDL de ARCA.
 
 **Resultado:** 159 tests verdes (28 nuevos). La emisión en homologación queda desbloqueada del lado del código.
+
+---
+
+## D-26 — Autenticación de correo flexible: Básica + OAuth2 (ambos flujos)
+
+**Fecha:** 2026-06-13.
+
+**Contexto:** al probar el envío real, Microsoft 365/Outlook rechaza la autenticación básica de SMTP con
+`535 5.7.139 Authentication unsuccessful, basic authentication is disabled` — Microsoft **retiró la auth
+básica** para SMTP. No es un bug: el código hacía `AuthenticateAsync(usuario, password)` correctamente.
+
+**Decisión:** el correo deja de ser solo "usuario + contraseña". Se agrega un **selector de autenticación**
+en Configuración → Correo con **`Ninguna` / `Básica` / `OAuth2`**. OAuth2 (SASL **XOAUTH2**) admite
+**proveedor** (`Microsoft 365` empresa / `Google` / `Personalizado` / `Outlook.com personal`) y **ambos flujos
+seleccionables por caso** (pedido explícito del usuario: "que funcione para cualquier tipo de autenticación y
+plataforma"):
+- **Interactivo:** authorization code + **PKCE** con redirect a un loopback local (`http://localhost:{puerto}`);
+  el usuario consiente una vez en el navegador y se guarda un **refresh token**. Cubre Microsoft 365, personal
+  `@outlook.com`/`@hotmail.com` y Gmail.
+- **Cliente:** `client_credentials` (Tenant + Client ID + Secret), sin navegador. Para casillas Microsoft 365
+  de empresa administradas (requiere `SMTP.Send` como app permission + `Set-CASMailbox`).
+
+La **básica** sigue cubriendo Gmail (contraseña de aplicación), Brevo/SendGrid/SES (API key como contraseña),
+Yahoo, Zoho y SMTP propios — sin OAuth.
+
+**Cómo se implementa:**
+- **Core** (`PuertoBB.Core/Models/Mail/`): enums `MailAutenticacion`/`OAuthProveedor`/`OAuthFlujo`;
+  `MailConfig` ampliado con los campos OAuth + `Validar()` (validación por modo); `OAuthPresets`
+  (única fuente de endpoints/scope/host por proveedor; tenant `common` por defecto en Microsoft);
+  `MailErrores.Describir` (traduce el 5.7.139 a un mensaje accionable que sugiere OAuth2).
+- **Services** (`PuertoBB.Services/Mail/Oauth/`): `OAuthTokenProvider` (Singleton, cachea access tokens en
+  memoria; flujos `refresh_token` y `client_credentials`) y `OAuthInteractiveFlow` (`HttpListener` + PKCE +
+  `Process.Start` al navegador, decodifica el email del `id_token`). `MailService` autentica vía
+  `SaslMechanismOAuth2` en un helper `AutenticarAsync` reusado por `EnviarReciboAsync` y `ProbarConexionAsync`.
+  Sin paquetes nuevos: XOAUTH2 ya viene en MailKit 4.17 y el token se pide con `HttpClient`. Registro en
+  `AddPuertoBBMail`.
+- **Entidades:** columnas nuevas en `Configuracion` de ambas apps; mapeo en ambos `MailConfigProvider`.
+- **UI:** pestaña Correo de **ambas apps** con el selector, secciones Básica/OAuth2, combo de proveedor (sugiere
+  host/puerto), radios de flujo, botón **"Iniciar sesión…"** (`IOAuthInteractiveFlow`) que guarda
+  refresh token + email, y `PasswordBox` para el client secret (mismo patrón que `SmtpPasswordBox`).
+- **Secretos en texto plano** (refresh token / client secret / password), coherente con **D-24**.
+- **Migraciones:** se regeneró la `Inicial` de cada contexto y, de paso, se **reorganizó la estructura** para que
+  cada contexto tenga **su propio directorio** según la convención de **D-19**: `Migrations/CamaraPortuaria/` y
+  `Migrations/CentroMaritimo/` (se eliminaron la migración suelta en la raíz `Migrations/` y la carpeta drift
+  `CentroMaritimoDb/`). Los tests usan `EnsureCreated()`, así que toman el esquema nuevo sin tocar migraciones.
+
+**Por qué XOAUTH2 + presets y no MSAL:** un POST genérico a los token endpoints (configurable por proveedor)
+cubre Microsoft y Google sin atar el proyecto a una SDK específica, manteniendo la opción `Personalizado`.
+
+**Tests:** unit tests puros (sin red) de `OAuthPresets`, `MailConfig.Validar` por modo y `MailErrores`.
+Total **197 verdes**. El flujo interactivo (navegador) y el envío real se validan manualmente.
+
+**Docs:** `doc/usuario/correo-oauth.md` (alta de app en Azure/Google, scopes, redirect loopback,
+`Set-CASMailbox`); `doc/usuario/paso-a-produccion.md` (paso 4 actualizado); `doc/arquitectura/datos.md`
+(campos de `Configuracion`).
+
+**Ajustes durante la prueba real (2026-06-13):**
+- **Logging del login OAuth:** `OAuthInteractiveFlow` y `OAuthTokenProvider` no tenían `ILogger` y las fallas
+  solo aparecían como toast efímero. Ahora loguean cada falla a `LogWarning` (incl. el `error`/`error_description`
+  que el proveedor devuelve al loopback) → quedan en `%LocalAppData%\PuertoBB\<App>\Logs\app-*.log`. Limitación
+  inherente: si el navegador rechaza `redirect_uri`/`scope`, el proveedor **no** redirige al loopback y la app lo
+  ve como timeout (el error real queda en el navegador).
+- **Cuentas personales Outlook.com:** rechazan el recurso `outlook.office365.com`. El scope de Microsoft
+  (interactivo) pasó a **`https://outlook.office.com/SMTP.Send`** (universal personal+empresa) y se agregó el
+  proveedor **`OutlookPersonal`** (enum=3) con host **`smtp-mail.outlook.com`**. El cliente (app-only) mantiene
+  `outlook.office365.com/.default` (solo empresa).
+
+**Pendiente real (no testeable sin credenciales):** prueba del usuario registrando la app en Azure (flujos
+Interactivo y Cliente) y/o Google Cloud, y un envío real desde la casilla destino.

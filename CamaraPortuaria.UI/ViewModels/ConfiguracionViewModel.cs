@@ -20,6 +20,7 @@ public class ConfiguracionViewModel : PageViewModel
     private readonly IBackupService _backup;
     private readonly IAfipService _afip;
     private readonly IMailService _mail;
+    private readonly IOAuthInteractiveFlow _oauth;
     private readonly IDialogService _dialog;
     private Configuracion _config = new();
 
@@ -353,6 +354,50 @@ public class ConfiguracionViewModel : PageViewModel
     public string? SmtpPassword   { get => _config.SmtpPassword;   set { _config.SmtpPassword = value; OnPropertyChanged(); } }
     public string? EmailRemitente { get => _config.EmailRemitente; set { _config.EmailRemitente = value; OnPropertyChanged(); } }
 
+    // ── Autenticación (0=Ninguna, 1=Básica, 2=OAuth2) ──
+    public int Autenticacion
+    {
+        get => _config.Autenticacion;
+        set { _config.Autenticacion = value; OnPropertyChanged(); OnPropertyChanged(nameof(EsBasica)); OnPropertyChanged(nameof(EsOAuth2)); }
+    }
+    public bool EsBasica => _config.Autenticacion == 1;
+    public bool EsOAuth2 => _config.Autenticacion == 2;
+
+    // ── OAuth2: proveedor (0=Microsoft, 1=Google, 2=Personalizado) ──
+    public int OAuthProveedor
+    {
+        get => _config.OAuthProveedor;
+        set { _config.OAuthProveedor = value; OnPropertyChanged(); OnPropertyChanged(nameof(EsProveedorPersonalizado)); SugerirTransporteSmtp(); }
+    }
+    public bool EsProveedorPersonalizado => _config.OAuthProveedor == 2;
+
+    // ── OAuth2: flujo (0=Interactivo, 1=Cliente) ──
+    public bool OAuthFlujoInteractivo { get => _config.OAuthFlujo == 0; set { if (value) SetOAuthFlujo(0); } }
+    public bool OAuthFlujoCliente     { get => _config.OAuthFlujo == 1; set { if (value) SetOAuthFlujo(1); } }
+    public bool EsFlujoInteractivo => _config.OAuthFlujo == 0;
+    public bool EsFlujoCliente     => _config.OAuthFlujo == 1;
+    private void SetOAuthFlujo(int flujo)
+    {
+        _config.OAuthFlujo = flujo;
+        OnPropertyChanged(nameof(OAuthFlujoInteractivo));
+        OnPropertyChanged(nameof(OAuthFlujoCliente));
+        OnPropertyChanged(nameof(EsFlujoInteractivo));
+        OnPropertyChanged(nameof(EsFlujoCliente));
+    }
+
+    public string? OAuthClientId          { get => _config.OAuthClientId;          set { _config.OAuthClientId = value; OnPropertyChanged(); } }
+    public string? OAuthClientSecret      { get => _config.OAuthClientSecret;      set { _config.OAuthClientSecret = value; OnPropertyChanged(); } }
+    public string? OAuthTenantId          { get => _config.OAuthTenantId;          set { _config.OAuthTenantId = value; OnPropertyChanged(); } }
+    public string? OAuthScope             { get => _config.OAuthScope;             set { _config.OAuthScope = value; OnPropertyChanged(); } }
+    public string? OAuthAuthorizeEndpoint { get => _config.OAuthAuthorizeEndpoint; set { _config.OAuthAuthorizeEndpoint = value; OnPropertyChanged(); } }
+    public string? OAuthTokenEndpoint     { get => _config.OAuthTokenEndpoint;     set { _config.OAuthTokenEndpoint = value; OnPropertyChanged(); } }
+    public string? OAuthUsuario           { get => _config.OAuthUsuario;           set { _config.OAuthUsuario = value; OnPropertyChanged(); OnPropertyChanged(nameof(OAuthEstado)); } }
+
+    /// <summary>Estado de la sesión interactiva, junto al botón «Iniciar sesión…».</summary>
+    public string OAuthEstado => string.IsNullOrWhiteSpace(_config.OAuthRefreshToken)
+        ? "Sin iniciar sesión."
+        : $"✓ Conectado como {_config.OAuthUsuario ?? "(cuenta autenticada)"}.";
+
     private bool _correoEditando;
     public bool CorreoEditando   { get => _correoEditando; set { SetField(ref _correoEditando, value); OnPropertyChanged(nameof(CorreoNoEditando)); } }
     public bool CorreoNoEditando => !_correoEditando;
@@ -360,17 +405,30 @@ public class ConfiguracionViewModel : PageViewModel
     private string _estadoCorreo = string.Empty;
     public string EstadoCorreo { get => _estadoCorreo; set => SetField(ref _estadoCorreo, value); }
 
+    // Snapshot para Cancelar
     private string? _snapSmtpHost;
     private int     _snapSmtpPort;
     private int     _snapSmtpSeguridad;
     private string? _snapSmtpUsuario;
     private string? _snapSmtpPassword;
     private string? _snapEmailRemitente;
+    private int     _snapAutenticacion;
+    private int     _snapOAuthProveedor;
+    private int     _snapOAuthFlujo;
+    private string? _snapOAuthClientId;
+    private string? _snapOAuthClientSecret;
+    private string? _snapOAuthTenantId;
+    private string? _snapOAuthScope;
+    private string? _snapOAuthAuthorizeEndpoint;
+    private string? _snapOAuthTokenEndpoint;
+    private string? _snapOAuthRefreshToken;
+    private string? _snapOAuthUsuario;
 
-    public ICommand EditarCorreoCommand   { get; }
-    public ICommand GuardarCorreoCommand  { get; }
-    public ICommand CancelarCorreoCommand { get; }
-    public ICommand ProbarMailCommand     { get; }
+    public ICommand EditarCorreoCommand       { get; }
+    public ICommand GuardarCorreoCommand      { get; }
+    public ICommand CancelarCorreoCommand     { get; }
+    public ICommand ProbarMailCommand         { get; }
+    public ICommand IniciarSesionOAuthCommand { get; }
 
     private void EditarCorreo()
     {
@@ -380,6 +438,17 @@ public class ConfiguracionViewModel : PageViewModel
         _snapSmtpUsuario    = SmtpUsuario;
         _snapSmtpPassword   = SmtpPassword;
         _snapEmailRemitente = EmailRemitente;
+        _snapAutenticacion          = _config.Autenticacion;
+        _snapOAuthProveedor         = _config.OAuthProveedor;
+        _snapOAuthFlujo             = _config.OAuthFlujo;
+        _snapOAuthClientId          = _config.OAuthClientId;
+        _snapOAuthClientSecret      = _config.OAuthClientSecret;
+        _snapOAuthTenantId          = _config.OAuthTenantId;
+        _snapOAuthScope             = _config.OAuthScope;
+        _snapOAuthAuthorizeEndpoint = _config.OAuthAuthorizeEndpoint;
+        _snapOAuthTokenEndpoint     = _config.OAuthTokenEndpoint;
+        _snapOAuthRefreshToken      = _config.OAuthRefreshToken;
+        _snapOAuthUsuario           = _config.OAuthUsuario;
         CorreoEditando      = true;
     }
     private void CancelarCorreo()
@@ -390,10 +459,79 @@ public class ConfiguracionViewModel : PageViewModel
         SmtpUsuario    = _snapSmtpUsuario;
         SmtpPassword   = _snapSmtpPassword;   // code-behind sincroniza el PasswordBox
         EmailRemitente = _snapEmailRemitente;
+        _config.OAuthRefreshToken = _snapOAuthRefreshToken;
+        Autenticacion          = _snapAutenticacion;
+        OAuthProveedor         = _snapOAuthProveedor;
+        SetOAuthFlujo(_snapOAuthFlujo);
+        OAuthClientId          = _snapOAuthClientId;
+        OAuthClientSecret      = _snapOAuthClientSecret;
+        OAuthTenantId          = _snapOAuthTenantId;
+        OAuthScope             = _snapOAuthScope;
+        OAuthAuthorizeEndpoint = _snapOAuthAuthorizeEndpoint;
+        OAuthTokenEndpoint     = _snapOAuthTokenEndpoint;
+        OAuthUsuario           = _snapOAuthUsuario;
         CorreoEditando = false;
     }
+
+    /// <summary>Autocompleta host/puerto/seguridad al elegir un proveedor OAuth, si el host está vacío.</summary>
+    private void SugerirTransporteSmtp()
+    {
+        if (string.IsNullOrWhiteSpace(SmtpHost) &&
+            OAuthPresets.SugerenciaSmtp((PuertoBB.Core.Models.Mail.OAuthProveedor)_config.OAuthProveedor) is { } s)
+        {
+            SmtpHost      = s.Host;
+            SmtpPort      = s.Puerto;
+            SmtpSeguridad = (int)s.Seguridad;
+        }
+    }
+
+    private async Task IniciarSesionOAuthAsync()
+    {
+        if (string.IsNullOrWhiteSpace(OAuthClientId)) { MostrarError("Ingresá el Client ID antes de iniciar sesión."); return; }
+        EstadoCorreo = "Abriendo el navegador para iniciar sesión…";
+        var res = await _oauth.AutenticarAsync(ConstruirMailConfig());
+        if (!res.Success)
+        {
+            EstadoCorreo = res.ErrorMessage ?? "No se pudo iniciar sesión.";
+            MostrarError(EstadoCorreo);
+            return;
+        }
+        _config.OAuthRefreshToken = res.Data!.RefreshToken;
+        OAuthUsuario = res.Data.Usuario;   // dispara OAuthEstado
+        EstadoCorreo = $"✓ Conectado como {res.Data.Usuario}. Guardá la configuración para conservar la sesión.";
+        MostrarExito($"Conectado como {res.Data.Usuario}.");
+    }
+
+    /// <summary>Arma un MailConfig con los valores en edición (sin pasar por la base), para el login OAuth.</summary>
+    private MailConfig ConstruirMailConfig() => new()
+    {
+        SmtpHost       = _config.SmtpHost,
+        SmtpPort       = _config.SmtpPort,
+        SmtpSeguridad  = (PuertoBB.Core.Models.Mail.SmtpSeguridad)_config.SmtpSeguridad,
+        SmtpUsuario    = _config.SmtpUsuario,
+        SmtpPassword   = _config.SmtpPassword,
+        EmailRemitente = _config.EmailRemitente,
+        Autenticacion  = (MailAutenticacion)_config.Autenticacion,
+        OAuthProveedor = (PuertoBB.Core.Models.Mail.OAuthProveedor)_config.OAuthProveedor,
+        OAuthFlujo     = (OAuthFlujo)_config.OAuthFlujo,
+        OAuthClientId          = _config.OAuthClientId,
+        OAuthClientSecret      = _config.OAuthClientSecret,
+        OAuthTenantId          = _config.OAuthTenantId,
+        OAuthScope             = _config.OAuthScope,
+        OAuthAuthorizeEndpoint = _config.OAuthAuthorizeEndpoint,
+        OAuthTokenEndpoint     = _config.OAuthTokenEndpoint,
+        OAuthRefreshToken      = _config.OAuthRefreshToken,
+        OAuthUsuario           = _config.OAuthUsuario
+    };
     private async Task GuardarCorreoAsync()
     {
+        var remitente = EmailRemitente?.Trim();
+        if (!string.IsNullOrEmpty(remitente) && !System.Net.Mail.MailAddress.TryCreate(remitente, out _))
+        {
+            MostrarError($"El email remitente «{EmailRemitente}» no tiene un formato válido (ej. info@tudominio.com).");
+            return;
+        }
+        EmailRemitente = remitente; // persiste el valor normalizado (sin espacios)
         try
         {
             await _repo.SaveAsync(_config);
@@ -436,12 +574,14 @@ public class ConfiguracionViewModel : PageViewModel
         IBackupService backup,
         IAfipService afip,
         IMailService mail,
+        IOAuthInteractiveFlow oauth,
         IDialogService dialog)
     {
         _repo      = repo;
         _backup    = backup;
         _afip      = afip;
         _mail      = mail;
+        _oauth     = oauth;
         _dialog    = dialog;
 
         // Emisor
@@ -476,10 +616,11 @@ public class ConfiguracionViewModel : PageViewModel
         CancelarPagosCommand = new RelayCommand(_ => CancelarPagos());
 
         // Correo
-        EditarCorreoCommand   = new RelayCommand(_ => EditarCorreo());
-        GuardarCorreoCommand  = new AsyncRelayCommand(GuardarCorreoAsync);
-        CancelarCorreoCommand = new RelayCommand(_ => CancelarCorreo());
-        ProbarMailCommand     = new AsyncRelayCommand(ProbarMailAsync);
+        EditarCorreoCommand       = new RelayCommand(_ => EditarCorreo());
+        GuardarCorreoCommand      = new AsyncRelayCommand(GuardarCorreoAsync);
+        CancelarCorreoCommand     = new RelayCommand(_ => CancelarCorreo());
+        ProbarMailCommand         = new AsyncRelayCommand(ProbarMailAsync);
+        IniciarSesionOAuthCommand = new AsyncRelayCommand(IniciarSesionOAuthAsync);
 
         // Otros
         BackupCommand              = new AsyncRelayCommand(BackupAsync);
@@ -500,7 +641,14 @@ public class ConfiguracionViewModel : PageViewModel
         foreach (var p in new[] { nameof(RazonSocial), nameof(Cuit), nameof(IngresosBrutos), nameof(InicioActividades),
                                    nameof(CodigoAfipRecibo), nameof(CodigoAfipNotaDeCredito),
                                    nameof(DiasVencimiento), nameof(SmtpHost), nameof(SmtpPort), nameof(SmtpSeguridad),
-                                   nameof(SmtpUsuario), nameof(SmtpPassword), nameof(EmailRemitente) })
+                                   nameof(SmtpUsuario), nameof(SmtpPassword), nameof(EmailRemitente),
+                                   nameof(Autenticacion), nameof(EsBasica), nameof(EsOAuth2),
+                                   nameof(OAuthProveedor), nameof(EsProveedorPersonalizado),
+                                   nameof(OAuthFlujoInteractivo), nameof(OAuthFlujoCliente),
+                                   nameof(EsFlujoInteractivo), nameof(EsFlujoCliente),
+                                   nameof(OAuthClientId), nameof(OAuthClientSecret), nameof(OAuthTenantId),
+                                   nameof(OAuthScope), nameof(OAuthAuthorizeEndpoint), nameof(OAuthTokenEndpoint),
+                                   nameof(OAuthUsuario), nameof(OAuthEstado) })
             OnPropertyChanged(p);
         await RecargarPuntosAsync();
     }

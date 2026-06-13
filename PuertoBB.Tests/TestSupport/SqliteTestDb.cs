@@ -25,7 +25,8 @@ public sealed class SqliteTestDb : IDisposable
     {
         var fixture = new SqliteTestDb();
         var options = new DbContextOptionsBuilder<CamaraPortuariaDbContext>()
-            .UseSqlite(fixture._connection).Options;
+            .UseSqlite(fixture._connection,
+                sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)).Options;
         db = new CamaraPortuariaDbContext(options);
         db.Database.EnsureCreated();
         return fixture;
@@ -35,7 +36,8 @@ public sealed class SqliteTestDb : IDisposable
     {
         var fixture = new SqliteTestDb();
         var options = new DbContextOptionsBuilder<CentroMaritimoDbContext>()
-            .UseSqlite(fixture._connection).Options;
+            .UseSqlite(fixture._connection,
+                sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)).Options;
         db = new CentroMaritimoDbContext(options);
         db.Database.EnsureCreated();
         return fixture;

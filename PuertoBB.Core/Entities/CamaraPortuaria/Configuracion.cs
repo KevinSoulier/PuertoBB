@@ -33,4 +33,17 @@ public class Configuracion : BaseEntity
     public string? SmtpUsuario    { get; set; }
     public string? SmtpPassword   { get; set; } // texto plano; aceptable para app unipersonal
     public string? EmailRemitente { get; set; }
+
+    // Autenticación de correo (ver PuertoBB.Core.Models.Mail)
+    public int Autenticacion  { get; set; } = 1; // 0=Ninguna, 1=Basica, 2=OAuth2
+    public int OAuthProveedor { get; set; } = 0; // 0=Microsoft, 1=Google, 2=Personalizado
+    public int OAuthFlujo     { get; set; } = 0; // 0=Interactivo, 1=Cliente
+    public string? OAuthClientId          { get; set; }
+    public string? OAuthClientSecret      { get; set; }
+    public string? OAuthTenantId          { get; set; }
+    public string? OAuthScope             { get; set; }
+    public string? OAuthAuthorizeEndpoint { get; set; }
+    public string? OAuthTokenEndpoint     { get; set; }
+    public string? OAuthRefreshToken      { get; set; } // texto plano (ver D-24)
+    public string? OAuthUsuario           { get; set; }
 }
