@@ -18,27 +18,11 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
     private readonly IAfipDocumentosService _documentos;
     private readonly IAfipConfigProvider _configProvider;
 
-    private static readonly byte[] LogoBytes = CargarLogo();
-
     public CentroMaritimoPdfService(IPdfMerger merger, IAfipDocumentosService documentos, IAfipConfigProvider configProvider)
     {
         _merger = merger;
         _documentos = documentos;
         _configProvider = configProvider;
-    }
-
-    private static byte[] CargarLogo()
-    {
-        try
-        {
-            var asm = typeof(CentroMaritimoPdfService).Assembly;
-            using var s = asm.GetManifestResourceStream("PuertoBB.Services.Assets.CMBB_Logo.png");
-            if (s is null) return [];
-            using var ms = new MemoryStream();
-            s.CopyTo(ms);
-            return ms.ToArray();
-        }
-        catch { return []; }
     }
 
     // ── Recibo fiscal (delega en Afip.Documentos) ────────────────────────────
@@ -99,14 +83,14 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
 
     // ── Voucher (no fiscal — template local, sin CAE/QR) ─────────────────────
 
-    public Task<byte[]> GenerarPdfVoucherAsync(Voucher voucher, CancellationToken ct = default)
+    public async Task<byte[]> GenerarPdfVoucherAsync(Voucher voucher, CancellationToken ct = default)
     {
-        var bytes = Document.Create(c => c.Page(p =>
+        var logo = (await _configProvider.GetAsync(ct)).LogoPng;
+        return Document.Create(c => c.Page(p =>
         {
             ConfigurarPaginaVoucher(p);
-            p.Content().Element(e => CuerpoVoucher(e, voucher));
+            p.Content().Element(e => CuerpoVoucher(e, voucher, logo));
         })).GeneratePdf();
-        return Task.FromResult(bytes);
     }
 
     // ── Descarga / merge ─────────────────────────────────────────────────────
@@ -164,7 +148,6 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
         return new ComprobanteDocumento
         {
             CodigoTipo    = recibo.CodigoAfip,
-            NombreOverride = "RECIBO",
             PuntoVenta    = recibo.PuntoDeVenta,
             Numero        = recibo.NumeroComprobante,
             FechaEmision  = recibo.FechaEmision,
@@ -197,7 +180,7 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
             Cuit              = Formato.ParseCuit(config.CuitEmisor),
             CondicionIva      = "IVA Exento",
             ColorAcentoHex    = _theme.AcentoHex,
-            LogoPng           = LogoBytes is { Length: > 0 } ? LogoBytes : null,
+            LogoPng           = config.LogoPng is { Length: > 0 } ? config.LogoPng : null,
             IngresosBrutos    = config.IngresosBrutos,
             InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
         };
@@ -214,11 +197,11 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
         p.DefaultTextStyle(s => s.FontFamily(_theme.Fuente).FontSize(10).FontColor(_theme.Texto));
     }
 
-    private static void CuerpoVoucher(IContainer e, Voucher voucher)
+    private static void CuerpoVoucher(IContainer e, Voucher voucher, byte[]? logo)
     {
         e.Column(col =>
         {
-            col.Item().Element(x => EncabezadoVoucher(x, voucher));
+            col.Item().Element(x => EncabezadoVoucher(x, voucher, logo));
 
             col.Item().PaddingTop(20).Column(c =>
             {
@@ -258,12 +241,12 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
         });
     }
 
-    private static void EncabezadoVoucher(IContainer e, Voucher voucher)
+    private static void EncabezadoVoucher(IContainer e, Voucher voucher, byte[]? logo)
     {
         e.BorderBottom(2).BorderColor(_theme.Acento).PaddingBottom(8).Row(row =>
         {
-            if (LogoBytes is { Length: > 0 })
-                row.ConstantItem(58).AlignMiddle().Image(LogoBytes).FitWidth();
+            if (logo is { Length: > 0 })
+                row.ConstantItem(58).AlignMiddle().Image(logo).FitWidth();
             row.RelativeItem().PaddingLeft(12).AlignMiddle().Column(col =>
             {
                 col.Item().Text("CENTRO MARÍTIMO").FontSize(15).Bold().FontColor(_theme.Acento);

@@ -68,11 +68,12 @@ asociadas). La configuración inicial y el paso a producción están en
 
 ## Control de pagos (Inicio)
 
-- Filtros por período, empresa, estado, **"Solo vencidos"** e **"Incluir morosos"**.
+- Filtros por período, empresa, estado, **"Solo vencidos"** e **"Incluir incobrables"**.
 - "Vencido" se calcula con la fecha de vencimiento (emisión + días configurados); no es un
   estado guardado.
-- El flag **moroso** de una empresa se marca a mano en Empresas y es solo informativo
-  (no bloquea la emisión).
+- **Marcar incobrable**: da de baja la deuda de un recibo puntual (con un motivo opcional). Un recibo
+  incobrable deja de figurar como vencido y se oculta de la lista salvo que tildes "Incluir incobrables".
+  Se revierte con **Quitar incobrable**. (Reemplaza al viejo flag "moroso" de empresa.)
 
 ## Backup
 

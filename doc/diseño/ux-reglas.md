@@ -57,7 +57,7 @@ Los estilos `CaptionButton` y `CaptionCloseButton` están en `Resources/Styles.x
 | Margin exterior de página (Grid raíz de cada Page) | 24px |
 | Entre secciones dentro de una página | 16px |
 | Entre label y su input | 4px (Margin bottom en el label) |
-| Gap entre botones en toolbar o grupo | 8px (Margin left en cada botón desde el segundo) |
+| Gap entre botones en toolbar o grupo | 8px — `Margin="0,0,8,8"` en **cada** botón (6px → `0,0,6,6` en grillas). Ver "Filas de botones". |
 | Padding interno de botones Primary/Secondary | 16,8 |
 | Padding interno de botones ToolbarButton | 8,4 |
 
@@ -75,6 +75,34 @@ Los estilos `CaptionButton` y `CaptionCloseButton` están en `Resources/Styles.x
 | `{DynamicResource AccentButtonStyle}` | Botones accent en diálogos | Aceptar, Confirmar (en Dialogs) |
 
 **Botones sin estilo explícito** (`<Button Content="..." />`) heredan el tema Fluent por defecto — válido cuando el botón no necesita padding especial.
+
+---
+
+## Filas de botones (wrap, no recortar)
+
+Las filas de botones y de acciones usan **`WrapPanel`**, nunca `StackPanel Orientation="Horizontal"`.
+Con `StackPanel` horizontal, cuando los botones no entran en el ancho disponible (típico en columnas de
+ancho fijo, ej. 360/380px) el último se **recorta**; con `WrapPanel` los botones sobrantes pasan a un
+segundo renglón y el contenido se desplaza hacia abajo.
+
+- Cada botón lleva `Margin="0,0,8,8"` (derecha = gap horizontal entre botones; abajo = gap vertical al
+  envolver). En celdas de DataGrid usar `0,0,6,6`.
+- Aplica también a **filas mixtas** (filtros + botones): el contenedor pasa a `WrapPanel` y cada grupo
+  lógico de nivel superior (cada `label+control` agrupado en su `StackPanel` interno, y cada botón) lleva
+  `Margin="0,0,8,8"`, para que envuelva sin separar un control de su etiqueta.
+- **No** aplica a: caption buttons / navegación de `MainWindow`, ni a los `StackPanel` que son **contenido
+  de un botón** (ícono + texto) o tiles del Dashboard (`UniformGrid`).
+- Pies de diálogo (Cancelar/Aceptar): `WrapPanel HorizontalAlignment="Right"`, conservando el gap entre los
+  dos botones (primer botón `0,0,8,0`).
+
+```xml
+<!-- ✓ Correcto -->
+<WrapPanel>
+    <ui:Button Content="Nuevo"   Style="{StaticResource AccionIconButton}" Margin="0,0,8,8" />
+    <ui:Button Content="Editar"  Style="{StaticResource AccionIconButton}" Margin="0,0,8,8" />
+    <ui:Button Content="Eliminar" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8" />
+</WrapPanel>
+```
 
 ---
 
@@ -161,14 +189,29 @@ Los section headers (`FontWeight="SemiBold"`) no necesitan Foreground explícito
 
 ## Overlays de carga
 
+Las esperas usan el **control reutilizable `BusyOverlay`** (en `Controls/BusyOverlay.xaml` de cada
+app): un fondo atenuado (`SmokeFillColorDefaultBrush`, `Opacity=0.6`) con una **tarjeta sólida y
+compacta** centrada — mismo lenguaje visual que los diálogos modales (`SolidBackgroundFillColorBaseBrush`,
+`CornerRadius=8`, `ElevationShadow16Effect`) — que muestra `ui:ProgressRing`, título, entidad actual,
+barra de progreso, contador y botón Cancelar. **No** hardcodear `Foreground="White"`: la tarjeta es sólida
+y el texto usa tokens del tema (`TextFillColorPrimaryBrush`/`Secondary`), así adapta a light/dark.
+
+Se coloca como último hijo del contenedor raíz del Page, cubriendo el área de trabajo:
+
 ```xml
-<Border Background="{DynamicResource SmokeFillColorDefaultBrush}"
-        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
-    <ProgressBar IsIndeterminate="True" Width="220" Height="6" VerticalAlignment="Center" />
-</Border>
+<!-- xmlns:controls="clr-namespace:<App>.Controls" -->
+<controls:BusyOverlay Grid.RowSpan="N" />
 ```
 
-El texto sobre el smoke overlay puede ser `Foreground="White"` porque `SmokeFillColorDefaultBrush` siempre es oscuro.
+El estado lo provee `PageViewModel` (hereda el DataContext del Page). **No** setear `IsBusy` ni el
+overlay a mano: ejecutar las operaciones por los helpers de `PageViewModel`:
+
+- `EjecutarOcupadoAsync(titulo, operacion)` — operación corta/de un paso: spinner indeterminado, sin
+  contador ni cancelar (ej. "Cargando recibos", "Generando PDF", "Generando backup").
+- `EjecutarConProgresoAsync(titulo, (progreso, ct) => …)` — operación masiva: barra determinada +
+  contador "N / M" + botón Cancelar. El servicio recibe `IProgress<ProgresoMasivo>` y `CancellationToken`
+  y reporta el avance por ítem (`progreso.Report(new ProgresoMasivo(actual, total, entidad))`). La variante
+  genérica devuelve el resultado del servicio, o `null` si el usuario canceló.
 
 ---
 

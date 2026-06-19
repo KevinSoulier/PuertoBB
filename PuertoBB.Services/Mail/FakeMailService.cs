@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models.Mail;
 
 namespace PuertoBB.Services.Mail;
 
@@ -28,6 +29,7 @@ public class FakeMailService : IMailService
         string nombreAdjunto,
         string asunto,
         string cuerpo,
+        string? cuerpoHtml = null,
         CancellationToken ct = default)
     {
         var dest = destinatarios.Where(d => !string.IsNullOrWhiteSpace(d)).Distinct().ToList();
@@ -49,6 +51,12 @@ public class FakeMailService : IMailService
     public Task<ServiceResult<string>> ProbarConexionAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("[FAKE] Prueba de conexión SMTP simulada: OK");
+        return Task.FromResult(ServiceResult<string>.Ok("Conexión simulada correctamente (modo demo)."));
+    }
+
+    public Task<ServiceResult<string>> ProbarConexionAsync(MailConfig config, CancellationToken ct = default)
+    {
+        _logger.LogInformation("[FAKE] Prueba de conexión SMTP simulada (config en edición): OK");
         return Task.FromResult(ServiceResult<string>.Ok("Conexión simulada correctamente (modo demo)."));
     }
 

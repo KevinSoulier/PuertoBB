@@ -20,6 +20,10 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>Marca el recibo Anulado y persiste la NC en UN solo SaveChanges.</summary>
     Task AnularConNotaAsync(Recibo recibo, Core.Entities.CamaraPortuaria.NotaDeCredito nota, CancellationToken ct = default);
 
+    /// <summary>Elimina un recibo (junto con sus Líneas y el vínculo EmisionGrupo) en UN solo SaveChanges.
+    /// Usado para recuperar un recibo Pendiente (sin CAE) trabado por una emisión fallida.</summary>
+    Task EliminarPendienteAsync(int reciboId, CancellationToken ct = default);
+
     /// <summary>Recibos que matchean el filtro del dashboard (con Empresa/Grupo cargados).</summary>
     Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
 

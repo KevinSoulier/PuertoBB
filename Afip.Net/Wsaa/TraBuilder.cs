@@ -32,15 +32,7 @@ public static class TraBuilder
 
     public static string FirmarCms(string traXml, AfipOptions options)
     {
-        // El contenido en memoria tiene prioridad; si solo hay ruta, se lee el archivo.
-        var certBytes = options.CertificadoContenido ?? LeerArchivo(options.CertificadoRuta)
-            ?? throw new InvalidOperationException("No se configuró el certificado (ni contenido ni ruta).");
-        var keyBytes = options.CertificadoKeyContenido ?? LeerArchivo(options.CertificadoKeyRuta);
-
-        // Con clave privada presente → modo CRT+KEY (PEM); si no → P12.
-        var cert = keyBytes is not null
-            ? X509Certificate2.CreateFromPem(Encoding.UTF8.GetString(certBytes), Encoding.UTF8.GetString(keyBytes))
-            : X509CertificateLoader.LoadPkcs12(certBytes, options.CertificadoPassword, X509KeyStorageFlags.EphemeralKeySet);
+        using var cert = CargarCertificado(options);
 
         var traBytes = Encoding.UTF8.GetBytes(traXml);
         var signedCms = new SignedCms(new ContentInfo(traBytes), detached: false);
@@ -48,6 +40,22 @@ public static class TraBuilder
         signedCms.ComputeSignature(signer);
 
         return Convert.ToBase64String(signedCms.Encode());
+    }
+
+    /// <summary>Carga el certificado (P12 o CRT+KEY) desde las opciones, para firmar o inspeccionar su
+    /// vigencia (NotBefore/NotAfter). Lanza si no hay certificado o no se puede leer. El llamador debe
+    /// disponer el certificado (<c>using</c>).</summary>
+    public static X509Certificate2 CargarCertificado(AfipOptions options)
+    {
+        // El contenido en memoria tiene prioridad; si solo hay ruta, se lee el archivo.
+        var certBytes = options.CertificadoContenido ?? LeerArchivo(options.CertificadoRuta)
+            ?? throw new InvalidOperationException("No se configuró el certificado (ni contenido ni ruta).");
+        var keyBytes = options.CertificadoKeyContenido ?? LeerArchivo(options.CertificadoKeyRuta);
+
+        // Con clave privada presente → modo CRT+KEY (PEM); si no → P12.
+        return keyBytes is not null
+            ? X509Certificate2.CreateFromPem(Encoding.UTF8.GetString(certBytes), Encoding.UTF8.GetString(keyBytes))
+            : X509CertificateLoader.LoadPkcs12(certBytes, options.CertificadoPassword, X509KeyStorageFlags.EphemeralKeySet);
 
         static byte[]? LeerArchivo(string? ruta) =>
             string.IsNullOrEmpty(ruta) ? null : File.ReadAllBytes(ruta);

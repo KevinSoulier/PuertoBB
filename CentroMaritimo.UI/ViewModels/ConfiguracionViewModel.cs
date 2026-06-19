@@ -392,216 +392,396 @@ public class ConfiguracionViewModel : PageViewModel
     }
 
     // ══════════════════════════════════════════
-    // CORREO
+    // CORREO (varias cuentas; una activa)
     // ══════════════════════════════════════════
-    public string? SmtpHost       { get => _config.SmtpHost;       set { _config.SmtpHost = value; OnPropertyChanged(); } }
-    public int     SmtpPort       { get => _config.SmtpPort;       set { _config.SmtpPort = value; OnPropertyChanged(); } }
-    public int     SmtpSeguridad  { get => _config.SmtpSeguridad;  set { _config.SmtpSeguridad = value; OnPropertyChanged(); } }
-    public string? SmtpUsuario    { get => _config.SmtpUsuario;    set { _config.SmtpUsuario = value; OnPropertyChanged(); } }
-    public string? SmtpPassword   { get => _config.SmtpPassword;   set { _config.SmtpPassword = value; OnPropertyChanged(); } }
-    public string? EmailRemitente { get => _config.EmailRemitente; set { _config.EmailRemitente = value; OnPropertyChanged(); } }
+    public ObservableCollection<CuentaCorreoItem> CuentasCorreo { get; } = new();
+    private List<CuentaCorreo> _cuentasEntidades = new();
 
-    // ── Autenticación (0=Ninguna, 1=Básica, 2=OAuth2) ──
-    public int Autenticacion
+    private CuentaCorreoItem? _cuentaSeleccionada;
+    public CuentaCorreoItem? CuentaSeleccionada
     {
-        get => _config.Autenticacion;
-        set { _config.Autenticacion = value; OnPropertyChanged(); OnPropertyChanged(nameof(EsBasica)); OnPropertyChanged(nameof(EsOAuth2)); }
-    }
-    public bool EsBasica => _config.Autenticacion == 1;
-    public bool EsOAuth2 => _config.Autenticacion == 2;
-
-    // ── OAuth2: proveedor (0=Microsoft, 1=Google, 2=Personalizado) ──
-    public int OAuthProveedor
-    {
-        get => _config.OAuthProveedor;
-        set { _config.OAuthProveedor = value; OnPropertyChanged(); OnPropertyChanged(nameof(EsProveedorPersonalizado)); SugerirTransporteSmtp(); }
-    }
-    public bool EsProveedorPersonalizado => _config.OAuthProveedor == 2;
-
-    // ── OAuth2: flujo (0=Interactivo, 1=Cliente) ──
-    public bool OAuthFlujoInteractivo { get => _config.OAuthFlujo == 0; set { if (value) SetOAuthFlujo(0); } }
-    public bool OAuthFlujoCliente     { get => _config.OAuthFlujo == 1; set { if (value) SetOAuthFlujo(1); } }
-    public bool EsFlujoInteractivo => _config.OAuthFlujo == 0;
-    public bool EsFlujoCliente     => _config.OAuthFlujo == 1;
-    private void SetOAuthFlujo(int flujo)
-    {
-        _config.OAuthFlujo = flujo;
-        OnPropertyChanged(nameof(OAuthFlujoInteractivo));
-        OnPropertyChanged(nameof(OAuthFlujoCliente));
-        OnPropertyChanged(nameof(EsFlujoInteractivo));
-        OnPropertyChanged(nameof(EsFlujoCliente));
+        get => _cuentaSeleccionada;
+        set { if (SetField(ref _cuentaSeleccionada, value) && value is not null) CargarCuentaPorId(value.Id); }
     }
 
-    public string? OAuthClientId          { get => _config.OAuthClientId;          set { _config.OAuthClientId = value; OnPropertyChanged(); } }
-    public string? OAuthClientSecret      { get => _config.OAuthClientSecret;      set { _config.OAuthClientSecret = value; OnPropertyChanged(); } }
-    public string? OAuthTenantId          { get => _config.OAuthTenantId;          set { _config.OAuthTenantId = value; OnPropertyChanged(); } }
-    public string? OAuthScope             { get => _config.OAuthScope;             set { _config.OAuthScope = value; OnPropertyChanged(); } }
-    public string? OAuthAuthorizeEndpoint { get => _config.OAuthAuthorizeEndpoint; set { _config.OAuthAuthorizeEndpoint = value; OnPropertyChanged(); } }
-    public string? OAuthTokenEndpoint     { get => _config.OAuthTokenEndpoint;     set { _config.OAuthTokenEndpoint = value; OnPropertyChanged(); } }
-    public string? OAuthUsuario           { get => _config.OAuthUsuario;           set { _config.OAuthUsuario = value; OnPropertyChanged(); OnPropertyChanged(nameof(OAuthEstado)); } }
+    // Form de edición (working copy)
+    private CuentaCorreo _ctaEd = new() { SmtpPort = 587, Autenticacion = 1 };
+    private int  _ctaEdId;
+    private bool _ctaEdActivo;
+    private bool _loginSinGuardar; // hizo "Iniciar sesión…" pero todavía no guardó la cuenta
 
-    /// <summary>Estado de la sesión interactiva, junto al botón «Iniciar sesión…».</summary>
-    public string OAuthEstado => string.IsNullOrWhiteSpace(_config.OAuthRefreshToken)
+    public string  CtaNombre         { get => _ctaEd.Nombre;         set { _ctaEd.Nombre = value; OnPropertyChanged(); OnPropertyChanged(nameof(TituloCuentaEdicion)); } }
+    public string? CtaSmtpHost       { get => _ctaEd.SmtpHost;       set { _ctaEd.SmtpHost = value; OnPropertyChanged(); } }
+    public int     CtaSmtpPort       { get => _ctaEd.SmtpPort;       set { _ctaEd.SmtpPort = value; OnPropertyChanged(); } }
+    public int     CtaSmtpSeguridad  { get => _ctaEd.SmtpSeguridad;  set { _ctaEd.SmtpSeguridad = value; OnPropertyChanged(); } }
+    public string? CtaEmailRemitente { get => _ctaEd.EmailRemitente; set { _ctaEd.EmailRemitente = value; OnPropertyChanged(); } }
+    public string? CtaSmtpUsuario    { get => _ctaEd.SmtpUsuario;    set { _ctaEd.SmtpUsuario = value; OnPropertyChanged(); } }
+    public string? CtaSmtpPassword   { get => _ctaEd.SmtpPassword;   set { _ctaEd.SmtpPassword = value; OnPropertyChanged(); } }
+
+    // Mostrar/ocultar secretos (contraseña básica + client secret)
+    private bool _ctaMostrarSecretos;
+    public bool CtaMostrarSecretos { get => _ctaMostrarSecretos; set { SetField(ref _ctaMostrarSecretos, value); OnPropertyChanged(nameof(CtaOcultarSecretos)); } }
+    public bool CtaOcultarSecretos => !_ctaMostrarSecretos;
+
+    // Autenticación (0=Ninguna, 1=Básica, 2=OAuth2)
+    public int CtaAutenticacion
+    {
+        get => _ctaEd.Autenticacion;
+        set { _ctaEd.Autenticacion = value; OnPropertyChanged(); OnPropertyChanged(nameof(CtaEsBasica)); OnPropertyChanged(nameof(CtaEsOAuth2)); }
+    }
+    public bool CtaEsBasica => _ctaEd.Autenticacion == 1;
+    public bool CtaEsOAuth2 => _ctaEd.Autenticacion == 2;
+
+    // Proveedor (combo): 0=Microsoft 365, 1=Outlook personal, 2=Google, 3=Otro/Personalizado
+    public int CtaProveedorIndice
+    {
+        get => _ctaEd.OAuthProveedor switch { 0 => 0, 3 => 1, 1 => 2, _ => 3 };
+        set
+        {
+            var (prov, nombrado) = value switch
+            {
+                0 => (0, true),  // Microsoft 365
+                1 => (3, true),  // Outlook.com personal
+                2 => (1, true),  // Google
+                _ => (2, false)  // Otro / Personalizado
+            };
+            _ctaEd.OAuthProveedor = prov;
+            if (nombrado)
+            {
+                CtaAutenticacion = prov == 1 ? 1 : 2; // Google → Básica (contraseña de aplicación, recomendado); Microsoft/Outlook → OAuth2
+                if (prov is 1 or 3) SetCtaFlujo(0);   // Google / Outlook personal: si usan OAuth2, solo Interactivo
+                AutocompletarTransporte((PuertoBB.Core.Models.Mail.OAuthProveedor)prov);
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CtaGuiaProveedor));
+            NotificarVisibilidadOAuth();
+        }
+    }
+
+    // Flujo OAuth (0=Interactivo, 1=Cliente)
+    public bool CtaFlujoInteractivo { get => _ctaEd.OAuthFlujo == 0; set { if (value) SetCtaFlujo(0); } }
+    public bool CtaFlujoCliente     { get => _ctaEd.OAuthFlujo == 1; set { if (value) SetCtaFlujo(1); } }
+    private void SetCtaFlujo(int flujo)
+    {
+        _ctaEd.OAuthFlujo = flujo;
+        OnPropertyChanged(nameof(CtaFlujoInteractivo));
+        OnPropertyChanged(nameof(CtaFlujoCliente));
+        NotificarVisibilidadOAuth();
+    }
+
+    public string? CtaOAuthClientId          { get => _ctaEd.OAuthClientId;          set { _ctaEd.OAuthClientId = value; OnPropertyChanged(); } }
+    public string? CtaOAuthClientSecret      { get => _ctaEd.OAuthClientSecret;      set { _ctaEd.OAuthClientSecret = value; OnPropertyChanged(); } }
+    public string? CtaOAuthTenantId          { get => _ctaEd.OAuthTenantId;          set { _ctaEd.OAuthTenantId = value; OnPropertyChanged(); } }
+    public string? CtaOAuthScope             { get => _ctaEd.OAuthScope;             set { _ctaEd.OAuthScope = value; OnPropertyChanged(); } }
+    public string? CtaOAuthAuthorizeEndpoint { get => _ctaEd.OAuthAuthorizeEndpoint; set { _ctaEd.OAuthAuthorizeEndpoint = value; OnPropertyChanged(); } }
+    public string? CtaOAuthTokenEndpoint     { get => _ctaEd.OAuthTokenEndpoint;     set { _ctaEd.OAuthTokenEndpoint = value; OnPropertyChanged(); } }
+
+    // Visibilidad de campos OAuth según proveedor/flujo
+    public bool CtaMostrarTenant       => _ctaEd.OAuthProveedor is 0 or 3;                          // Microsoft / Outlook personal
+    public bool CtaMostrarFlujo        => _ctaEd.OAuthProveedor is 0 or 2;                          // Microsoft empresa / Personalizado
+    public bool CtaMostrarClientSecret => _ctaEd.OAuthFlujo == 1 || _ctaEd.OAuthProveedor is 1 or 2; // Cliente, o Google/Personalizado
+    public bool CtaEsProveedorPersonalizado => _ctaEd.OAuthProveedor == 2;
+    private void NotificarVisibilidadOAuth()
+    {
+        OnPropertyChanged(nameof(CtaMostrarTenant));
+        OnPropertyChanged(nameof(CtaMostrarFlujo));
+        OnPropertyChanged(nameof(CtaMostrarClientSecret));
+        OnPropertyChanged(nameof(CtaEsProveedorPersonalizado));
+    }
+
+    public string CtaOAuthEstado => string.IsNullOrWhiteSpace(_ctaEd.OAuthRefreshToken)
         ? "Sin iniciar sesión."
-        : $"✓ Conectado como {_config.OAuthUsuario ?? "(cuenta autenticada)"}.";
+        : $"✓ Conectado como {_ctaEd.OAuthUsuario ?? "(cuenta autenticada)"}.";
 
-    private bool _correoEditando;
-    public bool CorreoEditando   { get => _correoEditando; set { SetField(ref _correoEditando, value); OnPropertyChanged(nameof(CorreoNoEditando)); } }
-    public bool CorreoNoEditando => !_correoEditando;
+    /// <summary>Instructivo completo del proveedor seleccionado (se muestra en el panel de guía).</summary>
+    public string CtaGuiaProveedor => _ctaEd.OAuthProveedor switch
+    {
+        0 => // Microsoft 365 (empresa)
+            "Microsoft 365 (empresa) — OAuth2. Microsoft ya no permite contraseña (ni de aplicación) para SMTP.\n\n" +
+            "1) En portal.azure.com → Microsoft Entra ID → App registrations → New registration. Anotá el «Application (client) ID» y el «Directory (tenant) ID».\n" +
+            "2) Authentication → Add a platform → «Mobile and desktop applications» → redirect http://localhost.\n" +
+            "3) Acá: pegá el Client ID (y el Tenant ID) y elegí el flujo:\n" +
+            "   • Interactivo: tocá «Iniciar sesión…» y consentí en el navegador una vez.\n" +
+            "   • Cliente (sin navegador): generá un Client Secret, agregá el permiso de aplicación SMTP.Send con admin consent, y habilitá la casilla con  Set-CASMailbox -SmtpClientAuthenticationDisabled $false.\n" +
+            "4) Servidor smtp.office365.com, puerto 587, seguridad Auto. Es un setup único; después funciona permanente.",
+        3 => // Outlook.com personal
+            "Outlook.com / Hotmail / Live (personal) — OAuth2. No hay contraseña de aplicación: Microsoft la retiró para estas casillas.\n\n" +
+            "1) En portal.azure.com → Microsoft Entra ID → App registrations → New registration, con «Supported account types» que incluya cuentas personales de Microsoft. Anotá el Client ID.\n" +
+            "2) Authentication → Add a platform → «Mobile and desktop applications» → redirect http://localhost.\n" +
+            "3) Acá: pegá el Client ID (Tenant vacío) y tocá «Iniciar sesión…»; consentí con tu cuenta en el navegador.\n" +
+            "4) Servidor smtp-mail.outlook.com, puerto 587, seguridad Auto. Es un setup único; después funciona permanente (no vence).",
+        1 => // Google / Gmail
+            "Gmail / Google Workspace.\n\n" +
+            "Recomendado: contraseña de aplicación (más simple y no vence). Al elegir este proveedor la cuenta ya queda en Autenticación «Básica» con el servidor autocompletado.\n" +
+            "1) Activá la Verificación en 2 pasos en tu cuenta de Google.\n" +
+            "2) Generá una contraseña en myaccount.google.com/apppasswords (16 letras).\n" +
+            "3) Completá Usuario con tu Gmail y pegá esa contraseña (sin espacios). Servidor smtp.gmail.com, puerto 587, Auto (ya autocompletados).\n\n" +
+            "OAuth2 (solo si lo necesitás): cambiá Autenticación a «OAuth2». En console.cloud.google.com creá un OAuth client ID tipo «Aplicación de escritorio» y agregá tu cuenta como usuario de prueba. Ojo: en modo prueba el token vence a los 7 días.",
+        _ => // Otro / Personalizado
+            "Otro proveedor (configuración manual).\n\n" +
+            "Usá Autenticación «Básica» con el host/puerto del proveedor y, como contraseña, una contraseña de aplicación o una API key. Ejemplos:\n" +
+            "   • Gmail: smtp.gmail.com : 587 (contraseña de aplicación)\n" +
+            "   • Yahoo: smtp.mail.yahoo.com : 465\n" +
+            "   • iCloud: smtp.mail.me.com : 587\n" +
+            "   • Brevo: smtp-relay.brevo.com : 587 (API key)\n" +
+            "   • SendGrid: smtp.sendgrid.net : 587 (usuario «apikey», API key como contraseña)\n" +
+            "   • Amazon SES: email-smtp.<región>.amazonaws.com : 587\n\n" +
+            "Si tu proveedor usa OAuth2, elegí Autenticación OAuth2 y cargá a mano los endpoints Authorize/Token y el Scope."
+    };
+
+    private bool _correoFormEditando;
+    public bool CorreoFormEditando   { get => _correoFormEditando; set { SetField(ref _correoFormEditando, value); OnPropertyChanged(nameof(CorreoFormNoEditando)); } }
+    public bool CorreoFormNoEditando => !_correoFormEditando;
+
+    public string TituloCuentaEdicion => _ctaEdId == 0 ? "Nueva cuenta de correo" : $"Editando: {CtaNombre}";
 
     private string _estadoCorreo = string.Empty;
     public string EstadoCorreo { get => _estadoCorreo; set => SetField(ref _estadoCorreo, value); }
 
-    // Snapshot para Cancelar
-    private string? _snapSmtpHost;
-    private int     _snapSmtpPort;
-    private int     _snapSmtpSeguridad;
-    private string? _snapSmtpUsuario;
-    private string? _snapSmtpPassword;
-    private string? _snapEmailRemitente;
-    private int     _snapAutenticacion;
-    private int     _snapOAuthProveedor;
-    private int     _snapOAuthFlujo;
-    private string? _snapOAuthClientId;
-    private string? _snapOAuthClientSecret;
-    private string? _snapOAuthTenantId;
-    private string? _snapOAuthScope;
-    private string? _snapOAuthAuthorizeEndpoint;
-    private string? _snapOAuthTokenEndpoint;
-    private string? _snapOAuthRefreshToken;
-    private string? _snapOAuthUsuario;
-
-    public ICommand EditarCorreoCommand       { get; }
-    public ICommand GuardarCorreoCommand      { get; }
-    public ICommand CancelarCorreoCommand     { get; }
+    public ICommand NuevaCuentaCommand        { get; }
+    public ICommand EditarCuentaCommand       { get; }
+    public ICommand GuardarCuentaCommand      { get; }
+    public ICommand CancelarCuentaCommand     { get; }
+    public ICommand EliminarCuentaCommand     { get; }
+    public ICommand MarcarCuentaActivaCommand { get; }
     public ICommand ProbarMailCommand         { get; }
+    public ICommand ProbarCuentaEnEdicionCommand { get; }
     public ICommand IniciarSesionOAuthCommand { get; }
+    public ICommand ToggleMostrarSecretosCommand { get; }
 
-    private void EditarCorreo()
+    /// <summary>Autocompleta host/puerto/seguridad al elegir un proveedor con preset.</summary>
+    private void AutocompletarTransporte(PuertoBB.Core.Models.Mail.OAuthProveedor proveedor)
     {
-        _snapSmtpHost       = SmtpHost;
-        _snapSmtpPort       = SmtpPort;
-        _snapSmtpSeguridad  = SmtpSeguridad;
-        _snapSmtpUsuario    = SmtpUsuario;
-        _snapSmtpPassword   = SmtpPassword;
-        _snapEmailRemitente = EmailRemitente;
-        _snapAutenticacion          = _config.Autenticacion;
-        _snapOAuthProveedor         = _config.OAuthProveedor;
-        _snapOAuthFlujo             = _config.OAuthFlujo;
-        _snapOAuthClientId          = _config.OAuthClientId;
-        _snapOAuthClientSecret      = _config.OAuthClientSecret;
-        _snapOAuthTenantId          = _config.OAuthTenantId;
-        _snapOAuthScope             = _config.OAuthScope;
-        _snapOAuthAuthorizeEndpoint = _config.OAuthAuthorizeEndpoint;
-        _snapOAuthTokenEndpoint     = _config.OAuthTokenEndpoint;
-        _snapOAuthRefreshToken      = _config.OAuthRefreshToken;
-        _snapOAuthUsuario           = _config.OAuthUsuario;
-        CorreoEditando      = true;
-    }
-    private void CancelarCorreo()
-    {
-        SmtpHost       = _snapSmtpHost;
-        SmtpPort       = _snapSmtpPort;
-        SmtpSeguridad  = _snapSmtpSeguridad;
-        SmtpUsuario    = _snapSmtpUsuario;
-        SmtpPassword   = _snapSmtpPassword;
-        EmailRemitente = _snapEmailRemitente;
-        _config.OAuthRefreshToken = _snapOAuthRefreshToken;
-        Autenticacion          = _snapAutenticacion;
-        OAuthProveedor         = _snapOAuthProveedor;
-        SetOAuthFlujo(_snapOAuthFlujo);
-        OAuthClientId          = _snapOAuthClientId;
-        OAuthClientSecret      = _snapOAuthClientSecret;
-        OAuthTenantId          = _snapOAuthTenantId;
-        OAuthScope             = _snapOAuthScope;
-        OAuthAuthorizeEndpoint = _snapOAuthAuthorizeEndpoint;
-        OAuthTokenEndpoint     = _snapOAuthTokenEndpoint;
-        OAuthUsuario           = _snapOAuthUsuario;
-        CorreoEditando = false;
-    }
-
-    /// <summary>Autocompleta host/puerto/seguridad al elegir un proveedor OAuth, si el host está vacío.</summary>
-    private void SugerirTransporteSmtp()
-    {
-        if (string.IsNullOrWhiteSpace(SmtpHost) &&
-            OAuthPresets.SugerenciaSmtp((PuertoBB.Core.Models.Mail.OAuthProveedor)_config.OAuthProveedor) is { } s)
+        if (OAuthPresets.SugerenciaSmtp(proveedor) is { } s)
         {
-            SmtpHost      = s.Host;
-            SmtpPort      = s.Puerto;
-            SmtpSeguridad = (int)s.Seguridad;
+            CtaSmtpHost      = s.Host;
+            CtaSmtpPort      = s.Puerto;
+            CtaSmtpSeguridad = (int)s.Seguridad;
         }
     }
 
-    private async Task IniciarSesionOAuthAsync()
+    private void NotificarCamposCuenta()
     {
-        if (string.IsNullOrWhiteSpace(OAuthClientId)) { MostrarError("Ingresá el Client ID antes de iniciar sesión."); return; }
-        EstadoCorreo = "Abriendo el navegador para iniciar sesión…";
-        var res = await _oauth.AutenticarAsync(ConstruirMailConfig());
-        if (!res.Success)
+        foreach (var p in new[] { nameof(CtaNombre), nameof(CtaSmtpHost), nameof(CtaSmtpPort), nameof(CtaSmtpSeguridad),
+            nameof(CtaEmailRemitente), nameof(CtaSmtpUsuario), nameof(CtaSmtpPassword),
+            nameof(CtaAutenticacion), nameof(CtaEsBasica), nameof(CtaEsOAuth2),
+            nameof(CtaProveedorIndice), nameof(CtaFlujoInteractivo), nameof(CtaFlujoCliente),
+            nameof(CtaOAuthClientId), nameof(CtaOAuthClientSecret), nameof(CtaOAuthTenantId), nameof(CtaOAuthScope),
+            nameof(CtaOAuthAuthorizeEndpoint), nameof(CtaOAuthTokenEndpoint),
+            nameof(CtaOAuthEstado), nameof(TituloCuentaEdicion), nameof(CtaGuiaProveedor),
+            nameof(CtaMostrarTenant), nameof(CtaMostrarFlujo), nameof(CtaMostrarClientSecret), nameof(CtaEsProveedorPersonalizado) })
+            OnPropertyChanged(p);
+    }
+
+    private static CuentaCorreo Clonar(CuentaCorreo s) => new()
+    {
+        Id = s.Id, ConfiguracionId = s.ConfiguracionId, Nombre = s.Nombre, Activo = s.Activo,
+        SmtpHost = s.SmtpHost, SmtpPort = s.SmtpPort, SmtpSeguridad = s.SmtpSeguridad, EmailRemitente = s.EmailRemitente,
+        Autenticacion = s.Autenticacion, SmtpUsuario = s.SmtpUsuario, SmtpPassword = s.SmtpPassword,
+        OAuthProveedor = s.OAuthProveedor, OAuthFlujo = s.OAuthFlujo, OAuthClientId = s.OAuthClientId,
+        OAuthClientSecret = s.OAuthClientSecret, OAuthTenantId = s.OAuthTenantId, OAuthScope = s.OAuthScope,
+        OAuthAuthorizeEndpoint = s.OAuthAuthorizeEndpoint, OAuthTokenEndpoint = s.OAuthTokenEndpoint,
+        OAuthRefreshToken = s.OAuthRefreshToken, OAuthUsuario = s.OAuthUsuario
+    };
+
+    private void CargarCuentaPorId(int id)
+    {
+        var ent = _cuentasEntidades.FirstOrDefault(c => c.Id == id);
+        if (ent is null) return;
+        _ctaEd = Clonar(ent);
+        _ctaEdId = ent.Id;
+        _ctaEdActivo = ent.Activo;
+        _loginSinGuardar = false;
+        CtaMostrarSecretos = false;
+        NotificarCamposCuenta();
+    }
+
+    private void NuevaCuenta()
+    {
+        _ctaEd = new CuentaCorreo { SmtpPort = 587, Autenticacion = 1 };
+        _ctaEdId = 0;
+        _ctaEdActivo = false;
+        _loginSinGuardar = false;
+        CtaMostrarSecretos = false;
+        NotificarCamposCuenta();
+        CorreoFormEditando = true;
+    }
+
+    private void EditarCuenta()
+    {
+        if (CuentaSeleccionada is null) { MostrarError("Seleccioná una cuenta de la lista."); return; }
+        CorreoFormEditando = true;
+    }
+
+    private async Task CancelarCuentaAsync()
+    {
+        if (_loginSinGuardar && !await _dialog.ShowConfirmAsync(
+                "Descartar conexión",
+                "Iniciaste sesión pero todavía no guardaste la cuenta. Si cancelás, se pierde la conexión y vas a tener que iniciar sesión de nuevo. ¿Descartar de todas formas?",
+                "Descartar", "Volver"))
+            return;
+        _loginSinGuardar = false;
+        if (_ctaEdId != 0) CargarCuentaPorId(_ctaEdId);
+        else { _ctaEd = new CuentaCorreo { SmtpPort = 587, Autenticacion = 1 }; NotificarCamposCuenta(); }
+        CorreoFormEditando = false;
+    }
+
+    private async Task GuardarCuentaAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CtaNombre)) { MostrarError("Indicá un nombre para la cuenta."); return; }
+        var remitente = CtaEmailRemitente?.Trim();
+        if (!string.IsNullOrEmpty(remitente) && !System.Net.Mail.MailAddress.TryCreate(remitente, out _))
         {
-            EstadoCorreo = res.ErrorMessage ?? "No se pudo iniciar sesión.";
-            MostrarError(EstadoCorreo);
+            MostrarError($"El email remitente «{CtaEmailRemitente}» no tiene un formato válido (ej. info@tudominio.com).");
             return;
         }
-        _config.OAuthRefreshToken = res.Data!.RefreshToken;
-        OAuthUsuario = res.Data.Usuario;   // dispara OAuthEstado
-        EstadoCorreo = $"✓ Conectado como {res.Data.Usuario}. Guardá la configuración para conservar la sesión.";
-        MostrarExito($"Conectado como {res.Data.Usuario}.");
+        _ctaEd.EmailRemitente = remitente;
+
+        // Validación por modo (servidor/remitente, y credenciales según Básica/OAuth2). Reutiliza MailConfig.Validar().
+        if (ConstruirMailConfig().Validar() is { } error) { MostrarError(error); return; }
+
+        try
+        {
+            var esPrimera = _cuentasEntidades.Count == 0;
+            _ctaEd.Id = _ctaEdId;
+            _ctaEd.Activo = _ctaEdId == 0 ? esPrimera : _ctaEdActivo;
+            var guardada = await _repo.GuardarCuentaCorreoAsync(_ctaEd);
+            _loginSinGuardar = false;
+            await RecargarCuentasAsync();
+            CorreoFormEditando = false;
+            MostrarExito($"Cuenta «{guardada.Nombre}» guardada.");
+        }
+        catch (Exception ex) { MostrarError($"No se pudo guardar la cuenta: {ex.Message}"); }
+    }
+
+    private async Task EliminarCuentaAsync()
+    {
+        if (CuentaSeleccionada is not { } sel) { MostrarError("Seleccioná una cuenta de la lista."); return; }
+        var esActiva = _cuentasEntidades.FirstOrDefault(c => c.Id == sel.Id)?.Activo ?? false;
+        var mensaje = esActiva
+            ? $"¿Eliminar la cuenta «{sel.Nombre}»? Es la cuenta activa: la app quedará sin cuenta para enviar correos hasta que marques otra."
+            : $"¿Eliminar la cuenta «{sel.Nombre}»?";
+        if (!await _dialog.ShowConfirmAsync("Eliminar cuenta", mensaje, "Eliminar", "Cancelar")) return;
+        try { await _repo.EliminarCuentaCorreoAsync(sel.Id); await RecargarCuentasAsync(); MostrarExito("Cuenta eliminada."); }
+        catch (Exception ex) { MostrarError($"No se pudo eliminar: {ex.Message}"); }
+    }
+
+    private async Task MarcarCuentaActivaAsync()
+    {
+        if (CuentaSeleccionada is not { } sel) { MostrarError("Seleccioná una cuenta de la lista."); return; }
+        try { await _repo.MarcarCuentaCorreoActivaAsync(sel.Id); await RecargarCuentasAsync(); MostrarExito($"«{sel.Nombre}» quedó como cuenta activa."); }
+        catch (Exception ex) { MostrarError($"No se pudo activar: {ex.Message}"); }
+    }
+
+    private async Task RecargarCuentasAsync()
+    {
+        _cuentasEntidades = (await _repo.GetCuentasCorreoAsync()).ToList();
+        CuentasCorreo.Clear();
+        foreach (var c in _cuentasEntidades) CuentasCorreo.Add(CuentaCorreoItem.From(c));
     }
 
     /// <summary>Arma un MailConfig con los valores en edición (sin pasar por la base), para el login OAuth.</summary>
     private MailConfig ConstruirMailConfig() => new()
     {
-        SmtpHost       = _config.SmtpHost,
-        SmtpPort       = _config.SmtpPort,
-        SmtpSeguridad  = (PuertoBB.Core.Models.Mail.SmtpSeguridad)_config.SmtpSeguridad,
-        SmtpUsuario    = _config.SmtpUsuario,
-        SmtpPassword   = _config.SmtpPassword,
-        EmailRemitente = _config.EmailRemitente,
-        Autenticacion  = (MailAutenticacion)_config.Autenticacion,
-        OAuthProveedor = (PuertoBB.Core.Models.Mail.OAuthProveedor)_config.OAuthProveedor,
-        OAuthFlujo     = (OAuthFlujo)_config.OAuthFlujo,
-        OAuthClientId          = _config.OAuthClientId,
-        OAuthClientSecret      = _config.OAuthClientSecret,
-        OAuthTenantId          = _config.OAuthTenantId,
-        OAuthScope             = _config.OAuthScope,
-        OAuthAuthorizeEndpoint = _config.OAuthAuthorizeEndpoint,
-        OAuthTokenEndpoint     = _config.OAuthTokenEndpoint,
-        OAuthRefreshToken      = _config.OAuthRefreshToken,
-        OAuthUsuario           = _config.OAuthUsuario
+        SmtpHost = _ctaEd.SmtpHost, SmtpPort = _ctaEd.SmtpPort,
+        SmtpSeguridad = (PuertoBB.Core.Models.Mail.SmtpSeguridad)_ctaEd.SmtpSeguridad,
+        SmtpUsuario = _ctaEd.SmtpUsuario, SmtpPassword = _ctaEd.SmtpPassword, EmailRemitente = _ctaEd.EmailRemitente,
+        Autenticacion = (MailAutenticacion)_ctaEd.Autenticacion,
+        OAuthProveedor = (PuertoBB.Core.Models.Mail.OAuthProveedor)_ctaEd.OAuthProveedor,
+        OAuthFlujo = (OAuthFlujo)_ctaEd.OAuthFlujo,
+        OAuthClientId = _ctaEd.OAuthClientId, OAuthClientSecret = _ctaEd.OAuthClientSecret,
+        OAuthTenantId = _ctaEd.OAuthTenantId, OAuthScope = _ctaEd.OAuthScope,
+        OAuthAuthorizeEndpoint = _ctaEd.OAuthAuthorizeEndpoint, OAuthTokenEndpoint = _ctaEd.OAuthTokenEndpoint,
+        OAuthRefreshToken = _ctaEd.OAuthRefreshToken, OAuthUsuario = _ctaEd.OAuthUsuario
     };
-    private async Task GuardarCorreoAsync()
+
+    private async Task IniciarSesionOAuthAsync()
     {
-        var remitente = EmailRemitente?.Trim();
-        if (!string.IsNullOrEmpty(remitente) && !System.Net.Mail.MailAddress.TryCreate(remitente, out _))
-        {
-            MostrarError($"El email remitente «{EmailRemitente}» no tiene un formato válido (ej. info@tudominio.com).");
-            return;
-        }
-        EmailRemitente = remitente; // persiste el valor normalizado (sin espacios)
-        try
-        {
-            await _repo.SaveAsync(_config);
-            CorreoEditando = false;
-            MostrarExito("Configuración de correo guardada.");
-        }
-        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+        if (string.IsNullOrWhiteSpace(CtaOAuthClientId)) { MostrarError("Ingresá el Client ID antes de iniciar sesión."); return; }
+        EstadoCorreo = "Abriendo el navegador para iniciar sesión…";
+        var res = await _oauth.AutenticarAsync(ConstruirMailConfig());
+        if (!res.Success) { EstadoCorreo = res.ErrorMessage ?? "No se pudo iniciar sesión."; MostrarError(EstadoCorreo); return; }
+        _ctaEd.OAuthRefreshToken = res.Data!.RefreshToken;
+        _ctaEd.OAuthUsuario = res.Data.Usuario;
+        _loginSinGuardar = true;
+        OnPropertyChanged(nameof(CtaOAuthEstado));
+        EstadoCorreo = $"✓ Conectado como {res.Data.Usuario}. Guardá la cuenta para conservar la sesión.";
+        MostrarExito($"Conectado como {res.Data.Usuario}.");
     }
+
     private async Task ProbarMailAsync()
     {
         try
         {
-            EstadoCorreo = "Probando conexión…";
+            EstadoCorreo = "Probando conexión (cuenta activa)…";
             var res = await _mail.ProbarConexionAsync();
             EstadoCorreo = res.Success ? res.Data! : res.ErrorMessage ?? "Error desconocido.";
             if (res.Success) MostrarExito(EstadoCorreo);
             else             MostrarError(EstadoCorreo);
         }
-        catch (Exception ex)
+        catch (Exception ex) { EstadoCorreo = ex.Message; MostrarError($"Error al probar el correo: {ex.Message}"); }
+    }
+
+    /// <summary>Prueba la conexión SMTP de la cuenta que se está editando (sin guardarla ni marcarla activa).</summary>
+    private async Task ProbarCuentaEnEdicionAsync()
+    {
+        try
         {
-            EstadoCorreo = ex.Message;
-            MostrarError($"Error al probar el correo: {ex.Message}");
+            EstadoCorreo = "Probando esta cuenta…";
+            var res = await _mail.ProbarConexionAsync(ConstruirMailConfig());
+            EstadoCorreo = res.Success ? res.Data! : res.ErrorMessage ?? "Error desconocido.";
+            if (res.Success) MostrarExito(EstadoCorreo);
+            else             MostrarError(EstadoCorreo);
         }
+        catch (Exception ex) { EstadoCorreo = ex.Message; MostrarError($"Error al probar el correo: {ex.Message}"); }
+    }
+
+    // ══════════════════════════════════════════
+    // PLANTILLA DE CORREO (global; una sola para todos los comprobantes)
+    // ══════════════════════════════════════════
+    public string? MailAsunto { get => _config.MailAsunto; set { _config.MailAsunto = value; OnPropertyChanged(); } }
+    public string? MailCuerpo { get => _config.MailCuerpo; set { _config.MailCuerpo = value; OnPropertyChanged(); } }
+
+    /// <summary>El cuerpo se pega/edita como HTML (diseñado por fuera) y se envía como HtmlBody; si es false, va como texto plano.</summary>
+    public bool MailCuerpoEsHtml { get => _config.MailCuerpoEsHtml; set { _config.MailCuerpoEsHtml = value; OnPropertyChanged(); } }
+
+    /// <summary>Variables disponibles para mostrarlas como ayuda/atajos en la UI.</summary>
+    public IReadOnlyList<(string Token, string Descripcion)> VariablesPlantilla => PuertoBB.Core.Mail.PlantillaMail.Variables;
+
+    private bool _plantillaEditando;
+    public bool PlantillaEditando   { get => _plantillaEditando; set { SetField(ref _plantillaEditando, value); OnPropertyChanged(nameof(PlantillaNoEditando)); } }
+    public bool PlantillaNoEditando => !_plantillaEditando;
+
+    private string _estadoPlantilla = string.Empty;
+    public string EstadoPlantilla { get => _estadoPlantilla; set => SetField(ref _estadoPlantilla, value); }
+
+    // Snapshot para Cancelar
+    private string? _snapMailAsunto;
+    private string? _snapMailCuerpo;
+    private bool    _snapMailCuerpoEsHtml;
+
+    public ICommand EditarPlantillaCommand   { get; }
+    public ICommand GuardarPlantillaCommand  { get; }
+    public ICommand CancelarPlantillaCommand { get; }
+
+    private void EditarPlantilla()
+    {
+        _snapMailAsunto       = _config.MailAsunto;
+        _snapMailCuerpo       = _config.MailCuerpo;
+        _snapMailCuerpoEsHtml = _config.MailCuerpoEsHtml;
+        PlantillaEditando = true;
+    }
+    private void CancelarPlantilla()
+    {
+        MailAsunto       = _snapMailAsunto;
+        MailCuerpo       = _snapMailCuerpo;
+        MailCuerpoEsHtml = _snapMailCuerpoEsHtml;
+        PlantillaEditando = false;
+    }
+    private async Task GuardarPlantillaAsync()
+    {
+        try   { await _repo.SaveAsync(_config); PlantillaEditando = false; MostrarExito("Plantilla de correo guardada."); }
+        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
     }
 
     // ══════════════════════════════════════════
@@ -670,12 +850,22 @@ public class ConfiguracionViewModel : PageViewModel
         GuardarPagosCommand  = new AsyncRelayCommand(GuardarPagosAsync);
         CancelarPagosCommand = new RelayCommand(_ => CancelarPagos());
 
-        // Correo
-        EditarCorreoCommand       = new RelayCommand(_ => EditarCorreo());
-        GuardarCorreoCommand      = new AsyncRelayCommand(GuardarCorreoAsync);
-        CancelarCorreoCommand     = new RelayCommand(_ => CancelarCorreo());
+        // Correo (varias cuentas)
+        NuevaCuentaCommand        = new RelayCommand(_ => NuevaCuenta());
+        EditarCuentaCommand       = new RelayCommand(_ => EditarCuenta());
+        GuardarCuentaCommand      = new AsyncRelayCommand(GuardarCuentaAsync);
+        CancelarCuentaCommand     = new AsyncRelayCommand(CancelarCuentaAsync);
+        EliminarCuentaCommand     = new AsyncRelayCommand(EliminarCuentaAsync);
+        MarcarCuentaActivaCommand = new AsyncRelayCommand(MarcarCuentaActivaAsync);
         ProbarMailCommand         = new AsyncRelayCommand(ProbarMailAsync);
+        ProbarCuentaEnEdicionCommand = new AsyncRelayCommand(ProbarCuentaEnEdicionAsync);
         IniciarSesionOAuthCommand = new AsyncRelayCommand(IniciarSesionOAuthAsync);
+        ToggleMostrarSecretosCommand = new RelayCommand(_ => CtaMostrarSecretos = !CtaMostrarSecretos);
+
+        // Plantilla de correo
+        EditarPlantillaCommand   = new RelayCommand(_ => EditarPlantilla());
+        GuardarPlantillaCommand  = new AsyncRelayCommand(GuardarPlantillaAsync);
+        CancelarPlantillaCommand = new RelayCommand(_ => CancelarPlantilla());
 
         // Otros
         BackupCommand              = new AsyncRelayCommand(BackupAsync);
@@ -684,7 +874,7 @@ public class ConfiguracionViewModel : PageViewModel
         VacuumCommand              = new AsyncRelayCommand(VacuumAsync);
         OptimizarCommand           = new AsyncRelayCommand(OptimizarAsync);
 
-        _ = CargarAsync();
+        CargarSeguro(CargarAsync);
     }
 
     // ══════════════════════════════════════════
@@ -698,17 +888,11 @@ public class ConfiguracionViewModel : PageViewModel
         foreach (var p in new[] { nameof(RazonSocial), nameof(Cuit), nameof(IngresosBrutos), nameof(InicioActividades),
                                    nameof(CodigoAfipRecibo), nameof(CodigoAfipNotaDeCredito),
                                    nameof(ImporteVoucherPredeterminado),
-                                   nameof(DiasVencimiento), nameof(SmtpHost), nameof(SmtpPort), nameof(SmtpSeguridad),
-                                   nameof(SmtpUsuario), nameof(SmtpPassword), nameof(EmailRemitente),
-                                   nameof(Autenticacion), nameof(EsBasica), nameof(EsOAuth2),
-                                   nameof(OAuthProveedor), nameof(EsProveedorPersonalizado),
-                                   nameof(OAuthFlujoInteractivo), nameof(OAuthFlujoCliente),
-                                   nameof(EsFlujoInteractivo), nameof(EsFlujoCliente),
-                                   nameof(OAuthClientId), nameof(OAuthClientSecret), nameof(OAuthTenantId),
-                                   nameof(OAuthScope), nameof(OAuthAuthorizeEndpoint), nameof(OAuthTokenEndpoint),
-                                   nameof(OAuthUsuario), nameof(OAuthEstado) })
+                                   nameof(DiasVencimiento),
+                                   nameof(MailAsunto), nameof(MailCuerpo), nameof(MailCuerpoEsHtml) })
             OnPropertyChanged(p);
         await RecargarPuntosAsync();
+        await RecargarCuentasAsync();
     }
 
     private async Task RecargarPuntosAsync()
@@ -942,9 +1126,12 @@ public class ConfiguracionViewModel : PageViewModel
     {
         var dlg = new SaveFileDialog { Filter = "Base SQLite (*.db)|*.db", FileName = _backup.NombreSugerido() };
         if (dlg.ShowDialog() != true) return;
-        var res = await _backup.BackupAsync(dlg.FileName);
-        if (res.Success) MostrarExito($"Backup generado en {dlg.FileName}");
-        else MostrarError(res.ErrorMessage ?? "No se pudo generar el backup.");
+        await EjecutarOcupadoAsync("Generando backup", async () =>
+        {
+            var res = await _backup.BackupAsync(dlg.FileName);
+            if (res.Success) MostrarExito($"Backup generado en {dlg.FileName}");
+            else MostrarError(res.ErrorMessage ?? "No se pudo generar el backup.");
+        });
     }
 
     private async Task RestaurarAsync()
@@ -956,37 +1143,46 @@ public class ConfiguracionViewModel : PageViewModel
             "Esto reemplazará TODA la base de datos actual con el backup seleccionado.\n\nLa aplicación se cerrará al finalizar y deberás reabrirla para continuar.\n\n¿Querés continuar?",
             "Restaurar", "Cancelar");
         if (!confirmado) return;
-        var res = await _backup.RestaurarAsync(dlg.FileName);
-        if (res.Success)
+        await EjecutarOcupadoAsync("Restaurando", async () =>
         {
-            MostrarExito("Base restaurada. Cierre y vuelva a abrir la aplicación.");
-            await Task.Delay(1500);
-            Application.Current.Shutdown();
-        }
-        else MostrarError(res.ErrorMessage ?? "No se pudo restaurar el backup.");
+            var res = await _backup.RestaurarAsync(dlg.FileName);
+            if (res.Success)
+            {
+                MostrarExito("Base restaurada. Cierre y vuelva a abrir la aplicación.");
+                await Task.Delay(1500);
+                Application.Current.Shutdown();
+            }
+            else MostrarError(res.ErrorMessage ?? "No se pudo restaurar el backup.");
+        });
     }
 
     private async Task VerificarIntegridadAsync()
     {
-        var res = await _backup.VerificarIntegridadAsync();
-        if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo verificar la integridad."); return; }
-        if (res.Data == "ok")
-            MostrarExito("La base de datos está en buen estado.");
-        else
-            await _dialog.ShowAlertAsync("Problemas encontrados", res.Data ?? "Se encontraron errores en la base de datos.");
+        string? problemas = null;
+        await EjecutarOcupadoAsync("Verificando", async () =>
+        {
+            var res = await _backup.VerificarIntegridadAsync();
+            if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo verificar la integridad."); return; }
+            if (res.Data == "ok") MostrarExito("La base de datos está en buen estado.");
+            else problemas = res.Data ?? "Se encontraron errores en la base de datos.";
+        });
+        if (problemas is not null)
+            await _dialog.ShowAlertAsync("Problemas encontrados", problemas);
     }
 
-    private async Task VacuumAsync()
-    {
-        var res = await _backup.VacuumAsync();
-        if (res.Success) MostrarExito("Base de datos compactada correctamente.");
-        else MostrarError(res.ErrorMessage ?? "No se pudo compactar la base de datos.");
-    }
+    private Task VacuumAsync()
+        => EjecutarOcupadoAsync("Compactando base", async () =>
+        {
+            var res = await _backup.VacuumAsync();
+            if (res.Success) MostrarExito("Base de datos compactada correctamente.");
+            else MostrarError(res.ErrorMessage ?? "No se pudo compactar la base de datos.");
+        });
 
-    private async Task OptimizarAsync()
-    {
-        var res = await _backup.OptimizarAsync();
-        if (res.Success) MostrarExito("Estadísticas del optimizador actualizadas.");
-        else MostrarError(res.ErrorMessage ?? "No se pudo optimizar la base de datos.");
-    }
+    private Task OptimizarAsync()
+        => EjecutarOcupadoAsync("Optimizando base", async () =>
+        {
+            var res = await _backup.OptimizarAsync();
+            if (res.Success) MostrarExito("Estadísticas del optimizador actualizadas.");
+            else MostrarError(res.ErrorMessage ?? "No se pudo optimizar la base de datos.");
+        });
 }

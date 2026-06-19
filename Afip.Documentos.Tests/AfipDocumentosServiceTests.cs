@@ -21,8 +21,7 @@ public class AfipDocumentosServiceTests
 
         return new ComprobanteDocumento
         {
-            CodigoTipo = 11,
-            NombreOverride = "RECIBO",
+            CodigoTipo = 15,   // Recibo C
             PuntoVenta = 1,
             Numero = 94,
             FechaEmision = new DateTime(2026, 6, 7),

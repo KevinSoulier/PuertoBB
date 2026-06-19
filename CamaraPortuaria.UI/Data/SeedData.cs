@@ -10,6 +10,13 @@ namespace CamaraPortuaria.UI.Data;
 /// </summary>
 public static class SeedData
 {
+    /// <summary>
+    /// Si tiene valor, TODOS los socios se siembran con este único email — útil para
+    /// probar envíos masivos sin escribir a las empresas reales. Poner en null para
+    /// usar los emails reales de cada socio (los que figuran en cada Crear(...)).
+    /// </summary>
+    private static readonly string? EmailPruebas = "kevsoulier@gmail.com";
+
     public static async Task EnsureSeededAsync(CamaraPortuariaDbContext db)
     {
         if (await db.Empresas.AnyAsync()) return;
@@ -83,15 +90,20 @@ public static class SeedData
         await db.SaveChangesAsync();
     }
 
-    private static Empresa Crear(string nombre, string razon, string cuit, params string[] emails) => new()
+    private static Empresa Crear(string nombre, string razon, string cuit, params string[] emails)
     {
-        Nombre = nombre,
-        RazonSocial = razon,
-        Cuit = cuit,
-        CondicionIvaId = 1, // IVA Responsable Inscripto (dato demo; verificar con "Validar CUIT en ARCA")
-        CreatedAt = DateTime.Now,
-        Emails = emails.Select(e => new EmailEmpresa { Email = e, CreatedAt = DateTime.Now }).ToList()
-    };
+        var email = EmailPruebas;
+        var destino = email is null ? emails : new[] { email };
+        return new()
+        {
+            Nombre = nombre,
+            RazonSocial = razon,
+            Cuit = cuit,
+            CondicionIvaId = 1, // IVA Responsable Inscripto (dato demo; verificar con "Validar CUIT en ARCA")
+            CreatedAt = DateTime.Now,
+            Emails = destino.Select(e => new EmailEmpresa { Email = e, CreatedAt = DateTime.Now }).ToList()
+        };
+    }
 
     private static GrupoFacturacionLinea Linea(string descripcion, decimal cantidad, decimal precioUnitario, int orden) => new()
     {

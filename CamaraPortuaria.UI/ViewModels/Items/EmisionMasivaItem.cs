@@ -30,8 +30,10 @@ public class EmisionMasivaItem
     public bool EsEnviable { get; }
     /// <summary>Hay un comprobante con CAE para previsualizar el PDF.</summary>
     public bool EsPrevisualizable => CaeOk;
+    /// <summary>Recibo creado pero sin CAE (Pendiente): se puede eliminar para rehacerlo.</summary>
+    public bool EsEliminable { get; }
 
-    public EmisionMasivaItem(int entidadId, string empresa, Recibo? r)
+    public EmisionMasivaItem(int entidadId, string empresa, Recibo? r, decimal importeEsperado)
     {
         EntidadId = entidadId;
         Empresa = empresa;
@@ -39,7 +41,7 @@ public class EmisionMasivaItem
         if (r is null)
         {
             Comprobante = "—";
-            Importe = "—";
+            Importe = Formato.Moneda(importeEsperado);   // monto esperado del grupo, para validar antes de emitir
             Estado = "No emitido";
             EstadoEnvio = "—";
             EsEmitible = true;
@@ -47,23 +49,19 @@ public class EmisionMasivaItem
         }
 
         var hoy = DateTime.Today;
+        var acc = AccionesRecibo.De(r);
         ReciboId = r.Id;
         TieneRecibo = true;
         CaeOk = !string.IsNullOrEmpty(r.CAE);
         Comprobante = CaeOk ? $"{r.PuntoDeVenta:0000}-{r.NumeroComprobante:00000000}" : "—";
         Importe = Formato.Moneda(r.Importe);
-        Estado = EstadoReciboHelper.EtiquetaEstado(r.Estado, r.FechaVencimientoPago, hoy);
-        MailEnviado = r.Estado == ReciboEstado.Enviado;
+        Estado = EstadoReciboHelper.EtiquetaEstado(r, hoy);
+        EstadoEnvio = EstadoReciboHelper.EtiquetaEnvio(r);
+        MailEnviado = r.FechaEnvioMail is not null;
         FechaEnvioMailFormateada = r.FechaEnvioMail.HasValue ? Formato.Fecha(r.FechaEnvioMail.Value) : null;
         Error = r.UltimoErrorCae ?? r.UltimoErrorMail;
-        EsEmitible = string.IsNullOrEmpty(r.CAE) && r.Estado is not (ReciboEstado.Pagado or ReciboEstado.Anulado);
-        EsEnviable = CaeOk && r.Estado is ReciboEstado.Emitido or ReciboEstado.Enviado;
-        EstadoEnvio = r.Estado switch
-        {
-            ReciboEstado.Pendiente => "CAE pendiente",
-            ReciboEstado.Enviado   => "Enviado",
-            ReciboEstado.Emitido   => r.UltimoErrorMail is not null ? "Mail falló" : "Sin enviar",
-            _                      => "—"
-        };
+        EsEmitible = acc.EsReintentable;   // sin CAE (Pendiente)
+        EsEnviable = acc.EsEnviable;       // con CAE (Emitido)
+        EsEliminable = !CaeOk;             // Pendiente: borrable para rehacer
     }
 }

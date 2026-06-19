@@ -5,6 +5,7 @@ using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Enums;
 using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Mail;
 using PuertoBB.Core.Models;
 using PuertoBB.Core.Models.Afip;
 using PuertoBB.Core.Models.Resultados;
@@ -66,14 +67,15 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         if (grupo is null) return ServiceResult<IReadOnlyList<EstadoEmisionEntidad<Recibo>>>.Fail("El grupo no existe.");
 
         var recibos = (await _recibos.GetPorGrupoYPeriodoAsync(grupoId, anio, mes, ct)).ToDictionary(r => r.EmpresaId);
+        var importeEsperado = LineasDelGrupo(grupo).Sum(l => Round2(l.Importe)); // total del grupo, para validar antes de emitir
         var lista = grupo.Empresas
             .OrderBy(eg => eg.Empresa?.Nombre)
-            .Select(eg => new EstadoEmisionEntidad<Recibo>(eg.EmpresaId, eg.Empresa?.Nombre ?? $"#{eg.EmpresaId}", recibos.GetValueOrDefault(eg.EmpresaId)))
+            .Select(eg => new EstadoEmisionEntidad<Recibo>(eg.EmpresaId, eg.Empresa?.Nombre ?? $"#{eg.EmpresaId}", recibos.GetValueOrDefault(eg.EmpresaId), importeEsperado))
             .ToList();
         return ServiceResult<IReadOnlyList<EstadoEmisionEntidad<Recibo>>>.Ok(lista);
     }
 
-    public async Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, CancellationToken ct = default)
+    public async Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, bool reenviarYaEnviados = false, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default)
     {
         var grupo = await _grupos.GetConMiembrosAsync(grupoId, ct);
         if (grupo is null) return ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>.Fail("El grupo no existe.");
@@ -82,28 +84,36 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         var lineasGrupo = LineasDelGrupo(grupo);
         var resultados = new List<ResultadoEmisionPorEntidad>();
 
+        var total = grupo.Empresas.Count;
+        var i = 0;
         foreach (var eg in grupo.Empresas)
         {
+            if (eg.Empresa is not { } empresa) continue; // el join siempre trae la empresa (Include); fija la no-nulabilidad
             ct.ThrowIfCancellationRequested();
-            resultados.Add(await EmitirOResumirAsync(eg.Empresa, grupoId, lineasGrupo, DateTime.Today, anio, mes, config, enviarMail, ct));
+            progreso?.Report(new ProgresoMasivo(++i, total, empresa.Nombre));
+            resultados.Add(await EmitirOResumirAsync(empresa, grupoId, lineasGrupo, DateTime.Today, anio, mes, config, enviarMail, reenviarYaEnviados, ct));
         }
 
         return ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>.Ok(resultados);
     }
 
-    public async Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EnviarMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default)
+    public async Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EnviarMasivoAsync(int grupoId, int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default)
     {
         var config = await _config.GetAsync(ct);
         var resultados = new List<ResultadoEmisionPorEntidad>();
 
-        // Una sola query para todos los recibos del grupo en el período (incluye Empresa.Emails + Lineas)
+        // Una sola query para todos los recibos del grupo en el período (incluye Empresa.Emails + Lineas).
+        // Solo se envía lo que ya tiene CAE y aún no fue enviado → materializar para reportar un total exacto.
         var recibos = await _recibos.GetPorGrupoYPeriodoAsync(grupoId, anio, mes, ct);
-        foreach (var recibo in recibos)
+        var aEnviar = recibos.Where(r => !string.IsNullOrEmpty(r.CAE) && r.EstadoFiscal == EstadoFiscal.Emitido).ToList();
+        var total = aEnviar.Count;
+        var i = 0;
+        foreach (var recibo in aEnviar)
         {
+            if (recibo.Empresa is null) continue; // sin la navegación cargada no hay emails para enviar
             ct.ThrowIfCancellationRequested();
-            // Solo se envía lo que ya tiene CAE y aún no fue enviado.
-            if (string.IsNullOrEmpty(recibo.CAE) || recibo.Estado != ReciboEstado.Emitido) continue;
-            resultados.Add(await ProcesarReciboAsync(recibo, recibo.Empresa, config, enviarMail: true, ct));
+            progreso?.Report(new ProgresoMasivo(++i, total, recibo.ReceptorNombre));
+            resultados.Add(await ProcesarReciboAsync(recibo, recibo.Empresa, config, enviarMail: true, forzarEnvio: false, ct));
         }
 
         return ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>.Ok(resultados);
@@ -117,7 +127,7 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         if (eg is null) return ServiceResult<ResultadoEmisionPorEntidad>.Fail("La empresa no pertenece al grupo.");
 
         var config = await _config.GetAsync(ct);
-        var resultado = await EmitirOResumirAsync(eg.Empresa, grupoId, LineasDelGrupo(grupo), DateTime.Today, anio, mes, config, enviarMail, ct);
+        var resultado = await EmitirOResumirAsync(eg.Empresa, grupoId, LineasDelGrupo(grupo), DateTime.Today, anio, mes, config, enviarMail, reenviarYaEnviados: false, ct);
         return ServiceResult<ResultadoEmisionPorEntidad>.Ok(resultado);
     }
 
@@ -135,31 +145,70 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         // Multi-ítem si vienen líneas; si no, un único ítem con el importe/detalle simple.
         var items = lineas is { Count: > 0 } ? lineas : [new ReciboLineaInput(detalle, 1, importe)];
         var config = await _config.GetAsync(ct);
-        var resultado = await EmitirOResumirAsync(empresa, null, items, fechaEmision, anio, mes, config, enviarMail, ct);
-        return ServiceResult<ResultadoEmisionPorEntidad>.Ok(resultado);
+        return ServiceResult<ResultadoEmisionPorEntidad>.Ok(await EmitirOResumirAsync(empresa, null, items, fechaEmision, anio, mes, config, enviarMail, reenviarYaEnviados: false, ct));
     }
 
     public async Task<ServiceResult<ResultadoEmisionPorEntidad>> ReintentarAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
     {
         var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
         if (recibo is null) return ServiceResult<ResultadoEmisionPorEntidad>.Fail("El recibo no existe.");
-        if (recibo.Estado is ReciboEstado.Pagado or ReciboEstado.Anulado)
+        if (recibo.EstadoFiscal == EstadoFiscal.Anulado || recibo.FechaPago is not null || recibo.FechaIncobrable is not null)
             return ServiceResult<ResultadoEmisionPorEntidad>.Fail("El recibo no admite reintento.");
 
         var config = await _config.GetAsync(ct);
-        var resultado = await ProcesarReciboAsync(recibo, recibo.Empresa, config, enviarMail, ct);
+        // Si sigue sin CAE, re-sincronizar el snapshot fiscal del receptor desde el maestro: un recibo
+        // trabado en Pendiente por un dato faltante (p. ej. condición IVA RG 5616) ya corregido en
+        // Empresas debe tomar el valor nuevo al reintentar. Con CAE ya emitido el snapshot queda congelado.
+        if (string.IsNullOrEmpty(recibo.CAE) && recibo.Empresa is { } empresa)
+        {
+            recibo.ReceptorNombre = empresa.Nombre;
+            recibo.ReceptorRazonSocial = empresa.RazonSocial;
+            recibo.ReceptorCuit = empresa.Cuit;
+            recibo.ReceptorDomicilio = empresa.Domicilio;
+            recibo.ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(empresa.CondicionIvaId);
+            recibo.ReceptorCondicionIvaId = empresa.CondicionIvaId;
+        }
+        var resultado = await ProcesarReciboAsync(recibo, recibo.Empresa, config, enviarMail, forzarEnvio: false, ct);
         return ServiceResult<ResultadoEmisionPorEntidad>.Ok(resultado);
     }
 
+    public async Task<ServiceResult<bool>> EditarReciboPendienteAsync(int reciboId, IReadOnlyList<ReciboLineaInput> lineas, CancellationToken ct = default)
+    {
+        if (lineas.Count == 0) return ServiceResult<bool>.Fail("El recibo debe tener al menos un ítem.");
+        var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
+        if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
+        if (!string.IsNullOrEmpty(recibo.CAE))
+            return ServiceResult<bool>.Fail("El recibo ya tiene CAE: no se puede editar.");
+
+        // Re-sincroniza el snapshot del recibo Pendiente con las nuevas líneas (igual que el reintento del grupo).
+        recibo.Importe = lineas.Sum(l => Round2(l.Importe));
+        recibo.Detalle = string.Join(" · ", lineas.Select(l => l.Descripcion));
+        recibo.Lineas.Clear();
+        foreach (var (l, i) in lineas.Select((l, i) => (l, i)))
+            recibo.Lineas.Add(new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i });
+        await _recibos.UpdateAsync(recibo, ct);
+        return ServiceResult<bool>.Ok(true);
+    }
+
+    public async Task<ServiceResult<bool>> EliminarReciboPendienteAsync(int reciboId, CancellationToken ct = default)
+    {
+        var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
+        if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
+        if (!string.IsNullOrEmpty(recibo.CAE))
+            return ServiceResult<bool>.Fail("El recibo ya tiene CAE: anúlelo en vez de eliminarlo.");
+        await _recibos.EliminarPendienteAsync(reciboId, ct);
+        return ServiceResult<bool>.Ok(true);
+    }
+
     /// <summary>
-    /// Crea (en estado Pendiente, persistido antes del CAE) o resume un recibo del período, y avanza
-    /// su emisión idempotentemente. Si ya está completo, devuelve "ya existe".
+    /// Crea (en estado Pendiente, persistido antes del CAE) o resume un recibo de cuota del período, y
+    /// avanza su emisión idempotentemente. Si ya está completo, devuelve "ya existe".
     /// </summary>
     private async Task<ResultadoEmisionPorEntidad> EmitirOResumirAsync(
-        Empresa empresa, int? grupoId, IReadOnlyList<ReciboLineaInput> lineas, DateTime fechaEmision, int anio, int mes, Configuracion config, bool enviarMail, CancellationToken ct)
+        Empresa empresa, int? grupoId, IReadOnlyList<ReciboLineaInput> lineas, DateTime fechaEmision, int anio, int mes, Configuracion config, bool enviarMail, bool reenviarYaEnviados, CancellationToken ct)
     {
         if (config.PuntoDeVentaActivo is null)
-            return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.RazonSocial, "Configure un punto de venta activo en Configuración.");
+            return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.Nombre, "Configure un punto de venta activo en Configuración.");
 
         try
         {
@@ -172,40 +221,19 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
                 recibo = null;
             if (recibo is null)
             {
-                recibo = new Recibo
-                {
-                    EmpresaId = empresa.Id,
-                    // No se asigna la navegación Empresa (solo el FK): el DbContext es transient, así que la empresa
-                    // viene de OTRO contexto y EF intentaría reinsertarla al guardar el recibo (UNIQUE Empresas.Id).
-                    // Vínculo con el grupo en la entidad de relación (el recibo no conoce al grupo).
-                    EmisionGrupo = grupoId is int gid
-                        ? new EmisionGrupo { GrupoFacturacionId = gid, EmpresaId = empresa.Id, PeriodoAnio = anio, PeriodoMes = mes }
-                        : null,
-                    ReceptorNombre = empresa.Nombre,
-                    ReceptorRazonSocial = empresa.RazonSocial,
-                    ReceptorCuit = empresa.Cuit,
-                    ReceptorDomicilio = empresa.Domicilio,
-                    ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(empresa.CondicionIvaId),
-                    ReceptorCondicionIvaId = empresa.CondicionIvaId,
-                    PeriodoAnio = anio,
-                    PeriodoMes = mes,
-                    Importe = importe,
-                    Detalle = detalle,
-                    Lineas = lineas.Select((l, i) => new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i }).ToList(),
-                    PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
-                    TipoComprobante = TipoComprobante.Recibo,
-                    CodigoAfip = config.CodigoAfipRecibo,
-                    FechaEmision = fechaEmision,
-                    FechaVencimientoPago = fechaEmision.AddDays(config.DiasVencimiento),
-                    Estado = ReciboEstado.Pendiente
-                };
+                recibo = ConstruirReciboPendiente(empresa, grupoId, importe, detalle, fechaEmision, anio, mes, config);
+                // Snapshot multi-ítem (reemplaza la línea única por defecto que arma ConstruirRecibo).
+                recibo.Lineas = lineas.Select((l, i) => new ReciboLinea { Descripcion = l.Descripcion, Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, Importe = Round2(l.Importe), Orden = i }).ToList();
                 await _recibos.AddAsync(recibo, ct);
             }
             else
             {
                 empresa = recibo.Empresa; // rastreada, con emails
+                // Ya emitido y enviado: NO es error. Reenviar solo si se pidió explícitamente; si no, omitir.
                 if (EsCompleto(recibo))
-                    return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.Nombre, "Ya existe un recibo para este período.");
+                    return reenviarYaEnviados && enviarMail
+                        ? await ProcesarReciboAsync(recibo, empresa, config, enviarMail: true, forzarEnvio: true, ct)
+                        : ResultadoEmisionPorEntidad.Omitida(empresa.Id, empresa.Nombre, "Ya emitido y enviado.");
 
                 // Recibo sin CAE (Pendiente): re-sincronizar el snapshot por si cambiaron los ítems del
                 // grupo o los datos fiscales del receptor. Con CAE ya emitido queda congelado (integridad fiscal).
@@ -225,17 +253,17 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
                 }
             }
 
-            return await ProcesarReciboAsync(recibo, empresa, config, enviarMail, ct);
+            return await ProcesarReciboAsync(recibo, empresa, config, enviarMail, forzarEnvio: false, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al emitir recibo para Empresa={EmpresaId}", empresa.Id);
+            _logger.LogError(ex, "Error al emitir cuota para Empresa={EmpresaId}", empresa.Id);
             return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.Nombre, ex.Message);
         }
     }
 
     /// <summary>Un recibo está "completo" cuando ya no hay nada que reintentar (lógica compartida CP/CM).</summary>
-    private static bool EsCompleto(Recibo r) => EstadoReciboHelper.EsCompleto(r.Estado, r.UltimoErrorMail);
+    private static bool EsCompleto(Recibo r) => EstadoReciboHelper.EsCompleto(r);
 
     /// <summary>Redondea a 2 decimales (igual que el mapper AFIP) para que la suma de líneas
     /// persistidas coincida exactamente con el total que se envía a AFIP.</summary>
@@ -259,48 +287,23 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
     /// corresponde. Un fallo de mail NO revierte el CAE.
     /// </summary>
     private async Task<ResultadoEmisionPorEntidad> ProcesarReciboAsync(
-        Recibo recibo, Empresa empresa, Configuracion config, bool enviarMail, CancellationToken ct)
+        Recibo recibo, Empresa empresa, Configuracion config, bool enviarMail, bool forzarEnvio, CancellationToken ct)
     {
         // 1. CAE (idempotente: no se vuelve a pedir si ya está).
         if (string.IsNullOrEmpty(recibo.CAE))
         {
-            // RG 5616: sin condición de IVA del receptor AFIP rechaza con 10242; cortar antes de llamar.
-            if (recibo.ReceptorCondicionIvaId is not (> 0))
-            {
-                recibo.Estado = ReciboEstado.Pendiente;
-                recibo.UltimoErrorCae = $"'{empresa.Nombre}' no tiene asignada la condición frente al IVA (obligatoria por RG 5616). Asígnela en Empresas y reintente.";
-                await _recibos.UpdateAsync(recibo, ct);
-                return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.Nombre, recibo.UltimoErrorCae);
-            }
-
-            var afipReq = new ComprobanteAfipRequest
-            {
-                TipoComprobante = TipoComprobante.Recibo,
-                CodigoAfip = recibo.CodigoAfip,
-                PuntoDeVenta = recibo.PuntoDeVenta,
-                CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
-                CondicionIvaReceptorId = recibo.ReceptorCondicionIvaId.Value,
-                ImporteTotal = recibo.Importe,
-                FechaEmision = recibo.FechaEmision,
-                PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
-                PeriodoServicioHasta = PeriodoHelper.UltimoDia(recibo.PeriodoAnio, recibo.PeriodoMes),
-                FechaVencimientoPago = recibo.FechaVencimientoPago
-            };
-
             // Recuperación anti-duplicado: si un intento previo falló (UltimoErrorCae), el CAE pudo
             // haberse autorizado sin que lo registráramos (crash/cancelación tras la autorización).
             // Recuperarlo de AFIP antes de re-emitir evita un segundo comprobante.
-            if (!string.IsNullOrEmpty(recibo.UltimoErrorCae))
+            if (!string.IsNullOrEmpty(recibo.UltimoErrorCae) && recibo.ReceptorCondicionIvaId is > 0)
             {
-                var rec = await _afip.RecuperarComprobanteAsync(afipReq, ct);
+                var rec = await _afip.RecuperarComprobanteAsync(ConstruirAfipRequest(recibo), ct);
                 if (rec is { Success: true, Data: { } recuperado }
                     && !await _recibos.ExisteComprobanteAsync(recibo.PuntoDeVenta, recibo.CodigoAfip, recuperado.NumeroComprobante, ct))
                 {
-                    recibo.NumeroComprobante = recuperado.NumeroComprobante;
-                    recibo.CAE = recuperado.Cae;
-                    recibo.FechaVencimientoCAE = recuperado.FechaVencimientoCae;
+                    AplicarCae(recibo, recuperado);
                     recibo.UltimoErrorCae = null;
-                    recibo.Estado = ReciboEstado.Emitido;
+                    recibo.EstadoFiscal = EstadoFiscal.Emitido;
                     _logger.LogWarning("CAE recuperado de AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
                         recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
                     await _recibos.UpdateAsync(recibo, ct);
@@ -308,66 +311,190 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
                 }
             }
 
-            var cae = await _afip.ObtenerCAEAsync(afipReq, ct);
+            var cae = await EmitirCaeAsync(recibo, config, ct);
             if (!cae.Success || cae.Data is null)
             {
-                recibo.Estado = ReciboEstado.Pendiente;
+                recibo.EstadoFiscal = EstadoFiscal.Pendiente;
                 recibo.UltimoErrorCae = cae.ErrorMessage ?? "AFIP no devolvió CAE.";
                 await _recibos.UpdateAsync(recibo, ct);
                 return ResultadoEmisionPorEntidad.Fallo(empresa.Id, empresa.Nombre, recibo.UltimoErrorCae);
             }
-
-            recibo.NumeroComprobante = cae.Data.NumeroComprobante;
-            recibo.CAE = cae.Data.Cae;
-            recibo.FechaVencimientoCAE = cae.Data.FechaVencimientoCae;
+            AplicarCae(recibo, cae.Data);
             recibo.UltimoErrorCae = null;
-            recibo.Estado = ReciboEstado.Emitido;
+            recibo.EstadoFiscal = EstadoFiscal.Emitido;
             // F: rastro del CAE autorizado ANTES de persistir (único registro si el guardado falla).
             _logger.LogWarning("CAE autorizado por AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
                 recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
             await _recibos.UpdateAsync(recibo, ct);
         }
 
-        // 2. Mail (opcional; un fallo NO revierte la emisión).
-        if (enviarMail && recibo.Estado != ReciboEstado.Enviado)
+        // 2. Mail (opcional; un fallo NO revierte la emisión). "Enviado" se deriva de FechaEnvioMail.
+        // forzarEnvio = reenvío explícito de un recibo ya enviado (pedido por el usuario en el lote).
+        if (enviarMail && (forzarEnvio || recibo.FechaEnvioMail is null))
         {
-            try
-            {
-                var pdf = await _pdf.GenerarPdfReciboAsync(recibo, ct);
-                var emails = empresa.Emails.Where(e => e.Activo).Select(e => e.Email).ToList();
-                var envio = await _mail.EnviarReciboAsync(
-                    emails, pdf, $"Recibo_{recibo.ReceptorNombre}_{recibo.PeriodoAnio}{recibo.PeriodoMes:00}.pdf",
-                    $"Recibo {Formato.Periodo(recibo.PeriodoAnio, recibo.PeriodoMes)} — Cámara Portuaria",
-                    $"Estimados,\n\nAdjuntamos el recibo correspondiente al período {Formato.Periodo(recibo.PeriodoAnio, recibo.PeriodoMes)}.\n\nSaludos.", ct);
+            // Un recibo recién creado no tiene la navegación Empresa cargada (solo el FK). Recargarlo
+            // desde el contexto de _recibos para que el PDF tenga los datos del receptor. GetConDetalle
+            // resuelve a la MISMA instancia rastreada, así que las actualizaciones de estado siguen valiendo.
+            if (recibo.Empresa is null)
+                recibo = await _recibos.GetConDetalleAsync(recibo.Id, ct) ?? recibo;
 
-                if (envio.Success)
-                {
-                    recibo.Estado = ReciboEstado.Enviado;
-                    recibo.FechaEnvioMail = DateTime.Now;
-                    recibo.UltimoErrorMail = null;
-                }
-                else
-                {
-                    recibo.UltimoErrorMail = envio.ErrorMessage;
-                }
-                await _recibos.UpdateAsync(recibo, ct);
-            }
-            catch (Exception ex)
+            var errorMail = await EnviarReciboAsync(recibo, empresa, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
+
+            if (errorMail is null)
             {
-                _logger.LogWarning(ex, "Falló PDF/mail para Empresa={EmpresaId} (recibo queda Emitido)", empresa.Id);
-                recibo.UltimoErrorMail = ex.Message;
-                await _recibos.UpdateAsync(recibo, ct);
+                recibo.FechaEnvioMail = DateTime.Now;
+                recibo.UltimoErrorMail = null;
             }
+            else
+            {
+                recibo.UltimoErrorMail = errorMail;
+            }
+            await _recibos.UpdateAsync(recibo, ct);
         }
 
         return ResultadoEmisionPorEntidad.Ok(empresa.Id, empresa.Nombre, recibo.NumeroComprobante, recibo.UltimoErrorMail);
+    }
+
+    private Recibo ConstruirRecibo(Empresa empresa, int? grupoId, decimal importe, string detalle, int anio, int mes, Configuracion config)
+    {
+        var hoy = DateTime.Today;
+        // No se asigna la navegación Empresa (solo el FK): el DbContext es transient, así que la empresa
+        // viene de OTRO contexto y EF intentaría reinsertarla al guardar el recibo (UNIQUE Empresas.Id).
+        // Para el mail se recarga el recibo con su empresa rastreada por el contexto de _recibos.
+        return new Recibo
+        {
+            EmpresaId = empresa.Id,
+            // Vínculo con el grupo en la entidad de relación (el recibo no conoce al grupo).
+            EmisionGrupo = grupoId is int gid
+                ? new EmisionGrupo { GrupoFacturacionId = gid, EmpresaId = empresa.Id, PeriodoAnio = anio, PeriodoMes = mes }
+                : null,
+            ReceptorNombre = empresa.Nombre,
+            ReceptorRazonSocial = empresa.RazonSocial,
+            ReceptorCuit = empresa.Cuit,
+            ReceptorDomicilio = empresa.Domicilio,
+            ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(empresa.CondicionIvaId),
+            ReceptorCondicionIvaId = empresa.CondicionIvaId,
+            PeriodoAnio = anio,
+            PeriodoMes = mes,
+            Importe = importe,
+            Detalle = detalle,
+            Lineas = [new ReciboLinea { Descripcion = detalle, Cantidad = 1, PrecioUnitario = importe, Importe = importe, Orden = 0 }],
+            PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
+            TipoComprobante = TipoComprobante.Recibo,
+            CodigoAfip = config.CodigoAfipRecibo,
+            FechaEmision = hoy,
+            FechaVencimientoPago = hoy.AddDays(config.DiasVencimiento),
+            // Default seguro: un recibo recién construido nunca está Emitido sin CAE (los callers
+            // que corresponda lo avanzan tras obtener el CAE). Evita la trampa de "Emitido sin CAE".
+            EstadoFiscal = EstadoFiscal.Pendiente
+        };
+    }
+
+    /// <summary>Recibo de cuota nuevo en estado Pendiente (sin CAE), con la fecha de emisión indicada.</summary>
+    private Recibo ConstruirReciboPendiente(Empresa empresa, int? grupoId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, Configuracion config)
+    {
+        var recibo = ConstruirRecibo(empresa, grupoId, importe, detalle, anio, mes, config);
+        recibo.FechaEmision = fechaEmision;
+        recibo.FechaVencimientoPago = fechaEmision.AddDays(config.DiasVencimiento);
+        recibo.EstadoFiscal = EstadoFiscal.Pendiente;
+        return recibo;
+    }
+
+    private Task<ServiceResult<CaeResult>> EmitirCaeAsync(Recibo recibo, Configuracion config, CancellationToken ct)
+    {
+        // RG 5616: sin condición de IVA del receptor AFIP rechaza con 10242; cortar antes de llamar.
+        if (recibo.ReceptorCondicionIvaId is not (> 0))
+            return Task.FromResult(ServiceResult<CaeResult>.Fail(
+                $"'{recibo.ReceptorNombre}' no tiene asignada la condición frente al IVA (obligatoria por RG 5616). Asígnela en Empresas y reintente."));
+
+        return _afip.ObtenerCAEAsync(ConstruirAfipRequest(recibo), ct);
+    }
+
+    /// <summary>Arma el request AFIP de un recibo (requiere ReceptorCondicionIvaId &gt; 0, validado por el caller).</summary>
+    private static ComprobanteAfipRequest ConstruirAfipRequest(Recibo recibo) => new()
+    {
+        TipoComprobante = TipoComprobante.Recibo,
+        CodigoAfip = recibo.CodigoAfip,
+        PuntoDeVenta = recibo.PuntoDeVenta,
+        CuitReceptor = PeriodoHelper.SoloDigitos(recibo.ReceptorCuit),
+        CondicionIvaReceptorId = recibo.ReceptorCondicionIvaId!.Value,
+        ImporteTotal = recibo.Importe,
+        FechaEmision = recibo.FechaEmision,
+        PeriodoServicioDesde = PeriodoHelper.PrimerDia(recibo.PeriodoAnio, recibo.PeriodoMes),
+        PeriodoServicioHasta = PeriodoHelper.UltimoDia(recibo.PeriodoAnio, recibo.PeriodoMes),
+        FechaVencimientoPago = recibo.FechaVencimientoPago
+    };
+
+    private static void AplicarCae(Recibo recibo, CaeResult cae)
+    {
+        recibo.NumeroComprobante = cae.NumeroComprobante;
+        recibo.CAE = cae.Cae;
+        recibo.FechaVencimientoCAE = cae.FechaVencimientoCae;
+    }
+
+    private async Task<string?> EnviarReciboAsync(Recibo recibo, Empresa empresa, int anio, int mes, CancellationToken ct)
+    {
+        try
+        {
+            var pdf = await _pdf.GenerarPdfReciboAsync(recibo, ct);
+            var (asunto, texto, html) = await ArmarMailAsync("Recibo", recibo, anio, mes, ct);
+            return await EnviarAsync(empresa, pdf, $"Recibo_{recibo.ReceptorNombre}_{anio}{mes:00}.pdf", asunto, texto, html, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falló PDF/mail para Empresa={EmpresaId}", empresa.Id);
+            return ex.Message;
+        }
+    }
+
+    private async Task<string?> EnviarAsync(Empresa empresa, byte[] pdf, string nombre, string asunto, string cuerpoTexto, string? cuerpoHtml, CancellationToken ct)
+    {
+        var emails = empresa.Emails.Where(e => e.Activo).Select(e => e.Email).ToList();
+        var envio = await _mail.EnviarReciboAsync(emails, pdf, nombre, asunto, cuerpoTexto, cuerpoHtml, ct);
+        return envio.Success ? null : envio.ErrorMessage;
+    }
+
+    /// <summary>Asunto y cuerpo (texto + HTML) desde la plantilla, con las variables del recibo resueltas.</summary>
+    private Task<(string Asunto, string Texto, string? Html)> ArmarMailAsync(string comprobante, Recibo recibo, int anio, int mes, CancellationToken ct)
+        => ArmarMailAsync(comprobante, recibo.ReceptorNombre, anio, mes,
+               recibo.NumeroComprobante > 0 ? Formato.Comprobante(recibo.PuntoDeVenta, recibo.NumeroComprobante) : null,
+               recibo.Importe, ct);
+
+    /// <summary>Variante con número/importe explícitos (p. ej. nota de crédito, cuyo número es el de la nota).</summary>
+    private async Task<(string Asunto, string Texto, string? Html)> ArmarMailAsync(
+        string comprobante, string? receptor, int anio, int mes, string? numero, decimal importe, CancellationToken ct)
+    {
+        var cfg = await _config.GetSinTrackingAsync(ct);
+        var vars = new Dictionary<string, string?>
+        {
+            ["periodo"]     = Formato.Periodo(anio, mes),
+            ["receptor"]    = receptor,
+            ["razonSocial"] = cfg.RazonSocial,
+            ["comprobante"] = comprobante,
+            ["numero"]      = numero,
+            ["importe"]     = Formato.Moneda(importe),
+        };
+        var asunto = PlantillaMail.Aplicar(string.IsNullOrWhiteSpace(cfg.MailAsunto) ? PlantillaMail.DefaultAsunto : cfg.MailAsunto, vars);
+        string texto;
+        string? html;
+        if (cfg.MailCuerpoEsHtml && !string.IsNullOrWhiteSpace(cfg.MailCuerpo))
+        {
+            html  = PlantillaMail.Aplicar(cfg.MailCuerpo, vars);
+            texto = PlantillaMail.QuitarHtml(html);   // alternativa de texto plano
+        }
+        else
+        {
+            texto = PlantillaMail.Aplicar(string.IsNullOrWhiteSpace(cfg.MailCuerpo) ? PlantillaMail.DefaultCuerpoTexto : cfg.MailCuerpo, vars);
+            html  = null;
+        }
+        return (asunto, texto, html);
     }
 
     public async Task<ServiceResult<ResultadoAnulacion>> AnularReciboAsync(int reciboId, bool enviarMail, CancellationToken ct = default)
     {
         var recibo = await _recibos.GetConDetalleAsync(reciboId, ct);
         if (recibo is null) return ServiceResult<ResultadoAnulacion>.Fail("El recibo no existe.");
-        if (recibo.Estado == ReciboEstado.Anulado) return ServiceResult<ResultadoAnulacion>.Fail("El recibo ya está anulado.");
+        if (recibo.EstadoFiscal == EstadoFiscal.Anulado) return ServiceResult<ResultadoAnulacion>.Fail("El recibo ya está anulado.");
         if (string.IsNullOrEmpty(recibo.CAE))
             return ServiceResult<ResultadoAnulacion>.Fail("El recibo no tiene CAE: emítalo antes de anularlo.");
 
@@ -456,18 +583,23 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
             try
             {
                 var pdf = await _pdf.GenerarPdfNotaDeCreditoAsync(nota, ct);
-                var emails = recibo.Empresa.Emails.Where(e => e.Activo).Select(e => e.Email).ToList();
-                var envio = await _mail.EnviarReciboAsync(emails, pdf,
+                var (asuntoNc, textoNc, htmlNc) = await ArmarMailAsync("Nota de crédito", recibo.ReceptorNombre,
+                    recibo.PeriodoAnio, recibo.PeriodoMes, Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante), recibo.Importe, ct);
+                errorMail = await EnviarAsync(recibo.Empresa, pdf,
                     $"NotaCredito_{Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante)}.pdf",
-                    "Nota de crédito — Cámara Portuaria",
-                    "Estimados,\n\nAdjuntamos la nota de crédito correspondiente.\n\nSaludos.", ct);
-                if (!envio.Success) errorMail = envio.ErrorMessage ?? "No se pudo enviar el mail.";
+                    asuntoNc, textoNc, htmlNc, ct);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Falló envío de NC del recibo {ReciboId}", reciboId);
                 errorMail = ex.Message;
             }
+
+            // Persistir la traza del mail de la NC en el recibo (anulado), igual que el recibo normal:
+            // así queda registro de si la NC se envió, incluso tras reiniciar la app.
+            recibo.UltimoErrorMail = errorMail;
+            recibo.FechaEnvioMail = errorMail is null ? DateTime.Now : null;
+            await _recibos.UpdateAsync(recibo, ct);
         }
 
         return ServiceResult<ResultadoAnulacion>.Ok(
@@ -480,34 +612,34 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
         if (string.IsNullOrEmpty(recibo.CAE)) return ServiceResult<bool>.Fail("El recibo no tiene CAE: emítalo antes de reenviar.");
 
-        var emails = recibo.Empresa.Emails.Where(e => e.Activo).Select(e => e.Email).ToList();
-
-        if (recibo.Estado == ReciboEstado.Anulado)
+        if (recibo.EstadoFiscal == EstadoFiscal.Anulado)
         {
             if (recibo.NotaDeCredito is null)
                 return ServiceResult<bool>.Fail("El recibo está anulado pero no tiene nota de crédito registrada.");
 
             var pdfNota = await _pdf.GenerarPdfNotaDeCreditoAsync(recibo.NotaDeCredito, ct);
-            var envioNota = await _mail.EnviarReciboAsync(emails, pdfNota,
+            var (asuntoNc, textoNc, htmlNc) = await ArmarMailAsync("Nota de crédito", recibo.ReceptorNombre,
+                recibo.PeriodoAnio, recibo.PeriodoMes,
+                Formato.Comprobante(recibo.NotaDeCredito.PuntoDeVenta, recibo.NotaDeCredito.NumeroComprobante), recibo.Importe, ct);
+            var errorNota = await EnviarAsync(recibo.Empresa, pdfNota,
                 $"NotaCredito_{Formato.Comprobante(recibo.NotaDeCredito.PuntoDeVenta, recibo.NotaDeCredito.NumeroComprobante)}.pdf",
-                "Nota de crédito — Cámara Portuaria",
-                "Estimados,\n\nAdjuntamos la nota de crédito correspondiente.\n\nSaludos.", ct);
-            return envioNota.Success
-                ? ServiceResult<bool>.Ok(true)
-                : ServiceResult<bool>.Fail(envioNota.ErrorMessage ?? "No se pudo enviar el mail.");
+                asuntoNc, textoNc, htmlNc, ct);
+            recibo.UltimoErrorMail = errorNota;
+            recibo.FechaEnvioMail = errorNota is null ? DateTime.Now : null;
+            await _recibos.UpdateAsync(recibo, ct);
+            return errorNota is null ? ServiceResult<bool>.Ok(true) : ServiceResult<bool>.Fail(errorNota);
         }
 
         var pdf = await _pdf.GenerarPdfReciboAsync(recibo, ct);
-        var envio = await _mail.EnviarReciboAsync(emails, pdf,
+        var (asunto, texto, html) = await ArmarMailAsync("Recibo", recibo, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
+        var error = await EnviarAsync(recibo.Empresa, pdf,
             $"Recibo_{recibo.ReceptorNombre}_{recibo.PeriodoAnio}{recibo.PeriodoMes:00}.pdf",
-            $"Recibo {Formato.Periodo(recibo.PeriodoAnio, recibo.PeriodoMes)} — Cámara Portuaria",
-            "Estimados,\n\nReenviamos el recibo correspondiente.\n\nSaludos.", ct);
+            asunto, texto, html, ct);
 
-        if (!envio.Success) return ServiceResult<bool>.Fail(envio.ErrorMessage ?? "No se pudo enviar el mail.");
+        if (error is not null) return ServiceResult<bool>.Fail(error);
 
-        if (recibo.Estado == ReciboEstado.Emitido)
+        if (recibo.EstadoFiscal == EstadoFiscal.Emitido)
         {
-            recibo.Estado = ReciboEstado.Enviado;
             recibo.FechaEnvioMail = DateTime.Now;
             recibo.UltimoErrorMail = null;
             await _recibos.UpdateAsync(recibo, ct);
@@ -519,11 +651,39 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
     {
         var recibo = await _recibos.GetByIdAsync(reciboId, ct);
         if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
-        if (recibo.Estado == ReciboEstado.Anulado) return ServiceResult<bool>.Fail("No se puede marcar como pagado un recibo anulado.");
-        if (recibo.Estado == ReciboEstado.Pendiente) return ServiceResult<bool>.Fail("El recibo aún no tiene CAE: no se puede marcar como pagado.");
+        if (recibo.EstadoFiscal == EstadoFiscal.Anulado) return ServiceResult<bool>.Fail("No se puede marcar como pagado un recibo anulado.");
+        if (recibo.EstadoFiscal == EstadoFiscal.Pendiente) return ServiceResult<bool>.Fail("El recibo aún no tiene CAE: no se puede marcar como pagado.");
+        if (recibo.FechaIncobrable is not null) return ServiceResult<bool>.Fail("El recibo está marcado como incobrable: quite la baja antes de marcar pagado.");
+        if (recibo.FechaPago is not null) return ServiceResult<bool>.Fail("El recibo ya está pagado.");
 
-        recibo.Estado = ReciboEstado.Pagado;
         recibo.FechaPago = DateTime.Today;
+        await _recibos.UpdateAsync(recibo, ct);
+        return ServiceResult<bool>.Ok(true);
+    }
+
+    public async Task<ServiceResult<bool>> MarcarIncobrableAsync(int reciboId, string? motivo, CancellationToken ct = default)
+    {
+        var recibo = await _recibos.GetByIdAsync(reciboId, ct);
+        if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
+        if (recibo.EstadoFiscal != EstadoFiscal.Emitido)
+            return ServiceResult<bool>.Fail("Solo un recibo emitido (con CAE y no anulado) puede marcarse como incobrable.");
+        if (recibo.FechaPago is not null) return ServiceResult<bool>.Fail("El recibo ya está pagado: no se puede marcar como incobrable.");
+        if (recibo.FechaIncobrable is not null) return ServiceResult<bool>.Fail("El recibo ya está marcado como incobrable.");
+
+        recibo.FechaIncobrable = DateTime.Today;
+        recibo.MotivoIncobrable = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
+        await _recibos.UpdateAsync(recibo, ct);
+        return ServiceResult<bool>.Ok(true);
+    }
+
+    public async Task<ServiceResult<bool>> QuitarIncobrableAsync(int reciboId, CancellationToken ct = default)
+    {
+        var recibo = await _recibos.GetByIdAsync(reciboId, ct);
+        if (recibo is null) return ServiceResult<bool>.Fail("El recibo no existe.");
+        if (recibo.FechaIncobrable is null) return ServiceResult<bool>.Fail("El recibo no está marcado como incobrable.");
+
+        recibo.FechaIncobrable = null;
+        recibo.MotivoIncobrable = null;
         await _recibos.UpdateAsync(recibo, ct);
         return ServiceResult<bool>.Ok(true);
     }

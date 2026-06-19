@@ -11,10 +11,6 @@
     <ProjectReference Include="..\Afip.Net.Mock\Afip.Net.Mock.csproj" />
     <ProjectReference Include="..\Afip.Documentos\Afip.Documentos.csproj" />
   </ItemGroup>
-  <!-- Logo del Centro Marítimo embebido para los PDFs (voucher/comprobante) -->
-  <ItemGroup>
-    <EmbeddedResource Include="Assets\CMBB_Logo.png" />
-  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="QuestPDF" Version="2026.5.0" />

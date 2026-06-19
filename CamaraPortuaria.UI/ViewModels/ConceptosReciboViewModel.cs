@@ -65,7 +65,7 @@ public class ConceptosReciboViewModel : PageViewModel
         AceptarCommand = new AsyncRelayCommand(AceptarAsync, () => EnEdicion);
         CancelarCommand = new RelayCommand(_ => Cancelar(), _ => EnEdicion);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is not null && !EnEdicion);
-        _ = CargarAsync();
+        CargarSeguro(CargarAsync);
     }
 
     private async Task CargarAsync()

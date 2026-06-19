@@ -32,4 +32,10 @@ public partial class EmisionMasivaPage : Page
         if (((FrameworkElement)sender).DataContext is EmisionMasivaItem item)
         { Vm.Seleccionado = item; Vm.PrevisualizarCommand.Execute(null); }
     }
+
+    private void Eliminar_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is EmisionMasivaItem item)
+        { Vm.Seleccionado = item; Vm.EliminarCommand.Execute(null); }
+    }
 }

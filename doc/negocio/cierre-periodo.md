@@ -52,8 +52,8 @@ que admite recibo opcional:
 ### Fase 4 — Enviar por mail
 
 - El PDF único se envía como adjunto a los `EmailAgencia.Email` activos de la agencia.
-- Si el mail se envía OK, el `Recibo.Estado` pasa a `Enviado`. Si falla, el recibo queda
-  en `Emitido` y se puede reintentar desde la página de Recibos.
+- Si el mail se envía OK, se registra `Recibo.FechaEnvioMail` (el envío "Enviado" es derivado). Si falla,
+  el recibo queda `Emitido` con `UltimoErrorMail` y se puede reintentar desde la página de Recibos.
 
 ---
 
@@ -62,11 +62,11 @@ que admite recibo opcional:
 La página de **Cierre de período** muestra una fila por agencia con los vouchers del
 período expandibles. El flag de estado por agencia se deriva del `Recibo` consolidado:
 
-| Flag UI | Condición | `Recibo.Estado` |
+| Flag UI | Condición | Derivado del consolidado |
 |---|---|---|
-| **Pendiente** | No hay recibo consolidado para `(Agencia, Período)` | — (no existe) |
-| **Emitido** | Recibo persistido con CAE, mail aún no enviado | `Emitido` |
-| **Completo** | Recibo enviado por mail (o ya pagado) | `Enviado` / `Pagado` |
+| **Pendiente** | No hay recibo consolidado para `(Agencia, Período)`, o está anulado | — / `EstadoFiscal=Anulado` |
+| **Emitido** | Recibo persistido con CAE, mail aún no enviado | `EstadoFiscal=Emitido` y `FechaEnvioMail=null` |
+| **Completo** | Recibo enviado por mail (o ya cobrado) | `FechaEnvioMail!=null` o `FechaPago!=null` |
 
 Al **anular** un consolidado se emite la nota de crédito y sus vouchers quedan
 **desvinculados** (vuelven a estar libres): la agencia aparece de nuevo como **Pendiente**

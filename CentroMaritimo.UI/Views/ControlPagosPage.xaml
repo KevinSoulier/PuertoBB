@@ -2,6 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:controls="clr-namespace:CentroMaritimo.UI.Controls"
       Title="Control de pagos">
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -15,57 +16,65 @@
         <TextBlock Grid.Row="0" Text="Control de pagos" Style="{StaticResource PageTitle}" />
 
         <!-- Fila de filtros -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+        <WrapPanel Grid.Row="2" Margin="0,0,0,8">
             <ui:TextBox PlaceholderText="Buscar en pagos..."
                         Text="{Binding TextoBusqueda, UpdateSourceTrigger=PropertyChanged}"
-                        Width="220" VerticalAlignment="Center" Margin="0,0,8,0">
+                        Width="220" VerticalAlignment="Center" Margin="0,0,8,8">
                 <ui:TextBox.Icon><ui:SymbolIcon Symbol="Search24" /></ui:TextBox.Icon>
             </ui:TextBox>
             <ComboBox ItemsSource="{Binding EstadosFiltro}" SelectedItem="{Binding FiltroEstado}"
-                      Width="110" VerticalAlignment="Center" Margin="0,0,8,0" />
+                      Width="180" VerticalAlignment="Center" Margin="0,0,8,8" />
             <CheckBox Content="Solo vencidos" IsChecked="{Binding SoloVencidos}"
-                      VerticalAlignment="Center" Margin="0,0,8,0" />
-            <CheckBox Content="Incluir morosos" IsChecked="{Binding IncluirMorosos}"
-                      VerticalAlignment="Center" />
-        </StackPanel>
+                      VerticalAlignment="Center" Margin="0,0,8,8" />
+            <CheckBox Content="Incluir incobrables" IsChecked="{Binding IncluirIncobrables}"
+                      VerticalAlignment="Center" Margin="0,0,0,8" />
+        </WrapPanel>
 
         <!-- Fila de acciones -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
+        <WrapPanel Grid.Row="3" Margin="0,0,0,12">
             <ui:Button Content="Actualizar" Command="{Binding BuscarCommand}"
-                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                        ToolTip="Actualizar la lista de pagos">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Marcar pagado" Command="{Binding MarcarPagadoCommand}"
-                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}"
+                       Margin="0,0,8,8" Style="{StaticResource AccionIconButton}"
                        ToolTip="Marcar el recibo seleccionado como pagado">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Reenviar mail" Command="{Binding ReenviarCommand}"
-                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}"
+                       Margin="0,0,8,8" Style="{StaticResource AccionIconButton}"
                        ToolTip="Reenviar el recibo seleccionado por correo">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
             </ui:Button>
-            <ui:Button Content="Moroso" Command="{Binding MarcarMorosoCommand}"
-                       Margin="8,0,0,0" Style="{StaticResource AccionIconButton}"
-                       ToolTip="Marcar/quitar estado moroso de la agencia seleccionada">
+            <ui:Button Content="Marcar incobrable" Command="{Binding MarcarIncobrableCommand}"
+                       Margin="0,0,8,8" Style="{StaticResource AccionIconButton}"
+                       ToolTip="Dar de baja la deuda del recibo seleccionado (incobrable)">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Warning24" /></ui:Button.Icon>
             </ui:Button>
-            <TextBlock Text="{Binding Resumen}" VerticalAlignment="Center" Margin="16,0,0,0"
+            <ui:Button Content="Quitar incobrable" Command="{Binding QuitarIncobrableCommand}"
+                       Margin="0,0,8,8" Style="{StaticResource AccionIconButton}"
+                       ToolTip="Reactivar la deuda de un recibo marcado como incobrable">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUndo24" /></ui:Button.Icon>
+            </ui:Button>
+            <TextBlock Text="{Binding Resumen}" VerticalAlignment="Center" Margin="8,0,0,8"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-        </StackPanel>
+        </WrapPanel>
 
         <Grid Grid.Row="4">
-            <DataGrid ItemsSource="{Binding Recibos}" SelectedItem="{Binding Seleccionado}"
+            <DataGrid x:Name="RecibosGrid"
+                      ItemsSource="{Binding Recibos}" SelectedItem="{Binding Seleccionado}"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                       GridLinesVisibility="Horizontal" CanUserAddRows="False"
-                      SelectionMode="Single"
+                      SelectionMode="Extended"
+                      SelectionChanged="Recibos_SelectionChanged"
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
                     <DataGridTextColumn Header="Comprobante" Binding="{Binding Comprobante}" Width="120" />
                     <DataGridTextColumn Header="Período" Binding="{Binding Periodo}" Width="120" />
                     <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="120" />
+                    <DataGridTextColumn Header="Emisión" Binding="{Binding FechaEmision}" Width="110" />
                     <DataGridTextColumn Header="Vencimiento" Binding="{Binding FechaVencimiento}" Width="110" />
                     <DataGridTextColumn Header="Atraso (días)" Binding="{Binding DiasAtraso}" Width="100" />
                     <DataGridTemplateColumn Header="Estado" Width="120">
@@ -82,11 +91,8 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
-
-            <Border Background="{DynamicResource SmokeFillColorDefaultBrush}"
-                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
-                <ProgressBar IsIndeterminate="True" Width="200" Height="6" VerticalAlignment="Center" />
-            </Border>
         </Grid>
+
+        <controls:BusyOverlay Grid.RowSpan="5" />
     </Grid>
 </Page>

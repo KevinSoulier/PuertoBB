@@ -559,3 +559,192 @@ Total **197 verdes**. El flujo interactivo (navegador) y el envío real se valid
 
 **Pendiente real (no testeable sin credenciales):** prueba del usuario registrando la app en Azure (flujos
 Interactivo y Cliente) y/o Google Cloud, y un envío real desde la casilla destino.
+
+---
+
+## D-27 — Multi-cuenta de correo (una activa) + autocompletado por proveedor
+
+**Fecha:** 2026-06-13.
+
+**Decisión:** el correo deja de ser una config plana en `Configuracion` y pasa a ser una **lista de cuentas**
+con **una activa**, espejo de los **Puntos de venta** (D-17). Nueva entidad `CuentaCorreo` (una por app) con
+todos los campos SMTP/auth/OAuth + `Nombre` + `Activo`; `Configuracion` pierde los campos planos de correo y gana
+`List<CuentaCorreo> CuentasCorreo` + `[NotMapped] CuentaCorreoActiva`. El `MailConfigProvider` arma el `MailConfig`
+desde la **cuenta activa** (si no hay, queda sin configurar). Además, en el form de cada cuenta hay un combo
+**Proveedor** (Microsoft 365 / Outlook.com personal / Google / Otro) que **autocompleta** host/puerto/seguridad y
+fija el modo OAuth2 (reusa `OAuthProveedor`/`OAuthPresets`, sin catálogo nuevo), y los campos OAuth son
+**condicionales** según proveedor/flujo (con Google no se muestra Tenant; "Cliente" solo para Microsoft empresa; etc.).
+
+**Cómo se implementa:**
+- Entidad `CuentaCorreo` + `CuentaCorreoConfiguration` (FK a Configuracion, cascade, seed "Principal" activa) por app.
+- `IConfiguracionRepository` + impl: `GetCuentasCorreoAsync`/`Guardar`/`Eliminar`/`MarcarCuentaCorreoActivaAsync`
+  (espejo de los de PuntoDeVenta); `GetAsync` incluye `CuentasCorreo`.
+- UI (ambas apps): pestaña Correo rediseñada como **master-detail** (grilla de cuentas + form), con
+  `CuentaCorreoItem`, props `Cta*` y comandos Nuevo/Editar/Guardar/Cancelar/Eliminar/MarcarActiva/Probar/IniciarSesión.
+  "Probar conexión" prueba la **cuenta activa**.
+- Migraciones `Inicial` regeneradas por contexto (agrega `CuentasCorreo`, quita columnas de correo de `Configuracion`).
+
+**Por qué:** pedido del usuario — varias casillas (ej. Ventas/Administración) con una por defecto, y menos
+configuración a mano (elegir proveedor y listo). Espejar PuntoDeVenta mantiene la consistencia del patrón.
+
+**Tests:** repo de `CuentaCorreo` (seed activa, marcar activa única, eliminar, cuenta activa reflejada en
+`Configuracion`). Total **201 tests verdes**.
+
+**Docs:** `doc/arquitectura/datos.md` (entidad `CuentaCorreo`), `doc/usuario/correo-oauth.md`.
+
+---
+
+## D-28 — Estados del recibo normalizados a un eje fiscal + ejes derivados (incobrable a nivel recibo)
+
+**Fecha:** 2026-06-13.
+
+**Decisión:** el enum lineal `ReciboEstado` (`Pendiente/Emitido/Enviado/Pagado/Anulado`) mezclaba **tres ejes
+ortogonales** (fiscal, envío de mail, cobro) en una sola variable, por lo que marcar Pagado pisaba "Enviado" y
+anular pisaba "Pagado". Se reemplaza por **un único estado de flujo persistido** `EstadoFiscal`
+(`Pendiente/Emitido/Anulado`); el **envío** y el **cobro** se **derivan** de columnas que ya existían
+(`FechaEnvioMail`/`UltimoErrorMail` y `FechaPago`). Toda la presentación y las acciones se centralizan en
+`EstadoReciboHelper` + `AccionesRecibo` (única fuente), consumidos vía la interfaz `IReciboEstadoView` que
+implementan ambas entidades `Recibo`. La grilla pasa a **dos columnas limpias**: `Estado` (fiscal + cobro) y
+`Envío` (solo mail).
+
+Además, el viejo flag **`Empresa/Agencia.EsMoroso`** (reputación a nivel cliente, "solo informativo") se
+**elimina** y se reemplaza por un concepto a nivel recibo: **Incobrable** (baja de la deuda), modelado como
+hermano de `Pagado` en el eje de cobro con dos campos nuevos `FechaIncobrable` + `MotivoIncobrable`
+(excluyente con `FechaPago`). En Control de Pagos el botón "Moroso" pasa a "Marcar incobrable" / "Quitar
+incobrable" (vía el service) y el checkbox "Incluir morosos" a "Incluir incobrables".
+
+**Cómo se implementa:**
+- `Core`: enum `EstadoFiscal` (reemplaza `ReciboEstado`) + enums derivados `EstadoEnvio`/`EstadoCobro`;
+  interfaz `IReciboEstadoView`; `EstadoReciboHelper` ampliado (`EtiquetaEstado`/`EtiquetaEnvio`/`Cobro`/
+  `EstaVencido`/`EsCompleto`) + `AccionesRecibo.De`.
+- `Infrastructure`: `Recibo.Estado→EstadoFiscal` + `FechaIncobrable`/`MotivoIncobrable`; baja de `EsMoroso`
+  (entidades, configs y `SetMorosoAsync`); queries de repos (Pendiente/Anulado y vencidos excluyen pagados e
+  incobrables); `FiltroPendientes.ExcluirMorosos→ExcluirIncobrables`. Migración `Inicial` regenerada por
+  contexto (lossless: Enviado/Pagado viejos → Emitido, recuperados de las fechas).
+- `Services`: `MarcarPagado` setea `FechaPago`; nuevos `MarcarIncobrableAsync`/`QuitarIncobrableAsync`; el
+  envío deja de setear "Enviado" (solo `FechaEnvioMail`); `VoucherService.MapEstado` derivado del modelo nuevo.
+- `UI` (ambas): `ReciboItem`/`EmisionMasivaItem` desde el helper; dos columnas; Control de Pagos con incobrable;
+  converter de color `Moroso→Incobrable` y "Enviado" alineado a `#E0F7FA` (los docs decían `#FFF9C4`).
+
+**Por qué:** pedido del usuario de unificar y hacer consistentes los estados entre secciones. Mantener un único
+eje persistido (la pregunta legal "¿tiene CAE?") con el resto derivado evita dos fuentes de verdad que divergen,
+y permite combinaciones antes imposibles (p. ej. "Pagado" + "Enviado"). Es la evolución natural de **D-05**
+("Vencido" derivado), extendida a los ejes de envío y cobro.
+
+**Tests:** `EstadoReciboHelperTests` reescritos (dos columnas, combinación Enviado+Pagado, incobrable) +
+casos de `MarcarIncobrable`/`QuitarIncobrable` en `ServiceFlowTests`. Total **215 tests verdes**.
+
+**Docs:** `doc/arquitectura/datos.md`, `doc/arquitectura/flujos.md`, `doc/negocio/funcionalidad-compartida.md`,
+`doc/negocio/cierre-periodo.md`, `doc/diseño/paletas-color.md`, `doc/diseño/fluent-navigation.md`.
+
+## D-29 — Quick wins de UX en Configuración → Correo
+
+**Fecha:** 2026-06-17.
+
+**Decisión:** revisión de arquitecto sobre el flujo de configuración de correo (D-26/D-27). El backend estaba
+sólido pero la capa de UX tenía trampas que hacían que el usuario creyera haber configurado bien y después no
+pudiera enviar. Se aplican **quick wins de alto impacto** sin rediseñar el layout ni hacer un wizard, y se
+mantiene la jerga (Client ID, Tenant, Flujo) **acompañada** con texto explicativo (usuario administrativo con
+seguimiento técnico).
+
+**Cómo se implementa:**
+- **Validar al guardar:** `GuardarCuentaAsync` ahora llama `ConstruirMailConfig().Validar()` (validador por
+  modo que ya existía pero no se usaba). Bloquea guardar una cuenta incompleta con mensaje accionable; pasa a
+  exigir email remitente.
+- **Probar la cuenta en edición:** sobrecarga `IMailService.ProbarConexionAsync(MailConfig)` (refactor de
+  `MailService`, implementada también en `FakeMailService`) + botón **"Probar esta cuenta"** en el formulario.
+  Permite probar (incluso tras "Iniciar sesión…") antes de guardar/activar. El "Probar conexión" de la lista
+  sigue probando la cuenta activa.
+- **No perder el login OAuth:** flag `_loginSinGuardar`; al Cancelar con un login no guardado se pide
+  confirmación (`IDialogService.ShowConfirmAsync`).
+- **Confirmar al eliminar:** `EliminarCuentaAsync` pide confirmación modal (antes borraba directo, violando la
+  regla de UX); avisa si la cuenta es la activa.
+- **Destrabar Gmail:** elegir "Google / Gmail" deja la cuenta en **Básica** (contraseña de aplicación, el
+  camino recomendado) en vez de forzar OAuth2; OAuth2 sigue elegible a mano. Guía in-app y `correo-oauth.md`
+  actualizadas.
+- **Andamiaje de jerga (XAML):** radios de Flujo relabelados ("Interactivo — iniciás sesión en el navegador" /
+  "Cliente — secreto de aplicación, sin navegador") y hints bajo Client ID / Tenant ID / Client Secret
+  ("Azure → …").
+
+**Por qué:** percepción del usuario de que "algunas cosas no estaban del todo claras". Las trampas eran
+concretas: validación existente sin usar, prueba sobre la cuenta equivocada, login que se perdía, borrado sin
+confirmar y Gmail empujado al camino que la propia ayuda desaconseja.
+
+**Alcance:** ambas apps (`CamaraPortuaria.UI` y `CentroMaritimo.UI`) + servicios compartidos (`IMailService`,
+`MailService`, `FakeMailService`).
+
+**Fuera de alcance (anotado):** wizard por proveedor, banner de salud de la cuenta activa al tope del tab,
+columna de estado/health en la grilla, reordenar campos.
+
+**Docs:** `doc/usuario/correo-oauth.md`.
+
+---
+
+## D-30 — Acciones masivas de emisión IDEMPOTENTES (no fallar por "ya hay emitidos")
+
+**Decisión:** En Emisión masiva, las acciones masivas (`EmitirMasivoAsync`, "Emitir" / "Emitir y
+enviar") son idempotentes: emiten/envían lo pendiente y **omiten** los recibos ya completos
+(emitido + enviado) sin contarlos como error. Un recibo ya completo devuelve
+`ResultadoEmisionPorEntidad.Omitida` (`Exito=false`, **`Omitido=true`**) — nunca `Fallo("Ya existe…")`.
+El resumen (`EjecutarMasivoAsync`) cuenta los omitidos aparte y reporta **éxito** si no hubo errores
+reales. Si al "Emitir y enviar" hay recibos ya enviados, el VM pregunta "¿Reenviarlos también?"; al
+aceptar, `EmitirMasivoAsync(reenviarYaEnviados: true)` fuerza el reenvío vía
+`ProcesarReciboAsync(forzarEnvio: true)`. Idéntico en **ambas apps**.
+
+**Motivo:** El comportamiento previo devolvía `Fallo("Ya existe un recibo para este período.")` para
+cada recibo completo, así que "Emitir y enviar" sobre un grupo con algunos ya emitidos reportaba
+"Emisión fallida" y no procesaba nada — cuando lo correcto es hacer lo que falte y seguir. Es el
+mismo patrón que ya tenía el flujo de **Cierre de período** de Centro Marítimo
+(`ProcesarCierreAgenciaAsync` → `ResultadoCierrePorAgencia.Omitida`, `MostrarResultadoMasivo`,
+`ReenviarMailsAsync` con confirmación); acá se lleva a la Emisión masiva de las dos apps.
+
+**Regresión a evitar:** NO re-introducir `Fallo("Ya existe…")` en `EmitirOResumirAsync`. La regla
+está documentada en `doc/diseño/emision-masiva.md` y cubierta por
+`ServiceFlowTests.EmitirMasivo_SegundaVez_OmiteCompletos_SinFallarNiDuplicar` y
+`EmitirMasivo_ReenviarYaEnviados_ReenviaLosCompletos`.
+
+**Alcance:** `PuertoBB.Core` (`ResultadoEmisionPorEntidad.Omitida`/`Omitido`, interfaces
+`I*ReciboService.EmitirMasivoAsync`), `PuertoBB.Services` (`*ReciboService`), ambas
+`EmisionMasivaViewModel`.
+
+**Docs:** `doc/diseño/emision-masiva.md`.
+
+---
+
+## D-31 — Recuperar recibos Pendiente (emisión fallida, sin CAE) + monto esperado pre-emisión
+
+**Decisión:** Cuando una emisión falla por validación (p. ej. AFIP rechaza `ImporteTotal <= 0`) el recibo
+queda Pendiente (sin CAE). Se agregan tres vías de recuperación, idénticas en ambas apps:
+
+1. **Corregir el grupo y re-emitir.** El "Emitir" POR FILA de Emisión masiva pasa a usar siempre
+   `EmitirDeGrupoAsync` (antes usaba `ReintentarAsync` para un recibo existente). `EmitirDeGrupoAsync`
+   → `EmitirOResumirAsync` re-sincroniza importe/líneas del grupo ACTUAL antes de reintentar el CAE, así
+   un Pendiente trabado por datos viejos (monto cero ya corregido en el grupo) se recupera. `ReintentarAsync`
+   NO re-sincroniza el importe — por eso fallaba.
+2. **Editar el recibo Pendiente** (`EditarReciboPendienteAsync` + `EditarReciboDialog`, botón en Recibos):
+   edita líneas/importe; rechaza si ya tiene CAE.
+3. **Eliminar el recibo Pendiente** (`EliminarReciboPendienteAsync` + `IReciboRepository.EliminarPendienteAsync`,
+   botón en Emisión masiva fila y Recibos toolbar): borra recibo + líneas + vínculo EmisionGrupo (y libera
+   los vouchers en CM); rechaza si ya tiene CAE.
+
+Además, la columna **Importe** de Emisión masiva muestra el **monto esperado del grupo**
+(`EstadoEmisionEntidad.ImporteEsperado`) para los miembros aún no emitidos, para poder validar el importe
+ANTES de emitir (antes mostraba "—").
+
+**Motivo:** Un recibo con monto cero hacía fallar la emisión y quedaba trabado; corregir el grupo y
+reintentar por fila no lo recuperaba (el reintento conservaba el importe viejo). Faltaba además poder ver el
+monto antes de emitir para detectar el cero. Editar/eliminar dan salida directa para cualquier Pendiente.
+
+**Gates:** `EmisionMasivaItem.EsEliminable` = `ReciboId != null && !CaeOk`; `ReciboItem.EsEditable` =
+`EstadoFiscal == Pendiente`.
+
+**Alcance:** `PuertoBB.Core` (`EstadoEmisionEntidad.ImporteEsperado`, interfaces de servicio y de repo,
+`IDialogService.ShowEditarReciboAsync`), `PuertoBB.Services`/`PuertoBB.Infrastructure`, ambas apps UI
+(VMs Recibos/EmisionMasiva, items, páginas, `DialogService`, nuevo `EditarReciboDialog`).
+
+**Tests:** `GetEstadoMasivo_DevuelveImporteEsperadoDelGrupo`,
+`EmitirDeGrupo_TrasFalloCae_ReSincronizaImporteDelGrupoCorregido`,
+`EditarReciboPendiente_ActualizaLineasEImporte_YRechazaConCae`,
+`EliminarReciboPendiente_BorraSinCae_YRechazaConCae`.
+
+**Docs:** `doc/diseño/emision-masiva.md`.

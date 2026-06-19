@@ -42,7 +42,6 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
         var doc = new ComprobanteDocumento
         {
             CodigoTipo    = recibo.CodigoAfip,
-            NombreOverride = "RECIBO",
             PuntoVenta    = recibo.PuntoDeVenta,
             Numero        = recibo.NumeroComprobante,
             FechaEmision  = recibo.FechaEmision,
@@ -121,6 +120,7 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
         Cuit              = Formato.ParseCuit(config.CuitEmisor),
         CondicionIva      = "IVA Exento",
         ColorAcentoHex    = _theme.AcentoHex,
+        LogoPng           = config.LogoPng is { Length: > 0 } ? config.LogoPng : null,
         IngresosBrutos    = config.IngresosBrutos,
         InicioActividades = config.InicioActividades.HasValue ? DateOnly.FromDateTime(config.InicioActividades.Value) : null
     };

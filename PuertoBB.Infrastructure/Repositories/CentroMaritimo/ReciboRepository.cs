@@ -44,7 +44,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         q = q.Where(r => r.AgenciaId == agenciaId && r.PeriodoAnio == anio && r.PeriodoMes == mes);
         return grupoId is int gid
             ? q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid)
-            : q.Where(r => r.EmisionGrupo == null && !r.EsConsolidadoVouchers && r.Estado == Core.Enums.ReciboEstado.Pendiente);
+            : q.Where(r => r.EmisionGrupo == null && !r.EsConsolidadoVouchers && r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente);
     }
 
     public async Task<IReadOnlyList<Recibo>> GetPorGrupoYPeriodoAsync(int grupoId, int anio, int mes, CancellationToken ct = default)
@@ -55,13 +55,30 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
                         r.PeriodoAnio == anio && r.PeriodoMes == mes)
             .ToListAsync(ct);
 
+    public async Task EliminarPendienteAsync(int reciboId, CancellationToken ct = default)
+    {
+        var recibo = await _db.Recibos
+            .Include(r => r.Lineas)
+            .Include(r => r.EmisionGrupo)
+            .Include(r => r.Vouchers)
+            .FirstOrDefaultAsync(r => r.Id == reciboId, ct);
+        if (recibo is null) return;
+
+        // Liberar los vouchers consolidados (vuelven a "libres") y remover los dependientes del recibo.
+        foreach (var v in recibo.Vouchers) v.ReciboId = null;
+        if (recibo.EmisionGrupo is not null) _db.Remove(recibo.EmisionGrupo);
+        _db.RemoveRange(recibo.Lineas);
+        _db.Recibos.Remove(recibo);
+        await GuardarAsync(ct);
+    }
+
     public Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
         => _db.Recibos.AnyAsync(r =>
             r.AgenciaId == agenciaId &&
             r.EsConsolidadoVouchers &&
             r.PeriodoAnio == anio &&
             r.PeriodoMes == mes &&
-            r.Estado != Core.Enums.ReciboEstado.Anulado, ct);
+            r.EstadoFiscal != Core.Enums.EstadoFiscal.Anulado, ct);
 
     public Task<Recibo?> GetConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
         => _db.Recibos
@@ -70,11 +87,11 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
             .Include(r => r.Lineas)
             .FirstOrDefaultAsync(r => r.AgenciaId == agenciaId && r.EsConsolidadoVouchers &&
                                       r.PeriodoAnio == anio && r.PeriodoMes == mes &&
-                                      r.Estado != Core.Enums.ReciboEstado.Anulado, ct);
+                                      r.EstadoFiscal != Core.Enums.EstadoFiscal.Anulado, ct);
 
     public Task<IReadOnlyList<int>> GetAgenciasConConsolidadoPendienteAsync(int anio, int mes, CancellationToken ct = default)
         => _db.Recibos
-            .Where(r => r.EsConsolidadoVouchers && r.Estado == Core.Enums.ReciboEstado.Pendiente &&
+            .Where(r => r.EsConsolidadoVouchers && r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente &&
                         r.PeriodoAnio == anio && r.PeriodoMes == mes)
             .Select(r => r.AgenciaId)
             .Distinct()
@@ -92,7 +109,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public async Task AnularConNotaAsync(Recibo recibo, Core.Entities.CentroMaritimo.NotaDeCredito nota, CancellationToken ct = default)
     {
-        recibo.Estado = Core.Enums.ReciboEstado.Anulado;
+        recibo.EstadoFiscal = Core.Enums.EstadoFiscal.Anulado;
         recibo.UpdatedAt = DateTime.Now;
         nota.CreatedAt = DateTime.Now;
         // Desvincular vouchers del consolidado para permitir reemisión del período (P1-3).
@@ -110,13 +127,14 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         if (f.PeriodoMes is int mes)          q = q.Where(r => r.PeriodoMes == mes);
         if (f.GrupoFacturacionId is int gid)  q = q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid);
         if (f.EntidadId is int eid)           q = q.Where(r => r.AgenciaId == eid);
-        if (f.Estado is { } estado)           q = q.Where(r => r.Estado == estado);
-        if (f.ExcluirMorosos)                  q = q.Where(r => !r.Agencia.EsMoroso);
+        if (f.Estado is { } estado)           q = q.Where(r => r.EstadoFiscal == estado);
+        if (f.ExcluirIncobrables)              q = q.Where(r => r.FechaIncobrable == null);
 
         var hoy = DateTime.Today;
         if (f.SoloVencidos)
             q = q.Where(r => r.FechaVencimientoPago < hoy &&
-                             (r.Estado == Core.Enums.ReciboEstado.Emitido || r.Estado == Core.Enums.ReciboEstado.Enviado));
+                             r.EstadoFiscal == Core.Enums.EstadoFiscal.Emitido &&
+                             r.FechaPago == null && r.FechaIncobrable == null);
 
         return await q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Agencia.Nombre).ToListAsync(ct);
     }

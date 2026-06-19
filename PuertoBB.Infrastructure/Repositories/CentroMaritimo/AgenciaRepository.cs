@@ -24,12 +24,4 @@ public class AgenciaRepository : RepositoryBase<Agencia>, IAgenciaRepository
 
     public async Task<IReadOnlyList<Agencia>> GetActivasAsync(CancellationToken ct = default)
         => await _db.Agencias.AsNoTracking().Where(a => a.Activa).OrderBy(a => a.Nombre).ToListAsync(ct);
-
-    public async Task SetMorosoAsync(int id, bool esMoroso, CancellationToken ct = default)
-    {
-        var a = await _db.Agencias.FindAsync([id], ct);
-        if (a is null) return;
-        a.EsMoroso = esMoroso;
-        await _db.SaveChangesAsync(ct);
-    }
 }

@@ -54,6 +54,14 @@ public class DialogService : IDialogService
         return ShowAsync(dialog, dialog.Result);
     }
 
+    public Task<IReadOnlyList<ReciboLineaInput>?> ShowEditarReciboAsync(
+        IReadOnlyList<ReciboLineaInput> lineasActuales,
+        IReadOnlyList<string> conceptos)
+    {
+        var dialog = new EditarReciboDialog(lineasActuales, conceptos);
+        return ShowAsync(dialog, dialog.Result);
+    }
+
     public Task<CertificadoWizardResult?> ShowCertificadoWizardAsync(string razonSocial, string cuit, bool usarHomologacion)
     {
         var dialog = new CertificadoWizardDialog(razonSocial, cuit, usarHomologacion);

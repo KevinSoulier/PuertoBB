@@ -28,7 +28,7 @@ public class GruposViewModel : PageViewModel
     public GrupoFacturacion? Seleccionado
     {
         get => _seleccionado;
-        set { if (SetField(ref _seleccionado, value) && value is not null) _ = MostrarAsync(value.Id); }
+        set { if (SetField(ref _seleccionado, value) && value is not null) CargarSeguro(() => MostrarAsync(value.Id)); }
     }
 
     public string NombreEdit { get; set; } = string.Empty;
@@ -89,12 +89,11 @@ public class GruposViewModel : PageViewModel
             () => EnEdicion && !string.IsNullOrWhiteSpace(NombreEdit) && LineasEdit.Count > 0);
         CancelarCommand = new AsyncRelayCommand(CancelarAsync, () => EnEdicion);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is not null && !EnEdicion);
-        AgregarLineaCommand = new RelayCommand(_ => AgregarLinea(),
-            _ => EnEdicion && !string.IsNullOrWhiteSpace(DescripcionLinea) && CantidadLinea > 0 && PrecioUnitarioLinea > 0);
+        AgregarLineaCommand = new RelayCommand(_ => AgregarLinea(), _ => EnEdicion);
         QuitarLineaCommand = new RelayCommand(param => { if (param is LineaEmisionItem l) { LineasEdit.Remove(l); RefrescarTotal(); } });
         AgregarMiembroCommand = new RelayCommand(_ => AgregarMiembro(), _ => AgenciaSeleccionada != null && EnEdicion);
         QuitarMiembroCommand = new RelayCommand(param => { if (param is MiembroGrupoItem m) QuitarMiembro(m); });
-        _ = CargarListaAsync();
+        CargarSeguro(CargarListaAsync);
     }
 
     private async Task CargarListaAsync()

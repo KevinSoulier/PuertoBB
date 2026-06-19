@@ -24,8 +24,8 @@ public partial class ConfiguracionPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         CertPasswordBox.Password = _vm.EdCertificadoPassword ?? string.Empty;
-        SmtpPasswordBox.Password = _vm.SmtpPassword ?? string.Empty;
-        OAuthClientSecretBox.Password = _vm.OAuthClientSecret ?? string.Empty;
+        SmtpPasswordBox.Password = _vm.CtaSmtpPassword ?? string.Empty;
+        OAuthClientSecretBox.Password = _vm.CtaOAuthClientSecret ?? string.Empty;
         ThemeSelector.SelectedIndex = PreferenciasUsuario.GetTema() switch
         {
             "Light" => 0,
@@ -45,26 +45,36 @@ public partial class ConfiguracionPage : Page
             var actual = _vm.EdCertificadoPassword ?? string.Empty;
             if (CertPasswordBox.Password != actual) CertPasswordBox.Password = actual;
         }
-        else if (e.PropertyName == nameof(_vm.SmtpPassword))
+        else if (e.PropertyName == nameof(_vm.CtaSmtpPassword))
         {
-            var actual = _vm.SmtpPassword ?? string.Empty;
+            var actual = _vm.CtaSmtpPassword ?? string.Empty;
             if (SmtpPasswordBox.Password != actual) SmtpPasswordBox.Password = actual;
         }
-        else if (e.PropertyName == nameof(_vm.OAuthClientSecret))
+        else if (e.PropertyName == nameof(_vm.CtaOAuthClientSecret))
         {
-            var actual = _vm.OAuthClientSecret ?? string.Empty;
+            var actual = _vm.CtaOAuthClientSecret ?? string.Empty;
             if (OAuthClientSecretBox.Password != actual) OAuthClientSecretBox.Password = actual;
         }
+    }
+
+    /// <summary>Inserta la variable del botón en el cuerpo (TextBox).</summary>
+    private void InsertarVariable_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not string token) return;
+        var i = MailCuerpoBox.SelectionStart;
+        MailCuerpoBox.Text = MailCuerpoBox.Text.Insert(i, token);
+        MailCuerpoBox.SelectionStart = i + token.Length;
+        MailCuerpoBox.Focus();
     }
 
     private void CertPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         => _vm.EdCertificadoPassword = CertPasswordBox.Password;
 
     private void SmtpPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-        => _vm.SmtpPassword = SmtpPasswordBox.Password;
+        => _vm.CtaSmtpPassword = SmtpPasswordBox.Password;
 
     private void OAuthClientSecretBox_PasswordChanged(object sender, RoutedEventArgs e)
-        => _vm.OAuthClientSecret = OAuthClientSecretBox.Password;
+        => _vm.CtaOAuthClientSecret = OAuthClientSecretBox.Password;
 
     private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

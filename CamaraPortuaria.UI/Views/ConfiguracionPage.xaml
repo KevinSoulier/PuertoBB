@@ -2,6 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:controls="clr-namespace:CamaraPortuaria.UI.Controls"
       Title="Configuración"
       ScrollViewer.CanContentScroll="False">
     <Grid>
@@ -56,23 +57,23 @@
                                     </StackPanel>
                                 </WrapPanel>
                                 <!-- Barra Editar/Guardar/Cancelar -->
-                                <StackPanel Orientation="Horizontal">
+                                <WrapPanel>
                                     <ui:Button Content="Editar" Command="{Binding EditarEmisorCommand}"
-                                               Style="{StaticResource AccionIconButton}"
+                                               Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                Visibility="{Binding EmisorNoEditando, Converter={StaticResource BoolToVis}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Content="Guardar" Command="{Binding GuardarEmisorCommand}"
-                                               Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                               Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                                                Visibility="{Binding EmisorEditando, Converter={StaticResource BoolToVis}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Content="Cancelar" Command="{Binding CancelarEmisorCommand}"
-                                               Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                Visibility="{Binding EmisorEditando, Converter={StaticResource BoolToVis}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                                     </ui:Button>
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                             <Separator Margin="0,12,0,8" />
                         </StackPanel>
@@ -94,23 +95,23 @@
                                 </StackPanel>
                             </WrapPanel>
                             <!-- Barra Editar/Guardar/Cancelar (Códigos) -->
-                            <StackPanel Orientation="Horizontal">
+                            <WrapPanel>
                                 <ui:Button Content="Editar" Command="{Binding EditarCodigosAfipCommand}"
-                                           Style="{StaticResource AccionIconButton}"
+                                           Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                            Visibility="{Binding CodigosAfipNoEditando, Converter={StaticResource BoolToVis}}">
                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                                 </ui:Button>
                                 <ui:Button Content="Guardar" Command="{Binding GuardarCodigosAfipCommand}"
-                                           Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                           Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                                            Visibility="{Binding CodigosAfipEditando, Converter={StaticResource BoolToVis}}">
                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                                 </ui:Button>
                                 <ui:Button Content="Cancelar" Command="{Binding CancelarCodigosAfipCommand}"
-                                           Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                           Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                            Visibility="{Binding CodigosAfipEditando, Converter={StaticResource BoolToVis}}">
                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                                 </ui:Button>
-                            </StackPanel>
+                            </WrapPanel>
                         </StackPanel>
 
                         <!-- Separador y header Puntos de venta -->
@@ -238,18 +239,18 @@
                                     </StackPanel>
                                 </Border>
                                 <!-- Botones FUERA del Border: Guardar/Cancelar (Nuevo y Editar van arriba de la lista) -->
-                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <WrapPanel Margin="0,8,0,0">
                                     <ui:Button Content="Guardar punto" Command="{Binding GuardarPuntoCommand}"
-                                               Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                               Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                                                Visibility="{Binding PvFormEditando, Converter={StaticResource BoolToVis}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Content="Cancelar" Command="{Binding CancelarPuntoCommand}"
-                                               Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                               Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                Visibility="{Binding PvFormEditando, Converter={StaticResource BoolToVis}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                                     </ui:Button>
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
 
                             <!-- Columna derecha: lista y acciones (deshabilitadas mientras se edita un punto: PvFormNoEditando) -->
@@ -266,33 +267,33 @@
                                         <DataGridTextColumn Header="Ambiente" Binding="{Binding Ambiente}" Width="110" />
                                     </DataGrid.Columns>
                                 </DataGrid>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <ui:Button Content="Nuevo" Command="{Binding NuevoPuntoCommand}" Style="{StaticResource AccionIconButton}"
+                                <WrapPanel Margin="0,0,0,6">
+                                    <ui:Button Content="Nuevo" Command="{Binding NuevoPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Agregar un nuevo punto de venta">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Editar" Command="{Binding EditarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                    <ui:Button Content="Editar" Command="{Binding EditarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Editar el punto de venta seleccionado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Marcar activo" Command="{Binding MarcarActivoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                    <ui:Button Content="Marcar activo" Command="{Binding MarcarActivoCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Usar este punto de venta para emitir (solo uno puede estar activo)">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Checkmark24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Eliminar" Command="{Binding EliminarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                    <ui:Button Content="Eliminar" Command="{Binding EliminarPuntoCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Eliminar el punto de venta seleccionado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Content="Probar conexión" Command="{Binding ProbarConexionCommand}" Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                    <ui:Button Content="Probar conexión" Command="{Binding ProbarConexionCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                                IsEnabled="{Binding PvFormNoEditando}"
                                                ToolTip="Verificar el servicio AFIP y la autenticación con el certificado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
                                     </ui:Button>
-                                </StackPanel>
+                                </WrapPanel>
                                 <TextBlock Text="{Binding EstadoConexion}" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" />
                             </StackPanel>
@@ -311,23 +312,23 @@
                         <TextBox Text="{Binding DiasVencimiento, UpdateSourceTrigger=PropertyChanged}"
                                  IsEnabled="{Binding PagosEditando}"
                                  Width="100" HorizontalAlignment="Left" Margin="0,0,0,16" />
-                        <StackPanel Orientation="Horizontal">
+                        <WrapPanel>
                             <ui:Button Content="Editar" Command="{Binding EditarPagosCommand}"
-                                       Style="{StaticResource AccionIconButton}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        Visibility="{Binding PagosNoEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Guardar" Command="{Binding GuardarPagosCommand}"
-                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                                        Visibility="{Binding PagosEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Cancelar" Command="{Binding CancelarPagosCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        Visibility="{Binding PagosEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
+                        </WrapPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -337,138 +338,288 @@
                  ══════════════════════════════════════════ -->
             <TabItem Header="Correo">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="False">
-                    <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="0,12,0,12">
-                        <TextBlock Text="Servidor" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding SmtpHost, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <StackPanel>
-                                <TextBlock Text="Puerto" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                <TextBox Text="{Binding SmtpPort, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{Binding CorreoEditando}" Width="100" />
-                            </StackPanel>
-                            <StackPanel Margin="16,0,0,0">
-                                <TextBlock Text="Seguridad" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                <ComboBox SelectedIndex="{Binding SmtpSeguridad, UpdateSourceTrigger=PropertyChanged}"
-                                          IsEnabled="{Binding CorreoEditando}" Width="160">
-                                    <ComboBoxItem Content="Auto (recomendado)" />
-                                    <ComboBoxItem Content="SSL/TLS (puerto 465)" />
-                                    <ComboBoxItem Content="Sin cifrado" />
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Margin="16,0,0,0">
-                                <TextBlock Text="Email remitente" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                <ui:TextBox Text="{Binding EmailRemitente, UpdateSourceTrigger=PropertyChanged}"
-                                            PlaceholderText="ej. info@tudominio.com"
-                                            IsEnabled="{Binding CorreoEditando}" Width="220" />
-                            </StackPanel>
-                        </StackPanel>
-                        <!-- Modo de autenticación -->
-                        <TextBlock Text="Autenticación" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                        <ComboBox SelectedIndex="{Binding Autenticacion, UpdateSourceTrigger=PropertyChanged}"
-                                  IsEnabled="{Binding CorreoEditando}" Width="260" HorizontalAlignment="Left" Margin="0,0,0,12">
-                            <ComboBoxItem Content="Ninguna" />
-                            <ComboBoxItem Content="Básica (usuario y contraseña)" />
-                            <ComboBoxItem Content="OAuth2 (Microsoft, Google…)" />
-                        </ComboBox>
+                    <StackPanel Margin="0,12,0,12">
+                        <TextBlock Text="Cuentas de correo" FontWeight="SemiBold" Margin="0,0,0,2" />
+                        <TextBlock Text="Cargá una o más cuentas de correo y marcá cuál está activa. La activa es la que la app usa para enviar."
+                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" Margin="0,0,0,8" />
 
-                        <!-- Autenticación básica -->
-                        <StackPanel Visibility="{Binding EsBasica, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="Usuario" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <TextBox Text="{Binding SmtpUsuario, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
-                            <TextBlock Text="Contraseña" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <PasswordBox x:Name="SmtpPasswordBox" IsEnabled="{Binding CorreoEditando}"
-                                         Margin="0,0,0,16" PasswordChanged="SmtpPasswordBox_PasswordChanged" />
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="380" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Autenticación OAuth2 -->
-                        <StackPanel Visibility="{Binding EsOAuth2, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <StackPanel>
-                                    <TextBlock Text="Proveedor" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                    <ComboBox SelectedIndex="{Binding OAuthProveedor, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding CorreoEditando}" Width="200">
-                                        <ComboBoxItem Content="Microsoft 365 (empresa)" />
-                                        <ComboBoxItem Content="Google / Gmail" />
-                                        <ComboBoxItem Content="Personalizado" />
-                                        <ComboBoxItem Content="Outlook.com (personal)" />
-                                    </ComboBox>
-                                </StackPanel>
-                                <StackPanel Margin="16,0,0,0" VerticalAlignment="Bottom">
-                                    <TextBlock Text="Flujo" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <RadioButton Content="Interactivo (navegador)" GroupName="OAuthFlujo"
-                                                     IsChecked="{Binding OAuthFlujoInteractivo}" IsEnabled="{Binding CorreoEditando}" />
-                                        <RadioButton Content="Cliente (sin navegador)" GroupName="OAuthFlujo" Margin="12,0,0,0"
-                                                     IsChecked="{Binding OAuthFlujoCliente}" IsEnabled="{Binding CorreoEditando}" />
+                            <!-- Columna izquierda: formulario de la cuenta -->
+                            <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="16"
+                                        IsEnabled="{Binding CorreoFormEditando}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding TituloCuentaEdicion}" FontWeight="SemiBold" Margin="0,0,0,8" />
+
+                                        <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding CtaNombre, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+
+                                        <TextBlock Text="Proveedor" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <ComboBox SelectedIndex="{Binding CtaProveedorIndice, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8">
+                                            <ComboBoxItem Content="Microsoft 365 (empresa)" />
+                                            <ComboBoxItem Content="Outlook.com (personal)" />
+                                            <ComboBoxItem Content="Google / Gmail" />
+                                            <ComboBoxItem Content="Otro (manual)" />
+                                        </ComboBox>
+
+                                        <TextBlock Text="Servidor" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding CtaSmtpHost, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Puerto" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <TextBox Text="{Binding CtaSmtpPort, UpdateSourceTrigger=PropertyChanged}" Width="90" HorizontalAlignment="Left" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                <TextBlock Text="Seguridad" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <ComboBox SelectedIndex="{Binding CtaSmtpSeguridad, UpdateSourceTrigger=PropertyChanged}">
+                                                    <ComboBoxItem Content="Auto (recomendado)" />
+                                                    <ComboBoxItem Content="SSL/TLS (puerto 465)" />
+                                                    <ComboBoxItem Content="Sin cifrado" />
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Text="Email remitente" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <ui:TextBox Text="{Binding CtaEmailRemitente, UpdateSourceTrigger=PropertyChanged}"
+                                                    PlaceholderText="ej. info@tudominio.com" Margin="0,0,0,8" />
+
+                                        <TextBlock Text="Autenticación" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                        <ComboBox SelectedIndex="{Binding CtaAutenticacion, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8">
+                                            <ComboBoxItem Content="Ninguna" />
+                                            <ComboBoxItem Content="Básica (usuario y contraseña)" />
+                                            <ComboBoxItem Content="OAuth2" />
+                                        </ComboBox>
+
+                                        <!-- Básica -->
+                                        <StackPanel Visibility="{Binding CtaEsBasica, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="Usuario" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                            <TextBox Text="{Binding CtaSmtpUsuario, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                            <TextBlock Text="Contraseña" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <PasswordBox x:Name="SmtpPasswordBox" Grid.Column="0"
+                                                             Visibility="{Binding CtaOcultarSecretos, Converter={StaticResource BoolToVis}}"
+                                                             PasswordChanged="SmtpPasswordBox_PasswordChanged" />
+                                                <TextBox Grid.Column="0" Text="{Binding CtaSmtpPassword, UpdateSourceTrigger=PropertyChanged}"
+                                                         Visibility="{Binding CtaMostrarSecretos, Converter={StaticResource BoolToVis}}" />
+                                                <ui:Button Grid.Column="1" Command="{Binding ToggleMostrarSecretosCommand}"
+                                                           Style="{StaticResource AccionIconButton}" Margin="8,0,0,0" ToolTip="Mostrar/ocultar">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Eye24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- OAuth2 -->
+                                        <StackPanel Visibility="{Binding CtaEsOAuth2, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Visibility="{Binding CtaMostrarFlujo, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
+                                                <TextBlock Text="Flujo (cómo se autentica la app)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <RadioButton Content="Interactivo — iniciás sesión en el navegador una vez" GroupName="CtaOAuthFlujo" IsChecked="{Binding CtaFlujoInteractivo}" />
+                                                <RadioButton Content="Cliente — secreto de aplicación, sin navegador" GroupName="CtaOAuthFlujo" Margin="0,4,0,0" IsChecked="{Binding CtaFlujoCliente}" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="Client ID" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                            <TextBox Text="{Binding CtaOAuthClientId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,2" />
+                                            <TextBlock Text="Azure → App registrations → Application (client) ID" FontSize="11" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+
+                                            <StackPanel Visibility="{Binding CtaMostrarTenant, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="Tenant ID (vacío = común)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <TextBox Text="{Binding CtaOAuthTenantId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,2" />
+                                                <TextBlock Text="Azure → Directory (tenant) ID" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+                                            </StackPanel>
+
+                                            <StackPanel Visibility="{Binding CtaMostrarClientSecret, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="Client Secret" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <PasswordBox x:Name="OAuthClientSecretBox" Grid.Column="0"
+                                                                 Visibility="{Binding CtaOcultarSecretos, Converter={StaticResource BoolToVis}}"
+                                                                 PasswordChanged="OAuthClientSecretBox_PasswordChanged" />
+                                                    <TextBox Grid.Column="0" Text="{Binding CtaOAuthClientSecret, UpdateSourceTrigger=PropertyChanged}"
+                                                             Visibility="{Binding CtaMostrarSecretos, Converter={StaticResource BoolToVis}}" />
+                                                    <ui:Button Grid.Column="1" Command="{Binding ToggleMostrarSecretosCommand}"
+                                                               Style="{StaticResource AccionIconButton}" Margin="8,0,0,0" ToolTip="Mostrar/ocultar">
+                                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Eye24" /></ui:Button.Icon>
+                                                    </ui:Button>
+                                                </Grid>
+                                                <TextBlock Text="Azure → Certificates &amp; secrets → valor del secreto (no el Secret ID)" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,-4,0,8" />
+                                            </StackPanel>
+
+                                            <!-- Endpoints + Scope: solo Personalizado -->
+                                            <StackPanel Visibility="{Binding CtaEsProveedorPersonalizado, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="Authorize endpoint" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <TextBox Text="{Binding CtaOAuthAuthorizeEndpoint, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                                <TextBlock Text="Token endpoint" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <TextBox Text="{Binding CtaOAuthTokenEndpoint, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                                <TextBlock Text="Scope" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                                                <TextBox Text="{Binding CtaOAuthScope, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                            </StackPanel>
+
+                                            <!-- Flujo interactivo: iniciar sesión -->
+                                            <StackPanel Visibility="{Binding CtaFlujoInteractivo, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
+                                                <ui:Button Content="Iniciar sesión…" Command="{Binding IniciarSesionOAuthCommand}"
+                                                           Style="{StaticResource AccionIconButton}" HorizontalAlignment="Left"
+                                                           ToolTip="Abre el navegador para consentir una vez. Después guardá la cuenta.">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Person24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                                <TextBlock Text="{Binding CtaOAuthEstado}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           FontSize="11" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
+                                </Border>
+                                <!-- Guardar / Probar / Cancelar (fuera del Border). WrapPanel: nunca recorta en la columna de 380px. -->
+                                <WrapPanel Margin="0,8,0,0">
+                                    <ui:Button Content="Guardar cuenta" Command="{Binding GuardarCuentaCommand}"
+                                               Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
+                                               Visibility="{Binding CorreoFormEditando, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Probar" Command="{Binding ProbarCuentaEnEdicionCommand}"
+                                               Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               Visibility="{Binding CorreoFormEditando, Converter={StaticResource BoolToVis}}"
+                                               ToolTip="Prueba la conexión de la cuenta que estás editando, sin guardarla ni marcarla activa.">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Cancelar" Command="{Binding CancelarCuentaCommand}"
+                                               Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               Visibility="{Binding CorreoFormEditando, Converter={StaticResource BoolToVis}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
                             </StackPanel>
 
-                            <TextBlock Text="Client ID" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <TextBox Text="{Binding OAuthClientId, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+                            <!-- Columna derecha: lista de cuentas + acciones -->
+                            <StackPanel Grid.Column="2">
+                                <DataGrid ItemsSource="{Binding CuentasCorreo}" SelectedItem="{Binding CuentaSeleccionada}"
+                                          IsEnabled="{Binding CorreoFormNoEditando}"
+                                          AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                                          CanUserAddRows="False" CanUserResizeRows="False" GridLinesVisibility="Horizontal"
+                                          Height="180" Margin="0,0,0,6" SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="" Binding="{Binding ActivoTexto}" Width="80" />
+                                        <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*" />
+                                        <DataGridTextColumn Header="Remitente" Binding="{Binding EmailRemitente}" Width="*" />
+                                        <DataGridTextColumn Header="Modo" Binding="{Binding ModoTexto}" Width="90" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <WrapPanel Margin="0,0,0,6">
+                                    <ui:Button Content="Nueva" Command="{Binding NuevaCuentaCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               IsEnabled="{Binding CorreoFormNoEditando}" ToolTip="Agregar una cuenta de correo">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Editar" Command="{Binding EditarCuentaCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               IsEnabled="{Binding CorreoFormNoEditando}" ToolTip="Editar la cuenta seleccionada">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Marcar activa" Command="{Binding MarcarCuentaActivaCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               IsEnabled="{Binding CorreoFormNoEditando}" ToolTip="Usar esta cuenta para enviar (solo una puede estar activa)">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Checkmark24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Eliminar" Command="{Binding EliminarCuentaCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               IsEnabled="{Binding CorreoFormNoEditando}" ToolTip="Eliminar la cuenta seleccionada">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Content="Probar conexión" Command="{Binding ProbarMailCommand}" Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                               IsEnabled="{Binding CorreoFormNoEditando}" ToolTip="Probar la conexión SMTP de la cuenta activa">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding EstadoCorreo}" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" />
 
-                            <TextBlock Text="Tenant ID (Microsoft; vacío = común)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <TextBox Text="{Binding OAuthTenantId, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
-
-                            <TextBlock Text="Client Secret (requerido para «Cliente»)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <PasswordBox x:Name="OAuthClientSecretBox" IsEnabled="{Binding CorreoEditando}"
-                                         Margin="0,0,0,8" PasswordChanged="OAuthClientSecretBox_PasswordChanged" />
-
-                            <!-- Endpoints: solo proveedor Personalizado -->
-                            <StackPanel Visibility="{Binding EsProveedorPersonalizado, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Authorize endpoint" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                <TextBox Text="{Binding OAuthAuthorizeEndpoint, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
-                                <TextBlock Text="Token endpoint" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                                <TextBox Text="{Binding OAuthTokenEndpoint, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,8" />
+                                <!-- Guía contextual del proveedor seleccionado -->
+                                <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="12" Margin="0,12,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Guía del proveedor seleccionado" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                            <TextBlock Text="{Binding CtaGuiaProveedor}" TextWrapping="Wrap" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                            <TextBlock Text="Scope (vacío = el del proveedor)" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <TextBox Text="{Binding OAuthScope, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding CorreoEditando}" Margin="0,0,0,12" />
+            <!-- ══════════════════════════════════════════
+                 PLANTILLA DE CORREO
+                 ══════════════════════════════════════════ -->
+            <TabItem Header="Plantilla de correo">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="False">
+                    <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="0,12,0,12">
+                        <TextBlock Text="Asunto" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding MailAsunto, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding PlantillaEditando}" Margin="0,0,0,12" />
 
-                            <!-- Flujo interactivo: iniciar sesión en el navegador -->
-                            <StackPanel Visibility="{Binding EsFlujoInteractivo, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
-                                <ui:Button Content="Iniciar sesión…" Command="{Binding IniciarSesionOAuthCommand}"
-                                           Style="{StaticResource AccionIconButton}" IsEnabled="{Binding CorreoEditando}"
-                                           HorizontalAlignment="Left"
-                                           ToolTip="Abre el navegador para consentir una vez. Después guardá la configuración.">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Person24" /></ui:Button.Icon>
-                                </ui:Button>
-                                <TextBlock Text="{Binding OAuthEstado}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           FontSize="11" Margin="0,4,0,0" />
-                            </StackPanel>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <ui:Button Content="Editar" Command="{Binding EditarCorreoCommand}"
-                                       Style="{StaticResource AccionIconButton}"
-                                       Visibility="{Binding CorreoNoEditando, Converter={StaticResource BoolToVis}}">
+                        <ui:ToggleSwitch Content="El cuerpo es HTML (lo diseño por fuera y lo pego acá)" Margin="0,0,0,10"
+                                         IsChecked="{Binding MailCuerpoEsHtml, Mode=TwoWay}"
+                                         IsEnabled="{Binding PlantillaEditando}" />
+
+                        <TextBlock Text="Cuerpo" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
+                        <TextBox x:Name="MailCuerpoBox"
+                                 Text="{Binding MailCuerpo, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding PlantillaEditando}"
+                                 AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                                 FontFamily="Consolas" Height="220" Margin="0,0,0,8"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+
+                        <!-- Insertar variables -->
+                        <TextBlock Text="Insertar variable" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,4" />
+                        <WrapPanel Margin="0,0,0,4">
+                            <ui:Button Content="{}{periodo}"     Tag="{}{periodo}"     Click="InsertarVariable_Click" IsEnabled="{Binding PlantillaEditando}" Margin="0,0,4,4" />
+                            <ui:Button Content="{}{receptor}"    Tag="{}{receptor}"    Click="InsertarVariable_Click" IsEnabled="{Binding PlantillaEditando}" Margin="0,0,4,4" />
+                            <ui:Button Content="{}{razonSocial}" Tag="{}{razonSocial}" Click="InsertarVariable_Click" IsEnabled="{Binding PlantillaEditando}" Margin="0,0,4,4" />
+                            <ui:Button Content="{}{comprobante}" Tag="{}{comprobante}" Click="InsertarVariable_Click" IsEnabled="{Binding PlantillaEditando}" Margin="0,0,4,4" />
+                            <ui:Button Content="{}{numero}"      Tag="{}{numero}"      Click="InsertarVariable_Click" IsEnabled="{Binding PlantillaEditando}" Margin="0,0,4,4" />
+                            <ui:Button Content="{}{importe}"     Tag="{}{importe}"     Click="InsertarVariable_Click" IsEnabled="{Binding PlantillaEditando}" Margin="0,0,4,4" />
+                        </WrapPanel>
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                                   Text="{}{periodo} = período (ej. Junio 2026) · {receptor} = destinatario · {razonSocial} = emisor · {comprobante} = tipo (Recibo, Nota de crédito…) · {numero} = número · {importe} = total." />
+
+                        <WrapPanel>
+                            <ui:Button Content="Editar" Command="{Binding EditarPlantillaCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                       Visibility="{Binding PlantillaNoEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                             </ui:Button>
-                            <ui:Button Content="Guardar" Command="{Binding GuardarCorreoCommand}"
-                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
-                                       Visibility="{Binding CorreoEditando, Converter={StaticResource BoolToVis}}">
+                            <ui:Button Content="Guardar" Command="{Binding GuardarPlantillaCommand}"
+                                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
+                                       Visibility="{Binding PlantillaEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                             </ui:Button>
-                            <ui:Button Content="Cancelar" Command="{Binding CancelarCorreoCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
-                                       Visibility="{Binding CorreoEditando, Converter={StaticResource BoolToVis}}">
+                            <ui:Button Content="Cancelar" Command="{Binding CancelarPlantillaCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                       Visibility="{Binding PlantillaEditando, Converter={StaticResource BoolToVis}}">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                             </ui:Button>
-                            <ui:Button Content="Probar conexión" Command="{Binding ProbarMailCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
-                                       ToolTip="Enviar un correo de prueba con la configuración SMTP actual"
-                                       Visibility="{Binding CorreoNoEditando, Converter={StaticResource BoolToVis}}">
-                                <ui:Button.Icon><ui:SymbolIcon Symbol="PlugConnected24" /></ui:Button.Icon>
-                            </ui:Button>
-                        </StackPanel>
-                        <TextBlock Text="{Binding EstadoCorreo}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding EstadoPlantilla}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" Margin="0,8,0,0" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -502,18 +653,18 @@
                         <TextBlock Text="Generá una copia de seguridad de la base o restaurá desde una copia existente. Al restaurar la aplicación se cerrará automáticamente."
                                    TextWrapping="Wrap" FontSize="11"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                        <WrapPanel Margin="0,0,0,24">
                             <ui:Button Content="Generar backup…" Command="{Binding BackupCommand}"
-                                       Style="{StaticResource AccionIconButton}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Guardar una copia de seguridad de la base de datos en disco.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Restaurar backup…" Command="{Binding RestaurarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Reemplazar la base actual por una copia de seguridad previa.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUpload24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
+                        </WrapPanel>
 
                         <!-- Mantenimiento -->
                         <Separator Margin="0,0,0,12" />
@@ -521,28 +672,30 @@
                         <TextBlock Text="Herramientas para verificar y optimizar la base de datos. Usar si la app se comporta de forma inesperada o después de fallos."
                                    TextWrapping="Wrap" FontSize="11"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12" />
-                        <StackPanel Orientation="Horizontal">
+                        <WrapPanel>
                             <ui:Button Content="Verificar integridad" Command="{Binding VerificarIntegridadCommand}"
-                                       Style="{StaticResource AccionIconButton}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Comprobar que el archivo de la base de datos no esté dañado.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ShieldCheckmark24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Compactar (VACUUM)" Command="{Binding VacuumCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Reconstruye el archivo de la base de datos, recupera espacio y rehace los índices.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Broom24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Optimizar consultas" Command="{Binding OptimizarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Actualiza las estadísticas internas para mejorar la performance de las consultas.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Flash24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
+                        </WrapPanel>
 
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
         </TabControl>
+
+        <controls:BusyOverlay Grid.RowSpan="2" />
     </Grid>
 </Page>

@@ -2,6 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:controls="clr-namespace:CentroMaritimo.UI.Controls"
       Title="Cierre de período">
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -14,32 +15,34 @@
         <TextBlock Grid.Row="0" Text="Cierre de período (consolidación de vouchers)" Style="{StaticResource PageTitle}" />
 
         <!-- Barra de período + acciones globales -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
-            <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
-                          Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
+        <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Margin="0,0,8,8" VerticalAlignment="Center">
+                <TextBlock Text="Período:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox ItemsSource="{Binding MesesNombres}" SelectedIndex="{Binding MesIndex}" Width="110" />
+                <ui:NumberBox Value="{Binding Anio, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource YearNumberBox}" Margin="8,0,0,0" />
+            </StackPanel>
             <ui:Button Content="Refrescar" Command="{Binding CargarCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                        ToolTip="Recargar las agencias con vouchers pendientes del período">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Emitir recibos" Command="{Binding EmitirRecibosCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                        ToolTip="Genera los recibos AFIP de todas las agencias pendientes SIN enviar mails.">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentBulletList24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Enviar mails" Command="{Binding EnviarMailsCommand}"
-                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                        ToolTip="Envía el mail con el PDF consolidado a todas las agencias con recibo emitido.">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Cerrar período" Command="{Binding CerrarCommand}"
-                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="8,0,0,0"
+                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                        ToolTip="Genera recibos AFIP y envía mails a todas las agencias pendientes del período.">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="LockClosed24" /></ui:Button.Icon>
             </ui:Button>
-        </StackPanel>
+        </WrapPanel>
 
         <!-- Resumen del período -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
@@ -78,32 +81,32 @@
                     <DataGridTemplateColumn Header="Acciones" Width="230">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
+                                <WrapPanel>
                                     <ui:Button Command="{Binding DataContext.PrevisualizarPdfCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
-                                               Style="{StaticResource AccionIconButtonCompact}"
+                                               Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
                                                ToolTip="Previsualizar PDF">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Command="{Binding DataContext.DescargarPdfCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
-                                               Style="{StaticResource AccionIconButtonCompact}" Margin="6,0,0,0"
+                                               Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
                                                ToolTip="Descargar PDF">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Command="{Binding DataContext.EmitirReciboAgenciaCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
-                                               Style="{StaticResource AccionIconButtonCompact}" Appearance="Primary" Margin="6,0,0,0"
+                                               Style="{StaticResource AccionIconButtonCompact}" Appearance="Primary" Margin="0,0,6,6"
                                                ToolTip="Generar recibo en AFIP (sin enviar mail)">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentBulletList24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Command="{Binding DataContext.EnviarMailAgenciaCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
-                                               Style="{StaticResource AccionIconButtonCompact}" Margin="6,0,0,0"
+                                               Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
                                                ToolTip="Enviar mail con PDF consolidado">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
                                     </ui:Button>
-                                </StackPanel>
+                                </WrapPanel>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -150,15 +153,8 @@
                     </DataTemplate>
                 </DataGrid.RowDetailsTemplate>
             </DataGrid>
-
-            <Border Background="{DynamicResource SmokeFillColorDefaultBrush}"
-                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <ProgressBar IsIndeterminate="True" Width="220" Height="6" />
-                    <TextBlock Text="Trabajando…" Foreground="White"
-                               HorizontalAlignment="Center" Margin="0,8,0,0" />
-                </StackPanel>
-            </Border>
         </Grid>
+
+        <controls:BusyOverlay Grid.RowSpan="4" />
     </Grid>
 </Page>

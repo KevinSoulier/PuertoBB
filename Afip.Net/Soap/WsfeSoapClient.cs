@@ -17,7 +17,11 @@ public class WsfeSoapClient : IWsfeClient
     private static ServiceSoapClient Crear(bool homologacion)
     {
         var url = homologacion ? UrlHomologacion : UrlProduccion;
-        return new ServiceSoapClient(ServiceSoapClient.EndpointConfiguration.ServiceSoap, new EndpointAddress(url));
+        var client = new ServiceSoapClient(ServiceSoapClient.EndpointConfiguration.ServiceSoap, new EndpointAddress(url));
+        // Timeout explícito (en vez del default de WCF): un AFIP lento falla en un tiempo acotado y diagnosticable.
+        var b = client.Endpoint.Binding;
+        b.SendTimeout = b.ReceiveTimeout = b.OpenTimeout = b.CloseTimeout = TimeSpan.FromSeconds(60);
+        return client;
     }
 
     private static FEAuthRequest Auth(string token, string sign, string cuit)

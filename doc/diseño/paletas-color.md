@@ -45,10 +45,12 @@ Definidos en `EstadoReciboToBrushConverter.cs` (en código, no en XAML) y como r
 
 | Estado | Fondo | Clave en Colors.xaml |
 |--------|-------|----------------------|
+| Pendiente | `#FFF3E0` | `EstadoPendienteBrush` |
 | Emitido | `#E3F2FD` | `EstadoEmitidoBrush` |
-| Enviado | `#FFF9C4` | `EstadoEnviadoBrush` |
+| Enviado | `#E0F7FA` | `EstadoEnviadoBrush` |
 | Pagado | `#E8F5E9` | `EstadoPagadoBrush` |
 | Vencido | `#FFEBEE` | `EstadoVencidoBrush` |
+| Incobrable | `#FBE9E7` | — (reemplaza al viejo "Moroso") |
 | Anulado | `#F5F5F5` | `EstadoAnuladoBrush` |
 
 ---

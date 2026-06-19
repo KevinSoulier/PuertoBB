@@ -11,11 +11,11 @@
                        TextWrapping="Wrap" Margin="0,0,0,8"/>
             <TextBlock x:Name="MessageText" FontSize="13" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,20"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <WrapPanel HorizontalAlignment="Right">
                 <Button x:Name="CancelButton" MinWidth="90" Margin="0,0,8,0" Click="Cancel_Click"/>
                 <Button x:Name="ConfirmButton" MinWidth="90" Click="Confirm_Click"
                         Style="{DynamicResource AccentButtonStyle}"/>
-            </StackPanel>
+            </WrapPanel>
         </StackPanel>
     </Border>
 </UserControl>

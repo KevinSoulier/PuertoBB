@@ -7,6 +7,7 @@ using PuertoBB.Core.Entities.CamaraPortuaria;
 using PuertoBB.Core.Entities.CentroMaritimo;
 using PuertoBB.Core.Enums;
 using PuertoBB.Core.Interfaces.Services;
+using PuertoBB.Core.Models;
 using PuertoBB.Core.Models.Afip;
 using PuertoBB.Core.Models.Resultados;
 using PuertoBB.Infrastructure.Data;
@@ -44,7 +45,7 @@ public class CamaraEmisionTests
     private static IMailService MailOk()
     {
         var mail = Substitute.For<IMailService>();
-        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Ok(true));
         return mail;
     }
@@ -83,7 +84,7 @@ public class CamaraEmisionTests
     {
         var mail = Substitute.For<IMailService>();
         var llamadas = 0;
-        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(_ => ++llamadas == 1 ? ServiceResult<bool>.Fail("SMTP caído") : ServiceResult<bool>.Ok(true));
         return mail;
     }
@@ -128,7 +129,38 @@ public class CamaraEmisionTests
         Assert.False(res.Data!.Exito);
         Assert.Contains("RG 5616", res.Data.ErrorEmision);
         await afip.DidNotReceive().ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>());
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);   // queda reintentable
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);   // queda reintentable
+    }
+
+    [Fact]
+    public async Task Reintentar_TrasCorregirCondicionIva_ReSincronizaSnapshot_YEmite()
+    {
+        // C3: un recibo trabado en Pendiente por falta de condición IVA (RG 5616) debe destrabarse al
+        // corregir el dato en Empresas y reintentar — el snapshot se re-sincroniza desde el maestro.
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var e = new Empresa { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "s@x.com", CreatedAt = DateTime.Now }] };
+        db.Empresas.Add(e);
+        db.SaveChanges();
+        var service = BuildService(db, MailOk());
+
+        // Sin condición IVA → queda Pendiente por RG 5616, sin llamar a AFIP.
+        var primera = await service.EmitirIndividualAsync(e.Id, 1000m, "Cuota", DateTime.Today, 2026, 6, enviarMail: false);
+        Assert.False(primera.Data!.Exito);
+        var reciboId = db.Recibos.Single().Id;
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
+
+        // El usuario corrige la condición IVA en el maestro.
+        e.CondicionIvaId = 1;
+        db.SaveChanges();
+
+        // Reintentar re-sincroniza el snapshot y emite.
+        var reintento = await service.ReintentarAsync(reciboId, enviarMail: false);
+
+        Assert.True(reintento.Data!.Exito);
+        var recibo = db.Recibos.Single();
+        Assert.Equal(EstadoFiscal.Emitido, recibo.EstadoFiscal);
+        Assert.Equal(1, recibo.ReceptorCondicionIvaId);             // snapshot re-sincronizado desde el maestro
+        Assert.False(string.IsNullOrEmpty(recibo.CAE));
     }
 
     [Fact]
@@ -186,7 +218,7 @@ public class CamaraEmisionTests
         // 1er intento: AFIP falla → recibo Pendiente con UltimoErrorCae (población de riesgo).
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cuota", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
         Assert.NotNull(db.Recibos.Single().UltimoErrorCae);
 
         // 2do intento: recupera el comprobante ya emitido en AFIP.
@@ -194,7 +226,7 @@ public class CamaraEmisionTests
 
         Assert.True(res.Data!.Exito);
         var recibo = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Emitido, recibo.Estado);
+        Assert.Equal(EstadoFiscal.Emitido, recibo.EstadoFiscal);
         Assert.Equal("CAERECUP", recibo.CAE);
         Assert.Equal(8, recibo.NumeroComprobante);
         // ObtenerCAE solo en el 1er intento; el 2do recuperó sin re-emitir → no duplica.
@@ -221,7 +253,7 @@ public class CamaraEmisionTests
         Assert.All(recibos, r => Assert.False(string.IsNullOrEmpty(r.CAE)));
         // N-6: invariante fiscal — el total persistido SIEMPRE es la suma de las líneas.
         Assert.All(recibos, r => Assert.Equal(db.RecibosLineas.Where(l => l.ReciboId == r.Id).Sum(l => l.Importe), r.Importe));
-        Assert.All(recibos, r => Assert.Equal(ReciboEstado.Enviado, r.Estado));
+        Assert.All(recibos, r => Assert.NotNull(r.FechaEnvioMail));
         Assert.All(recibos, r => Assert.Equal(5000m, r.Importe));
     }
 
@@ -301,17 +333,124 @@ public class CamaraEmisionTests
     }
 
     [Fact]
-    public async Task EmitirMasivo_SegundaVez_BloqueaDuplicados()
+    public async Task EmitirMasivo_SegundaVez_OmiteCompletos_SinFallarNiDuplicar()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var grupoId = SeedGrupoConEmpresas(db);
         var service = BuildService(db, MailOk());
 
-        await service.EmitirMasivoAsync(grupoId, 2026, 6);
-        var segunda = await service.EmitirMasivoAsync(grupoId, 2026, 6);
+        await service.EmitirMasivoAsync(grupoId, 2026, 6);                 // emite + envía
+        var segunda = await service.EmitirMasivoAsync(grupoId, 2026, 6);   // ya completos → omitidos, NO error
 
+        Assert.All(segunda.Data!, r => Assert.True(r.Omitido));           // idempotente: omitido, no fallo
         Assert.All(segunda.Data!, r => Assert.False(r.Exito));
         Assert.Equal(2, db.Recibos.Count()); // no se duplicaron
+    }
+
+    [Fact]
+    public async Task EmitirMasivo_ReenviarYaEnviados_ReenviaLosCompletos()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);
+        var mail = MailOk();
+        var service = BuildService(db, mail);
+
+        await service.EmitirMasivoAsync(grupoId, 2026, 6);                 // emite + envía (2 mails)
+        mail.ClearReceivedCalls();
+
+        var reenvio = await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: true, reenviarYaEnviados: true);
+
+        Assert.All(reenvio.Data!, r => Assert.True(r.Exito));             // reenviados = éxito, no omitidos
+        Assert.All(reenvio.Data!, r => Assert.False(r.Omitido));
+        await mail.Received(2).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        Assert.Equal(2, db.Recibos.Count()); // no se duplicaron
+    }
+
+    [Fact]
+    public async Task GetEstadoMasivo_DevuelveImporteEsperadoDelGrupo()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);   // grupo.Importe = 5000
+        var service = BuildService(db, MailOk());
+
+        var estado = await service.GetEstadoMasivoAsync(grupoId, 2026, 6);
+
+        Assert.True(estado.Success);
+        Assert.All(estado.Data!, e => Assert.Equal(5000m, e.ImporteEsperado));  // se ve el monto aunque no haya recibo
+    }
+
+    [Fact]
+    public async Task EmitirDeGrupo_TrasFalloCae_ReSincronizaImporteDelGrupoCorregido()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var grupoId = SeedGrupoConEmpresas(db);   // Importe 5000
+        var service = BuildService(db, MailOk(), AfipFallaUnaVez());
+
+        await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);   // 1er CAE falla → un Pendiente
+        var pendiente = db.Recibos.Single(r => r.EstadoFiscal == EstadoFiscal.Pendiente);
+        var empresaPendienteId = pendiente.EmpresaId;
+
+        // Corregir el importe del grupo y re-emitir POR FILA (antes el bug reintentaba con el importe viejo).
+        db.Grupos.Single().Importe = 8000m;
+        db.SaveChanges();
+
+        var res = await service.EmitirDeGrupoAsync(grupoId, empresaPendienteId, 2026, 6, enviarMail: false);
+
+        Assert.True(res.Data!.Exito);
+        var recargado = db.Recibos.Single(r => r.EmpresaId == empresaPendienteId);
+        Assert.Equal(EstadoFiscal.Emitido, recargado.EstadoFiscal);
+        Assert.Equal(8000m, recargado.Importe);   // re-sincronizó al valor corregido del grupo
+    }
+
+    [Fact]
+    public async Task EditarReciboPendiente_ActualizaLineasEImporte_YRechazaConCae()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+
+        // Pendiente (AFIP falla la 1ª vez): se puede editar.
+        var service = BuildService(db, MailOk(), AfipFallaUnaVez());
+        await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        var pendiente = db.Recibos.Single();
+        Assert.Equal(EstadoFiscal.Pendiente, pendiente.EstadoFiscal);
+
+        var edit = await service.EditarReciboPendienteAsync(pendiente.Id, [new ReciboLineaInput("Cuota corregida", 2, 750m)]);
+        Assert.True(edit.Success);
+        Assert.Equal(1500m, db.Recibos.Single().Importe);
+        Assert.Equal(1500m, db.RecibosLineas.Where(l => l.ReciboId == pendiente.Id).Sum(l => l.Importe));
+
+        // Ahora con CAE (reintento OK): no se puede editar.
+        await service.ReintentarAsync(pendiente.Id, enviarMail: false);
+        Assert.False(string.IsNullOrEmpty(db.Recibos.Single().CAE));
+        var rechazo = await service.EditarReciboPendienteAsync(pendiente.Id, [new ReciboLineaInput("X", 1, 1m)]);
+        Assert.False(rechazo.Success);
+    }
+
+    [Fact]
+    public async Task EliminarReciboPendiente_BorraSinCae_YRechazaConCae()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+
+        // Pendiente: se elimina.
+        var service = BuildService(db, MailOk(), AfipFallaUnaVez());
+        await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        var pendiente = db.Recibos.Single();
+        Assert.Equal(EstadoFiscal.Pendiente, pendiente.EstadoFiscal);
+
+        var del = await service.EliminarReciboPendienteAsync(pendiente.Id);
+        Assert.True(del.Success);
+        Assert.Empty(db.Recibos);
+        Assert.Empty(db.RecibosLineas);
+
+        // Con CAE: no se puede eliminar.
+        var service2 = BuildService(db, MailOk());   // AfipOk
+        await service2.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 7, enviarMail: false);
+        var emitido = db.Recibos.Single();
+        Assert.False(string.IsNullOrEmpty(emitido.CAE));
+        var rechazo = await service2.EliminarReciboPendienteAsync(emitido.Id);
+        Assert.False(rechazo.Success);
+        Assert.NotEmpty(db.Recibos);
     }
 
     [Fact]
@@ -320,7 +459,7 @@ public class CamaraEmisionTests
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var grupoId = SeedGrupoConEmpresas(db);
         var mail = Substitute.For<IMailService>();
-        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Fail("SMTP caído"));
         var service = BuildService(db, mail);
 
@@ -328,7 +467,7 @@ public class CamaraEmisionTests
 
         Assert.All(res.Data!, r => Assert.True(r.Exito));            // CAE obtenido = emisión exitosa
         Assert.All(res.Data!, r => Assert.NotNull(r.ErrorMail));     // pero el mail falló
-        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Emitido, r.Estado));
+        Assert.All(db.Recibos.ToList(), r => Assert.Equal(EstadoFiscal.Emitido, r.EstadoFiscal));
     }
 
     [Fact]
@@ -346,7 +485,7 @@ public class CamaraEmisionTests
         var anulacion = await service.AnularReciboAsync(reciboId, enviarMail: true);
 
         Assert.True(anulacion.Success);
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
         Assert.Equal(1, db.NotasDeCredito.Count());
     }
 
@@ -362,10 +501,10 @@ public class CamaraEmisionTests
 
         Assert.True(res.Data!.Exito);
         var recibo = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Emitido, recibo.Estado);
+        Assert.Equal(EstadoFiscal.Emitido, recibo.EstadoFiscal);
         Assert.False(string.IsNullOrEmpty(recibo.CAE));
         Assert.Null(recibo.FechaEnvioMail);
-        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -378,7 +517,7 @@ public class CamaraEmisionTests
         var primera = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: true);
         Assert.False(primera.Data!.Exito);                       // CAE falló
         var pendiente = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Pendiente, pendiente.Estado);  // pero quedó persistido y reintentable
+        Assert.Equal(EstadoFiscal.Pendiente, pendiente.EstadoFiscal);  // pero quedó persistido y reintentable
         Assert.True(string.IsNullOrEmpty(pendiente.CAE));
         Assert.NotNull(pendiente.UltimoErrorCae);
 
@@ -386,7 +525,7 @@ public class CamaraEmisionTests
 
         Assert.True(reintento.Data!.Exito);
         var completo = db.Recibos.Single();                      // no se duplicó
-        Assert.Equal(ReciboEstado.Enviado, completo.Estado);
+        Assert.NotNull(completo.FechaEnvioMail);
         Assert.False(string.IsNullOrEmpty(completo.CAE));
         Assert.Null(completo.UltimoErrorCae);
     }
@@ -406,7 +545,7 @@ public class CamaraEmisionTests
         var anular = await service.AnularReciboAsync(pendiente.Id, enviarMail: false);
 
         Assert.False(anular.Success);                 // F-10: no se puede anular sin CAE
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
         Assert.Empty(db.NotasDeCredito);
     }
 
@@ -424,7 +563,7 @@ public class CamaraEmisionTests
         var pagar = await service.MarcarPagadoAsync(recibo.Id);
 
         Assert.False(pagar.Success);                  // F-09: no se puede pagar un recibo anulado
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
     }
 
     // ── N-10: red de tests (reenvío, pago, anulación con AFIP caído) ──
@@ -445,12 +584,12 @@ public class CamaraEmisionTests
         var service = BuildService(db, MailOk());
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
-        Assert.Equal(ReciboEstado.Emitido, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Emitido, db.Recibos.Single().EstadoFiscal);
 
         var res = await service.ReenviarMailAsync(reciboId);
 
         Assert.True(res.Success);
-        Assert.Equal(ReciboEstado.Enviado, db.Recibos.Single().Estado);
+        Assert.NotNull(db.Recibos.Single().FechaEnvioMail);
     }
 
     [Fact]
@@ -466,7 +605,7 @@ public class CamaraEmisionTests
 
         Assert.True(res.Success);
         var recibo = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Pagado, recibo.Estado);
+        Assert.Equal(EstadoCobro.Pagado, EstadoReciboHelper.Cobro(recibo));
         Assert.Equal(DateTime.Today, recibo.FechaPago);
     }
 
@@ -481,7 +620,7 @@ public class CamaraEmisionTests
         var res = await BuildService(db, MailOk()).MarcarPagadoAsync(reciboId);
 
         Assert.False(res.Success);                    // sin CAE no se puede marcar pagado
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
     }
 
     [Fact]
@@ -495,7 +634,7 @@ public class CamaraEmisionTests
         var res = await BuildService(db, MailOk(), AfipFalla()).AnularReciboAsync(reciboId, enviarMail: false);
 
         Assert.False(res.Success);                                       // AFIP no autorizó la NC
-        Assert.Equal(ReciboEstado.Emitido, db.Recibos.Single().Estado);  // nada quedó a medias
+        Assert.Equal(EstadoFiscal.Emitido, db.Recibos.Single().EstadoFiscal);  // nada quedó a medias
         Assert.Empty(db.NotasDeCredito);
     }
 
@@ -513,9 +652,9 @@ public class CamaraEmisionTests
 
         Assert.True(res.Success);
         Assert.Null(res.Data!.ErrorMail);
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
         Assert.Equal(1, db.NotasDeCredito.Count());
-        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -536,7 +675,7 @@ public class CamaraEmisionTests
         Assert.Equal(nota.NumeroComprobante, res.Data.NumeroComprobante);   // el resultado informa la NC real
         Assert.Equal(nota.PuntoDeVenta, res.Data.PuntoDeVenta);
         await mail.Received(1).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(),
-            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -545,7 +684,7 @@ public class CamaraEmisionTests
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var empresaId = SeedEmpresa(db);
         var mail = Substitute.For<IMailService>();
-        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Fail("SMTP caído"));
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -555,7 +694,7 @@ public class CamaraEmisionTests
 
         Assert.True(res.Success);                       // la NC quedó autorizada y persistida
         Assert.NotNull(res.Data!.ErrorMail);            // pero el fallo de mail llega a la UI
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
         Assert.Equal(1, db.NotasDeCredito.Count());
     }
 
@@ -573,9 +712,9 @@ public class CamaraEmisionTests
         var res = await service.ReenviarMailAsync(reciboId);
 
         Assert.True(res.Success);
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);  // no pasa a Enviado
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);  // no pasa a Enviado
         await mail.Received(1).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(),
-            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -590,7 +729,7 @@ public class CamaraEmisionTests
         Assert.True(primera.Data!.Exito);                        // CAE OK
         Assert.NotNull(primera.Data.ErrorMail);                  // pero el mail falló
         var emitido = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Emitido, emitido.Estado);
+        Assert.Equal(EstadoFiscal.Emitido, emitido.EstadoFiscal);
         var numeroOriginal = emitido.NumeroComprobante;
 
         var reintento = await service.ReintentarAsync(emitido.Id, enviarMail: true);
@@ -598,7 +737,7 @@ public class CamaraEmisionTests
         Assert.True(reintento.Data!.Exito);
         Assert.Null(reintento.Data.ErrorMail);
         var enviado = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Enviado, enviado.Estado);
+        Assert.NotNull(enviado.FechaEnvioMail);
         Assert.Equal(numeroOriginal, enviado.NumeroComprobante); // mismo CAE: no se pidió otro
         await afip.Received(1).ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>());
     }
@@ -632,8 +771,8 @@ public class CamaraEmisionTests
         var res = await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);
 
         Assert.All(res.Data!, r => Assert.True(r.Exito));                       // CAE obtenido
-        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Emitido, r.Estado)); // pero no Enviado
-        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        Assert.All(db.Recibos.ToList(), r => Assert.Equal(EstadoFiscal.Emitido, r.EstadoFiscal)); // pero no Enviado
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -663,13 +802,13 @@ public class CamaraEmisionTests
         var service = BuildService(db, MailOk());
 
         await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);
-        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Emitido, r.Estado));
+        Assert.All(db.Recibos.ToList(), r => Assert.Equal(EstadoFiscal.Emitido, r.EstadoFiscal));
 
         var envio = await service.EnviarMasivoAsync(grupoId, 2026, 6);
 
         Assert.Equal(2, envio.Data!.Count);
         Assert.All(envio.Data!, r => Assert.True(r.Exito));
-        Assert.All(db.Recibos.ToList(), r => Assert.Equal(ReciboEstado.Enviado, r.Estado));
+        Assert.All(db.Recibos.ToList(), r => Assert.NotNull(r.FechaEnvioMail));
     }
 
     // ── P0-1: test con DbContexts separados (replica el registro Transient real de la app) ──
@@ -817,8 +956,8 @@ public class CamaraEmisionTests
         Assert.True(r2.Data!.Exito);
 
         Assert.Equal(2, db.Recibos.Count());
-        var pendiente = db.Recibos.Single(r => r.Estado == ReciboEstado.Pendiente);
-        var emitido = db.Recibos.Single(r => r.Estado == ReciboEstado.Emitido);
+        var pendiente = db.Recibos.Single(r => r.EstadoFiscal == EstadoFiscal.Pendiente);
+        var emitido = db.Recibos.Single(r => r.EstadoFiscal == EstadoFiscal.Emitido);
         Assert.Equal(5000m, pendiente.Importe);                  // el cobro original sobrevive intacto
         Assert.Equal("Papelería", db.RecibosLineas.Single(l => l.ReciboId == pendiente.Id).Descripcion);
         Assert.Equal(20000m, emitido.Importe);
@@ -849,17 +988,56 @@ public class CamaraEmisionTests
 
         var primera = await service.EmitirMasivoAsync(grupo.Id, 2026, 6, enviarMail: false);   // CAE falla → Pendiente
         Assert.All(primera.Data!, r => Assert.False(r.Exito));
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
 
         var segunda = await service.EmitirMasivoAsync(grupo.Id, 2026, 6, enviarMail: false);    // resume vía GetPorClave → CAE OK
         Assert.All(segunda.Data!, r => Assert.True(r.Exito));
 
         var recibo = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Emitido, recibo.Estado);
+        Assert.Equal(EstadoFiscal.Emitido, recibo.EstadoFiscal);
         var lineas = db.RecibosLineas.Where(l => l.ReciboId == recibo.Id).OrderBy(l => l.Orden).ToList();
         Assert.Equal(2, lineas.Count);                            // los ítems del grupo se mantienen tras el reintento
         Assert.Equal("Cuota mensual", lineas[0].Descripcion);
         Assert.Equal(8000m, recibo.Importe);                      // total = suma de las líneas
+    }
+
+    [Fact]
+    public async Task MarcarIncobrable_ReciboEmitido_LoDaDeBaja_YQuitarLoRevierte()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+        var service = BuildService(db, MailOk());
+        await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        var reciboId = db.Recibos.Single().Id;
+
+        var baja = await service.MarcarIncobrableAsync(reciboId, "No se pudo cobrar");
+
+        Assert.True(baja.Success);
+        var recibo = db.Recibos.Single();
+        Assert.Equal(EstadoCobro.Incobrable, EstadoReciboHelper.Cobro(recibo));
+        Assert.Equal("No se pudo cobrar", recibo.MotivoIncobrable);
+        Assert.False(EstadoReciboHelper.EstaVencido(recibo, DateTime.Today.AddYears(1))); // un incobrable no es deuda vencida
+
+        // No se puede pagar un incobrable (hay que quitar la baja primero).
+        Assert.False((await service.MarcarPagadoAsync(reciboId)).Success);
+
+        // Quitar la baja lo reactiva como pendiente de cobro.
+        var quitar = await service.QuitarIncobrableAsync(reciboId);
+        Assert.True(quitar.Success);
+        Assert.Equal(EstadoCobro.PendienteDeCobro, EstadoReciboHelper.Cobro(db.Recibos.Single()));
+    }
+
+    [Fact]
+    public async Task MarcarIncobrable_ReciboPendiente_Falla()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var empresaId = SeedEmpresa(db);
+        await BuildService(db, MailOk(), AfipFalla()).EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
+        var reciboId = db.Recibos.Single().Id;
+
+        var res = await BuildService(db, MailOk()).MarcarIncobrableAsync(reciboId, null);
+
+        Assert.False(res.Success);   // sin CAE (Pendiente) no se puede dar de baja por incobrable
     }
 }
 
@@ -884,7 +1062,7 @@ public class CentroCierreTests
     private static IMailService MailOk()
     {
         var mail = Substitute.For<IMailService>();
-        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Ok(true));
         return mail;
     }
@@ -1007,7 +1185,7 @@ public class CentroCierreTests
         Assert.False(r.Exito);  // CAE falló
 
         var recibo = db.Recibos.Single();
-        Assert.Equal(ReciboEstado.Pendiente, recibo.Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, recibo.EstadoFiscal);
         Assert.True(string.IsNullOrEmpty(recibo.CAE));
         Assert.All(db.Vouchers.ToList(), v => Assert.Equal(recibo.Id, v.ReciboId));
     }
@@ -1032,7 +1210,7 @@ public class CentroCierreTests
         Assert.Equal(1, db.Recibos.Count());  // no se duplicó
         var recibo = db.Recibos.Single();
         Assert.False(string.IsNullOrEmpty(recibo.CAE));
-        Assert.NotEqual(ReciboEstado.Pendiente, recibo.Estado);
+        Assert.NotEqual(EstadoFiscal.Pendiente, recibo.EstadoFiscal);
     }
 
     // ── N-3: reintento de consolidado con vouchers nuevos, con DbContexts separados (Transient real) ──
@@ -1091,7 +1269,7 @@ public class CentroCierreTests
         Assert.Equal(1500m, r.Importe);
         Assert.Equal(2, vouchersEnviados.Count);                 // el PDF del mail incluye AMBOS vouchers
         using var verDb = NuevoContextoCm(fx);
-        var recibo = verDb.Recibos.Single(x => x.Estado != ReciboEstado.Anulado);
+        var recibo = verDb.Recibos.Single(x => x.EstadoFiscal != EstadoFiscal.Anulado);
         Assert.Equal(1500m, recibo.Importe);
         Assert.Equal(2, verDb.RecibosLineas.Count(l => l.ReciboId == recibo.Id));
     }
@@ -1111,16 +1289,16 @@ public class CentroCierreTests
         var r1 = Assert.Single(primera.Data!);
         Assert.False(r1.Exito);                                  // CAE falló
         Assert.NotNull(r1.ErrorEmision);                         // el motivo viaja al llamador
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
 
         // Los vouchers ya quedaron vinculados; el consolidado Pendiente debe reintentarse igual.
         var segunda = await service.EmitirRecibosPeriodoAsync(2026, 6);
         var r2 = Assert.Single(segunda.Data!);
         Assert.True(r2.Exito);
         var recibo = db.Recibos.Single();                        // no se duplicó
-        Assert.Equal(ReciboEstado.Emitido, recibo.Estado);       // emitido pero sin mail
+        Assert.Equal(EstadoFiscal.Emitido, recibo.EstadoFiscal);       // emitido pero sin mail
         Assert.False(string.IsNullOrEmpty(recibo.CAE));
-        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1132,13 +1310,13 @@ public class CentroCierreTests
 
         var primera = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
         Assert.False(primera.Success);                           // CAE falló → error con motivo
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
 
         var segunda = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
         Assert.True(segunda.Success);                            // reintento sobre el consolidado Pendiente
         Assert.True(segunda.Data!.Exito);
         Assert.Equal(1, db.Recibos.Count());
-        Assert.Equal(ReciboEstado.Emitido, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Emitido, db.Recibos.Single().EstadoFiscal);
     }
 
     [Fact]
@@ -1191,7 +1369,7 @@ public class CentroCierreTests
         var anulacion = await service.AnularReciboAsync(reciboId, enviarMail: false);
 
         Assert.True(anulacion.Success);
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
         Assert.Equal(1, db.NotasDeCredito.Count());
     }
 
@@ -1217,9 +1395,9 @@ public class CentroCierreTests
 
         Assert.True(res.Success);
         Assert.Null(res.Data!.ErrorMail);
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
         Assert.Equal(1, db.NotasDeCredito.Count());
-        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1240,7 +1418,7 @@ public class CentroCierreTests
         Assert.Equal(nota.NumeroComprobante, res.Data.NumeroComprobante);   // el resultado informa la NC real
         Assert.Equal(nota.PuntoDeVenta, res.Data.PuntoDeVenta);
         await mail.Received(1).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(),
-            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1249,7 +1427,7 @@ public class CentroCierreTests
         using var fx = SqliteTestDb.CreateCentro(out var db);
         var ag = SeedAgenciaSola(db);
         var mail = Substitute.For<IMailService>();
-        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Fail("SMTP caído"));
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(ag.Id, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -1259,7 +1437,7 @@ public class CentroCierreTests
 
         Assert.True(res.Success);                       // la NC quedó autorizada y persistida
         Assert.NotNull(res.Data!.ErrorMail);            // pero el fallo de mail llega a la UI
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
         Assert.Equal(1, db.NotasDeCredito.Count());
     }
 
@@ -1277,9 +1455,9 @@ public class CentroCierreTests
         var res = await service.ReenviarMailAsync(reciboId);
 
         Assert.True(res.Success);
-        Assert.Equal(ReciboEstado.Anulado, db.Recibos.Single().Estado);  // no pasa a Enviado
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);  // no pasa a Enviado
         await mail.Received(1).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(),
-            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Is<string>(n => n.StartsWith("NotaCredito_")), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     // ── P1-3 ──
@@ -1308,7 +1486,7 @@ public class CentroCierreTests
         var cierre2 = await service.CerrarPeriodoAsync(2026, 6);
         Assert.True(cierre2.Data![0].Exito);  // debe emitir sin error de índice único
         Assert.Equal(2, db.Recibos.Count());   // el anulado + el nuevo
-        var nuevo = db.Recibos.Single(r => r.Estado != ReciboEstado.Anulado);
+        var nuevo = db.Recibos.Single(r => r.EstadoFiscal != EstadoFiscal.Anulado);
         Assert.Equal(3, nuevo.Vouchers.Count); // 3 vouchers en el nuevo consolidado
     }
 
@@ -1350,10 +1528,10 @@ public class CentroCierreTests
         Assert.True(r2.Data!.Exito);
 
         Assert.Equal(2, db.Recibos.Count());
-        var pendiente = db.Recibos.Single(r => r.Estado == ReciboEstado.Pendiente);
+        var pendiente = db.Recibos.Single(r => r.EstadoFiscal == EstadoFiscal.Pendiente);
         Assert.Equal(5000m, pendiente.Importe);                  // el cobro original sobrevive intacto
         Assert.Equal("Papelería", db.RecibosLineas.Single(l => l.ReciboId == pendiente.Id).Descripcion);
-        var emitido = db.Recibos.Single(r => r.Estado == ReciboEstado.Emitido);
+        var emitido = db.Recibos.Single(r => r.EstadoFiscal == EstadoFiscal.Emitido);
         Assert.Equal(20000m, emitido.Importe);
     }
 
@@ -1386,7 +1564,7 @@ public class CentroCierreTests
 
         Assert.True(res.Success);
         Assert.Equal(2, vouchersEnviados.Count);                        // PDF único con TODOS los vouchers
-        Assert.Equal(ReciboEstado.Enviado, db.Recibos.Single().Estado);
+        Assert.NotNull(db.Recibos.Single().FechaEnvioMail);
     }
 
     [Fact]
@@ -1400,7 +1578,7 @@ public class CentroCierreTests
         var res = await BuildService(db, MailOk()).MarcarPagadoAsync(reciboId);
 
         Assert.False(res.Success);                    // sin CAE no se puede marcar pagado
-        Assert.Equal(ReciboEstado.Pendiente, db.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
     }
 
     [Fact]
@@ -1438,7 +1616,7 @@ public class CentroCierreTests
 
         Assert.False(res.Success);                                      // AFIP no autorizó la NC
         var recibo = db.Recibos.Single();
-        Assert.NotEqual(ReciboEstado.Anulado, recibo.Estado);           // nada quedó a medias
+        Assert.NotEqual(EstadoFiscal.Anulado, recibo.EstadoFiscal);           // nada quedó a medias
         Assert.Empty(db.NotasDeCredito);
         Assert.All(db.Vouchers.ToList(), v => Assert.Equal(recibo.Id, v.ReciboId));   // siguen vinculados
     }
@@ -1459,7 +1637,7 @@ public class CentroCierreTests
         Assert.True(anulacion.Success);
 
         using var verDb = NuevoContextoCm(fx);
-        Assert.Equal(ReciboEstado.Anulado, verDb.Recibos.Single().Estado);
+        Assert.Equal(EstadoFiscal.Anulado, verDb.Recibos.Single().EstadoFiscal);
         Assert.All(verDb.Vouchers.ToList(), v => Assert.Null(v.ReciboId));  // P1-3 con Transient real
         Assert.Equal(1, verDb.NotasDeCredito.Count());
     }
@@ -1479,7 +1657,7 @@ public class CentroCierreTests
         using var verDb = NuevoContextoCm(fx);
         Assert.Equal(1, verDb.Agencias.Count());                        // no se reinsertó la agencia
         var recibo = verDb.Recibos.Single();
-        Assert.Equal(ReciboEstado.Enviado, recibo.Estado);
+        Assert.NotNull(recibo.FechaEnvioMail);
         Assert.False(string.IsNullOrEmpty(recibo.CAE));
     }
 
@@ -1549,7 +1727,7 @@ public class VoucherServiceTests
             NumeroComprobante = 101, CAE = "12345678901234",
             FechaVencimientoCAE = DateTime.Today.AddDays(10),
             FechaEmision = DateTime.Today, FechaVencimientoPago = DateTime.Today.AddDays(30),
-            Estado = ReciboEstado.Emitido, CreatedAt = DateTime.Now
+            EstadoFiscal = EstadoFiscal.Emitido, CreatedAt = DateTime.Now
         };
         // ag2: Completo (recibo enviado)
         var reciboCompleto = new CmRecibo
@@ -1561,7 +1739,7 @@ public class VoucherServiceTests
             NumeroComprobante = 102, CAE = "12345678901235",
             FechaVencimientoCAE = DateTime.Today.AddDays(10),
             FechaEmision = DateTime.Today, FechaVencimientoPago = DateTime.Today.AddDays(30),
-            Estado = ReciboEstado.Enviado, CreatedAt = DateTime.Now
+            EstadoFiscal = EstadoFiscal.Emitido, FechaEnvioMail = DateTime.Now, CreatedAt = DateTime.Now
         };
         db.Recibos.AddRange(reciboEmitido, reciboCompleto);
         db.SaveChanges();
@@ -1629,7 +1807,7 @@ public class VoucherServiceTests
             NumeroComprobante = 101, CAE = "12345678901234",
             FechaVencimientoCAE = DateTime.Today.AddDays(10),
             FechaEmision = DateTime.Today, FechaVencimientoPago = DateTime.Today.AddDays(30),
-            Estado = ReciboEstado.Emitido, CreatedAt = DateTime.Now
+            EstadoFiscal = EstadoFiscal.Emitido, CreatedAt = DateTime.Now
         };
         db.Recibos.Add(reciboEmitido);
         db.SaveChanges();
@@ -1654,7 +1832,7 @@ public class VoucherServiceTests
         // El consolidado NO desaparece: vienen los 3 (2 consolidados + 1 pendiente), ordenados por Numero.
         Assert.Equal(new[] { 1, 2, 3 }, lista.Select(v => v.Numero).ToArray());
         // Los consolidados traen su recibo cargado para poder mostrar el estado.
-        Assert.Equal(ReciboEstado.Emitido, lista.Single(v => v.Numero == 1).Recibo!.Estado);
+        Assert.Equal(EstadoFiscal.Emitido, lista.Single(v => v.Numero == 1).Recibo!.EstadoFiscal);
         Assert.Null(lista.Single(v => v.Numero == 3).ReciboId);
     }
 }

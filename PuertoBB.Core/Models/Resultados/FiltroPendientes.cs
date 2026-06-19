@@ -9,7 +9,7 @@ public record FiltroPendientes
     public int?          PeriodoMes         { get; init; }
     public int?          GrupoFacturacionId { get; init; }
     public int?          EntidadId          { get; init; }
-    public ReciboEstado? Estado             { get; init; }
+    public EstadoFiscal? Estado             { get; init; }
     public bool          SoloVencidos       { get; init; }
-    public bool          ExcluirMorosos     { get; init; } = true;
+    public bool          ExcluirIncobrables { get; init; } = true;
 }

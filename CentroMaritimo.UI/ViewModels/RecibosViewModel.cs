@@ -35,13 +35,13 @@ public class RecibosViewModel : PageViewModel
             .ToList();
 
     private int _anio = DateTime.Today.Year;
-    public int Anio { get => _anio; set { if (SetField(ref _anio, value)) _ = BuscarAsync(); } }
+    public int Anio { get => _anio; set { if (SetField(ref _anio, value)) CargarSeguro(BuscarAsync); } }
 
     private int _mesIndex = DateTime.Today.Month - 1;
     public int MesIndex
     {
         get => _mesIndex;
-        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; _ = BuscarAsync(); } }
+        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; CargarSeguro(BuscarAsync); } }
     }
 
     private int _mes = DateTime.Today.Month;
@@ -72,6 +72,8 @@ public class RecibosViewModel : PageViewModel
     public ICommand MarcarPagadoCommand { get; }
     public ICommand PrevisualizarCommand { get; }
     public ICommand PrevisualizarNotaCreditoCommand { get; }
+    public ICommand EditarCommand { get; }
+    public ICommand EliminarCommand { get; }
 
     public RecibosViewModel(
         ICentroMaritimoReciboService service,
@@ -97,7 +99,9 @@ public class RecibosViewModel : PageViewModel
         MarcarPagadoCommand = new AsyncRelayCommand(MarcarPagadoAsync, () => Seleccionado?.EsPagable == true);
         PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarAsync, () => Seleccionado is not null);
         PrevisualizarNotaCreditoCommand = new AsyncRelayCommand(PrevisualizarNotaCreditoAsync, () => Seleccionado?.TieneNotaCredito == true);
-        _ = InicializarAsync();
+        EditarCommand = new AsyncRelayCommand(EditarAsync, () => Seleccionado?.EsEditable == true);
+        EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado?.EsEditable == true);
+        CargarSeguro(InicializarAsync);
     }
 
     private async Task InicializarAsync()
@@ -112,18 +116,16 @@ public class RecibosViewModel : PageViewModel
         _todosConceptos = (await _conceptosRepo.GetAllAsync()).OrderBy(c => c.Nombre).ToList();
     }
 
-    private async Task BuscarAsync()
+    private Task BuscarAsync()
     {
-        IsBusy = true;
         LimpiarStatus();
-        try
+        return EjecutarOcupadoAsync("Cargando recibos", async () =>
         {
             _todosRecibos = (await _recibosRepo.GetPorPeriodoAsync(Anio, _mes))
                 .Select(r => new ReciboItem(r))
                 .ToList();
             AplicarFiltro();
-        }
-        finally { IsBusy = false; }
+        });
     }
 
     private void AplicarFiltro()
@@ -155,18 +157,18 @@ public class RecibosViewModel : PageViewModel
         var entidades = Agencias.Select(a => new EntidadEmisionItem(a.Id, a.Nombre)).ToList();
         var conceptos = _todosConceptos.Select(c => c.Nombre).ToList();
 
-        var result = await _dialog.ShowEmisionIndividualAsync("Agencia", entidades, conceptos);
-        if (result is null) return;
+        if (await _dialog.ShowEmisionIndividualAsync("Agencia", entidades, conceptos) is not { } result) return;
 
-        var agencia = Agencias.FirstOrDefault(a => a.Id == result.EntidadId);
-        if (agencia is null) { MostrarError("No se encontró la agencia seleccionada."); return; }
+        if (Agencias.FirstOrDefault(a => a.Id == result.EntidadId) is not { } agencia)
+        {
+            MostrarError("No se encontró la agencia seleccionada."); return;
+        }
 
         var mes  = result.FechaEmision.Month;
         var anio = result.FechaEmision.Year;
         var detalleResumen = $"{result.Lineas.Count} ítem(s)";
 
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync(result.EnviarMail ? "Emitiendo y enviando" : "Emitiendo recibo", async () =>
         {
             var res = await _service.EmitirIndividualAsync(agencia.Id, result.Lineas.Sum(l => l.Importe), detalleResumen, result.FechaEmision, anio, mes, result.EnviarMail, result.Lineas);
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo emitir."); return; }
@@ -185,8 +187,7 @@ public class RecibosViewModel : PageViewModel
                 await BuscarAsync();
                 MostrarError(r.ErrorEmision ?? "No se pudo emitir.");
             }
-        }
-        finally { IsBusy = false; }
+        });
     }
 
     private static string MensajeExito(long? numero, bool enviarMail, string? errorMail)
@@ -217,11 +218,10 @@ public class RecibosViewModel : PageViewModel
 
     private async Task ReintentarAsync()
     {
-        if (Seleccionado is null) return;
-        IsBusy = true;
-        try
+        if (Seleccionado is not { } sel) return;
+        await EjecutarOcupadoAsync("Emitiendo recibo", async () =>
         {
-            var res = await _service.ReintentarAsync(Seleccionado.Id, enviarMail: false);
+            var res = await _service.ReintentarAsync(sel.Id, enviarMail: false);
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo reintentar."); return; }
 
             var r = res.Data!;
@@ -229,8 +229,41 @@ public class RecibosViewModel : PageViewModel
                 MostrarExito($"CAE obtenido. Recibo completado (Nro. {r.NumeroComprobante}).");
             else MostrarError(r.ErrorEmision ?? "No se pudo reintentar.");
             await BuscarAsync();
-        }
-        finally { IsBusy = false; }
+        });
+    }
+
+    private async Task EditarAsync()
+    {
+        if (Seleccionado is not { } sel) return;
+        var recibo = await _recibosRepo.GetConDetalleAsync(sel.Id);
+        if (recibo is null) { MostrarError("El recibo no se encontró."); return; }
+
+        var lineasActuales = recibo.Lineas.OrderBy(l => l.Orden)
+            .Select(l => new ReciboLineaInput(l.Descripcion, l.Cantidad, l.PrecioUnitario)).ToList();
+        var conceptos = _todosConceptos.Select(c => c.Nombre).ToList();
+        if (await _dialog.ShowEditarReciboAsync(lineasActuales, conceptos) is not { } nuevas) return;
+
+        await EjecutarOcupadoAsync("Guardando recibo", async () =>
+        {
+            var res = await _service.EditarReciboPendienteAsync(sel.Id, nuevas);
+            if (res.Success) { MostrarExito("Recibo actualizado. Emitilo cuando quieras."); await GuardarConceptosAsync(nuevas); await BuscarAsync(); }
+            else MostrarError(res.ErrorMessage ?? "No se pudo editar.");
+        });
+    }
+
+    private async Task EliminarAsync()
+    {
+        if (Seleccionado is not { } sel) return;
+        if (!await _dialog.ShowConfirmAsync("Eliminar recibo",
+                $"¿Eliminar el recibo Pendiente de {sel.Agencia} ({sel.Periodo})? No tiene CAE y esta acción no se puede deshacer.",
+                "Eliminar", "Cancelar")) return;
+
+        await EjecutarOcupadoAsync("Eliminando recibo", async () =>
+        {
+            var res = await _service.EliminarReciboPendienteAsync(sel.Id);
+            if (res.Success) { MostrarExito("Recibo eliminado."); await BuscarAsync(); }
+            else MostrarError(res.ErrorMessage ?? "No se pudo eliminar.");
+        });
     }
 
     private Task AnularAsync() => AnularInternoAsync(enviarMail: false);
@@ -238,25 +271,23 @@ public class RecibosViewModel : PageViewModel
 
     private async Task AnularInternoAsync(bool enviarMail)
     {
-        if (Seleccionado is null) return;
+        if (Seleccionado is not { } sel) return;
         var detalleMail = enviarMail
             ? "Se generará una nota de crédito y se enviará por mail."
             : "Se generará una nota de crédito. No se enviará por mail.";
         if (!await _dialog.ShowConfirmAsync("Anular recibo",
-                $"¿Anular el recibo {Seleccionado.Comprobante} de {Seleccionado.Agencia}? {detalleMail}",
+                $"¿Anular el recibo {sel.Comprobante} de {sel.Agencia}? {detalleMail}",
                 "Anular", "Cancelar")) return;
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync(enviarMail ? "Anulando y enviando" : "Anulando", async () =>
         {
-            var res = await _service.AnularReciboAsync(Seleccionado.Id, enviarMail);
+            var res = await _service.AnularReciboAsync(sel.Id, enviarMail);
             if (res.Success && res.Data is { } nc)
             {
                 MostrarExito(MensajeAnulacion(nc, enviarMail));
                 await BuscarAsync();
             }
             else MostrarError(res.ErrorMessage ?? "No se pudo anular.");
-        }
-        finally { IsBusy = false; }
+        });
     }
 
     private static string MensajeAnulacion(ResultadoAnulacion nc, bool enviarMail)
@@ -271,38 +302,36 @@ public class RecibosViewModel : PageViewModel
 
     private async Task ReenviarAsync()
     {
-        if (Seleccionado is null) return;
-        var esNotaCredito = Seleccionado.EstadoPersistido == ReciboEstado.Anulado;
+        if (Seleccionado is not { } sel) return;
+        var esNotaCredito = sel.EstadoFiscal == EstadoFiscal.Anulado;
 
         if (esNotaCredito)
         {
             // No se persiste el envío de la NC: confirmar siempre.
             if (!await _dialog.ShowConfirmAsync("Enviar nota de crédito",
-                    $"Se enviará por mail la nota de crédito {Seleccionado.NotaCreditoComprobante} (anula el recibo {Seleccionado.Comprobante}).\n¿Continuar?",
+                    $"Se enviará por mail la nota de crédito {sel.NotaCreditoComprobante} (anula el recibo {sel.Comprobante}).\n¿Continuar?",
                     "Enviar", "Cancelar"))
                 return;
         }
-        else if (Seleccionado.MailEnviado)
+        else if (sel.MailEnviado)
         {
-            var fecha = Seleccionado.FechaEnvioMailFormateada ?? "fecha desconocida";
+            var fecha = sel.FechaEnvioMailFormateada ?? "fecha desconocida";
             if (!await _dialog.ShowConfirmAsync("Reenviar mail",
                     $"Este recibo ya fue enviado el {fecha}.\n¿Desea volver a enviarlo?",
                     "Reenviar", "Cancelar"))
                 return;
         }
 
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Enviando", async () =>
         {
-            var res = await _service.ReenviarMailAsync(Seleccionado.Id);
+            var res = await _service.ReenviarMailAsync(sel.Id);
             if (res.Success)
             {
                 MostrarExito(esNotaCredito ? "Nota de crédito enviada por mail." : "Mail reenviado correctamente.");
                 await BuscarAsync();
             }
             else MostrarError(res.ErrorMessage ?? "No se pudo reenviar.");
-        }
-        finally { IsBusy = false; }
+        });
     }
 
     private async Task MarcarPagadoAsync()
@@ -315,38 +344,44 @@ public class RecibosViewModel : PageViewModel
 
     private async Task PrevisualizarAsync()
     {
-        if (Seleccionado is null) return;
-        var recibo = await _recibosRepo.GetConDetalleAsync(Seleccionado.Id);
-        if (recibo is null) { MostrarError("El recibo no se encontró."); return; }
-        IsBusy = true;
-        try
+        if (Seleccionado is not { } sel) return;
+        byte[]? bytes = null;
+        await EjecutarOcupadoAsync("Generando PDF", async () =>
         {
-            var bytes = recibo.EsConsolidadoVouchers
-                ? await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.OrderBy(v => v.Numero).ToList(), recibo)
-                : await _pdf.GenerarPdfReciboAsync(recibo);
-            var nombre = $"Recibo_{Seleccionado.Agencia}_{Seleccionado.Comprobante}";
-            await _dialog.ShowPdfAsync(bytes, $"Recibo {Seleccionado.Comprobante}", nombre);
-        }
-        catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
-        finally { IsBusy = false; }
+            var recibo = await _recibosRepo.GetConDetalleAsync(sel.Id);
+            if (recibo is null) { MostrarError("El recibo no se encontró."); return; }
+            try
+            {
+                bytes = recibo.EsConsolidadoVouchers
+                    ? await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.OrderBy(v => v.Numero).ToList(), recibo)
+                    : await _pdf.GenerarPdfReciboAsync(recibo);
+            }
+            catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
+        });
+        if (bytes is null) return;
+        await _dialog.ShowPdfAsync(bytes, $"Recibo {sel.Comprobante}", $"Recibo_{sel.Agencia}_{sel.Comprobante}");
     }
 
     private async Task PrevisualizarNotaCreditoAsync()
     {
-        if (Seleccionado is null) return;
-        // El PDF de NC necesita ReciboOriginal + Lineas: siempre desde el detalle, nunca desde el item de grilla.
-        var recibo = await _recibosRepo.GetConDetalleAsync(Seleccionado.Id);
-        if (recibo?.NotaDeCredito is null) { MostrarError("El recibo no tiene nota de crédito."); return; }
-        IsBusy = true;
-        try
+        if (Seleccionado is not { } sel) return;
+        byte[]? bytes = null;
+        var comp = string.Empty;
+        await EjecutarOcupadoAsync("Generando PDF", async () =>
         {
+            // El PDF de NC necesita ReciboOriginal + Lineas: siempre desde el detalle, nunca desde el item de grilla.
+            var recibo = await _recibosRepo.GetConDetalleAsync(sel.Id);
+            if (recibo?.NotaDeCredito is null) { MostrarError("El recibo no tiene nota de crédito."); return; }
             var nota = recibo.NotaDeCredito;
             nota.ReciboOriginal ??= recibo;
-            var bytes = await _pdf.GenerarPdfNotaDeCreditoAsync(nota);
-            var comp = Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante);
-            await _dialog.ShowPdfAsync(bytes, $"Nota de crédito {comp}", $"NotaCredito_{Seleccionado.Agencia}_{comp}");
-        }
-        catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
-        finally { IsBusy = false; }
+            try
+            {
+                bytes = await _pdf.GenerarPdfNotaDeCreditoAsync(nota);
+                comp = Formato.Comprobante(nota.PuntoDeVenta, nota.NumeroComprobante);
+            }
+            catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
+        });
+        if (bytes is null) return;
+        await _dialog.ShowPdfAsync(bytes, $"Nota de crédito {comp}", $"NotaCredito_{sel.Agencia}_{comp}");
     }
 }

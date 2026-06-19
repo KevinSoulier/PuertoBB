@@ -271,7 +271,9 @@ internal class ComprobanteTemplate : IDocument
 
     private void DetalleTextoLibre(IContainer e)
     {
-        var esRecibo = string.Equals(_doc.NombreOverride, "RECIBO", StringComparison.OrdinalIgnoreCase);
+        var esRecibo = string.Equals(
+            TipoComprobanteAfip.Nombre(_doc.CodigoTipo), "RECIBO",
+            StringComparison.OrdinalIgnoreCase);
 
         if (esRecibo)
         {

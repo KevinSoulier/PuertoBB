@@ -36,7 +36,7 @@ Service (ICentroMaritimoReciboService.CerrarPeriodoAsync):
     b. ProcesarReciboAsync(recibo, agencia, config, enviarMail, ct):
        → si string.IsNullOrEmpty(recibo.CAE): IAfipService.ObtenerCAEAsync → recibo.CAE, FechaVencimientoCAE
        → generar PDF consolidado (recibo + vouchers)
-       → si enviarMail: IMailService.EnviarReciboAsync → recibo.Estado = Enviado / FechaEnvioMail
+       → si enviarMail: IMailService.EnviarReciboAsync → recibo.FechaEnvioMail (envío "Enviado" derivado)
        → IReciboRepository.UpdateAsync(recibo)
 
   Return ServiceResult<List<ResultadoCierrePorAgencia>>
@@ -82,12 +82,12 @@ Service (IReciboService.EmitirMasivoAsync):
          → poblar Lineas desde grupo.Lineas
          → copiar snapshot Receptor* (desde empresa/agencia: Nombre, RazonSocial, Cuit, ...)
       c. Crear EmisionGrupo + AddAsync(recibo) — persiste antes de pedir CAE
-      d. IAfipService.ObtenerCAEAsync → recibo.Estado = Emitido
+      d. IAfipService.ObtenerCAEAsync → recibo.EstadoFiscal = Emitido
          → si falla: recibo.UltimoErrorCae = mensaje; queda Pendiente (reintentable)
       e. IPdfService.GenerarPdfReciboAsync(recibo) → pdf (regenerado a demanda, no se persiste)
       f. IMailService.EnviarReciboAsync(entidad.Emails, pdf, ct)
-         → éxito:  recibo.Estado = Enviado; FechaEnvioMail = DateTime.Now
-         → fallo:  recibo.UltimoErrorMail = mensaje; Estado queda Emitido
+         → éxito:  recibo.FechaEnvioMail = DateTime.Now (estado "Enviado" derivado)
+         → fallo:  recibo.UltimoErrorMail = mensaje; EstadoFiscal queda Emitido
       g. UpdateAsync(recibo)
 
   Return ServiceResult<List<ResultadoEmisionPorEntidad>>
@@ -112,15 +112,15 @@ Trigger: Laura selecciona empresa/agencia, completa importe y líneas, pulsa "Em
 ViewModel → IReciboService.EmitirOResumirAsync(entidadId, grupoId=null, ...)
   a. GetPorClaveAsync(entidadId, grupoId=null, anio, mes)
      → si existe Pendiente individual (sin EmisionGrupo, sin EsConsolidadoVouchers): retomar
-     → si no: construir nuevo Recibo con Estado=Pendiente, EmisionGrupo=null
+     → si no: construir nuevo Recibo con EstadoFiscal=Pendiente, EmisionGrupo=null
   b. Poblar Lineas (concepto/importe ingresados por Laura)
   c. Copiar snapshot Receptor* desde la entidad
   d. AddAsync(recibo) → persistir Pendiente
-  e. IAfipService.ObtenerCAEAsync → recibo.Estado = Emitido
+  e. IAfipService.ObtenerCAEAsync → recibo.EstadoFiscal = Emitido
   f. IPdfService.GenerarPdfReciboAsync(recibo)
   g. IMailService.EnviarReciboAsync(emails, pdf, ct)
-     → éxito:  recibo.Estado = Enviado
-     → fallo:  recibo.Estado queda Emitido; mostrar advertencia
+     → éxito:  recibo.FechaEnvioMail = DateTime.Now (estado "Enviado" derivado)
+     → fallo:  recibo.EstadoFiscal queda Emitido; mostrar advertencia
   h. UpdateAsync(recibo)
 ```
 
@@ -176,7 +176,7 @@ ViewModel → IReciboService.ReenviarMailAsync(reciboId, ct)
   Guard: si recibo.CAE vacío → error "El recibo no tiene CAE: emítalo antes de reenviar"
   a. IPdfService.GenerarPdfReciboAsync(recibo)  → pdf (regenerado a demanda)
   b. IMailService.EnviarReciboAsync(emails, pdf, ct)
-     → éxito: recibo.Estado = Enviado; FechaEnvioMail = DateTime.Now; UpdateAsync
+     → éxito: recibo.FechaEnvioMail = DateTime.Now; UpdateAsync (estado "Enviado" derivado)
      → fallo: mostrar error; estado no cambia
 ```
 
@@ -188,9 +188,8 @@ ViewModel → IReciboService.ReenviarMailAsync(reciboId, ct)
 Trigger: Laura selecciona un recibo en el dashboard y pulsa "Marcar como pagado"
 
 ViewModel → IReciboService.MarcarPagadoAsync(reciboId, ct)
-  a. recibo.Estado    = ReciboEstado.Pagado
-  b. recibo.FechaPago = DateTime.Today
-  c. IReciboRepository.UpdateAsync(recibo)
+  a. recibo.FechaPago = DateTime.Today   (el cobro "Pagado" se deriva de esta fecha)
+  b. IReciboRepository.UpdateAsync(recibo)
 ```
 
 ---

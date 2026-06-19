@@ -18,13 +18,13 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,10" />
                     <WrapPanel Orientation="Horizontal">
-                        <StackPanel Margin="0,0,12,0">
+                        <StackPanel Margin="0,0,12,8">
                             <TextBlock x:Name="LabelEntidad" Text="Agencia"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="11" Margin="0,0,0,2" />
                             <ComboBox x:Name="EntidadCombo" DisplayMemberPath="Nombre" Width="220" />
                         </StackPanel>
-                        <StackPanel>
+                        <StackPanel Margin="0,0,0,8">
                             <TextBlock Text="Fecha de emisión"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="11" Margin="0,0,0,2" />
@@ -42,7 +42,7 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,10" />
                     <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <StackPanel Margin="0,0,8,0">
+                        <StackPanel Margin="0,0,8,8">
                             <TextBlock Text="Descripción"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="11" Margin="0,0,0,2" />
@@ -51,7 +51,7 @@
                                       PreviewKeyDown="ComboBox_OpenOnDownKey"
                                       Width="260" />
                         </StackPanel>
-                        <StackPanel Margin="0,0,8,0">
+                        <StackPanel Margin="0,0,8,8">
                             <TextBlock Text="Cantidad"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="11" Margin="0,0,0,2" />
@@ -59,7 +59,7 @@
                                           Minimum="0.001" Maximum="1000000000" ClearButtonEnabled="False"
                                           SpinButtonPlacementMode="Hidden" Width="90" />
                         </StackPanel>
-                        <StackPanel Margin="0,0,8,0">
+                        <StackPanel Margin="0,0,8,8">
                             <TextBlock Text="Precio unit."
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="11" Margin="0,0,0,2" />
@@ -67,7 +67,7 @@
                                           Minimum="0" Maximum="1000000000" ClearButtonEnabled="False"
                                           SpinButtonPlacementMode="Hidden" Width="130" />
                         </StackPanel>
-                        <StackPanel VerticalAlignment="Bottom">
+                        <StackPanel VerticalAlignment="Bottom" Margin="0,0,8,8">
                             <ui:Button Content="Agregar ítem" Style="{StaticResource AccionIconButton}"
                                        Click="AgregarLinea_Click"
                                        ToolTip="Agregar este ítem al recibo">

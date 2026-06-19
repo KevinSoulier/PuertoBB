@@ -31,7 +31,7 @@ public class VouchersViewModel : PageViewModel
     private List<Barco> _todosBarcos = [];
     private List<Agencia> _todasAgencias = [];
 
-    public ObservableCollection<VoucherItem> Vouchers { get; } = [];
+    public ObservableCollection<VoucherItem> Vouchers { get; private set; } = [];
     public ObservableCollection<Barco> BarcosFiltrados { get; } = [];
     public ObservableCollection<Agencia> AgenciasFiltradas { get; } = [];
 
@@ -46,12 +46,22 @@ public class VouchersViewModel : PageViewModel
     public int MesIndex
     {
         get => _mesIndex;
-        set { if (SetField(ref _mesIndex, value)) _mes = value + 1; }
+        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; CargarSeguro(BuscarAsync); } }
     }
 
     private int _mes = DateTime.Today.Month;
     private int _anio = DateTime.Today.Year;
-    public int Anio { get => _anio; set => SetField(ref _anio, value); }
+    public int Anio { get => _anio; set { if (SetField(ref _anio, value)) CargarSeguro(BuscarAsync); } }
+
+    // Lista fuente sin filtrar + texto de búsqueda sobre la grilla
+    private List<VoucherItem> _todosVouchers = [];
+
+    private string _textoBusqueda = string.Empty;
+    public string TextoBusqueda
+    {
+        get => _textoBusqueda;
+        set { if (SetField(ref _textoBusqueda, value)) AplicarFiltro(); }
+    }
 
     // Selección en grilla
     private VoucherItem? _seleccionado;
@@ -166,7 +176,7 @@ public class VouchersViewModel : PageViewModel
         DescargarVoucherCommand    = new AsyncRelayCommand(DescargarVoucherAsync,    () => Seleccionado is not null);
         PrevisualizarVoucherCommand = new AsyncRelayCommand(PrevisualizarVoucherAsync, () => Seleccionado is not null);
 
-        _ = InicializarAsync();
+        CargarSeguro(InicializarAsync);
     }
 
     private async Task DescargarVoucherAsync()
@@ -244,18 +254,37 @@ public class VouchersViewModel : PageViewModel
         foreach (var b in lista) BarcosFiltrados.Add(b);
     }
 
-    private async Task BuscarAsync()
+    private Task BuscarAsync()
     {
-        IsBusy = true;
         LimpiarStatus();
-        try
+        return EjecutarOcupadoAsync("Cargando", async () =>
         {
             var res = await _service.GetDelPeriodoAsync(_anio, _mes);
-            Vouchers.Clear();
-            if (res.Success && res.Data is not null)
-                foreach (var v in res.Data) Vouchers.Add(new VoucherItem(v));
-        }
-        finally { IsBusy = false; }
+            _todosVouchers = (res.Success && res.Data is not null)
+                ? res.Data.Select(v => new VoucherItem(v)).ToList()
+                : [];
+            AplicarFiltro();
+        });
+    }
+
+    private void AplicarFiltro()
+    {
+        var texto = _textoBusqueda.Trim();
+        var lista = string.IsNullOrEmpty(texto)
+            ? _todosVouchers
+            : _todosVouchers.Where(v =>
+                v.Numero.ToString().Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                v.Agencia.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                v.Barco.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                v.Fecha.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                v.Importe.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        // Reconstruir la colección borra la selección del DataGrid: re-seleccionar por Id
+        // para que la toolbar (que opera sobre Seleccionado) sobreviva a recargas y filtrado.
+        var seleccionadoId = Seleccionado?.Id;
+        Vouchers = new ObservableCollection<VoucherItem>(lista);
+        OnPropertyChanged(nameof(Vouchers));
+        if (seleccionadoId is int id)
+            Seleccionado = Vouchers.FirstOrDefault(v => v.Id == id);
     }
 
     private async Task CrearOActualizarAsync()

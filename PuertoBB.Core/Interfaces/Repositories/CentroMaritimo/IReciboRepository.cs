@@ -31,6 +31,10 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>Marca el recibo Anulado, desvincula vouchers de consolidados y persiste la NC en UN solo SaveChanges.</summary>
     Task AnularConNotaAsync(Recibo recibo, Core.Entities.CentroMaritimo.NotaDeCredito nota, CancellationToken ct = default);
 
+    /// <summary>Elimina un recibo (Líneas + vínculo EmisionGrupo, y libera los vouchers consolidados) en UN solo SaveChanges.
+    /// Usado para recuperar un recibo Pendiente (sin CAE) trabado por una emisión fallida.</summary>
+    Task EliminarPendienteAsync(int reciboId, CancellationToken ct = default);
+
     Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
     Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default);
 

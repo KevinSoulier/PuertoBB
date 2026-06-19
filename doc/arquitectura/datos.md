@@ -16,7 +16,6 @@ public class Empresa : BaseEntity
     public string? Domicilio   { get; set; }
     public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor, RG 5616)
     public bool    Activa      { get; set; } = true;
-    public bool    EsMoroso    { get; set; } = false;
 
     public ICollection<EmailEmpresa>  Emails  { get; set; } = [];
     public ICollection<EmpresaGrupo>  Grupos  { get; set; } = [];
@@ -110,16 +109,18 @@ public class Recibo : BaseEntity
     public DateTime        FechaVencimientoCAE { get; set; }
     public DateTime        FechaEmision        { get; set; }
 
-    public ReciboEstado Estado { get; set; } = ReciboEstado.Emitido;
+    public EstadoFiscal EstadoFiscal { get; set; } = EstadoFiscal.Emitido; // único estado de flujo persistido
 
     // Trazabilidad de emisión
     public string?   UltimoErrorCae  { get; set; } // null = CAE OK
     public string?   UltimoErrorMail { get; set; } // null = mail OK o no enviado
     public DateTime? FechaEnvioMail  { get; set; } // null = mail no enviado
 
-    // Control de pagos
+    // Control de pagos (eje de cobro derivado: Pendiente de cobro / Pagado / Incobrable)
     public DateTime  FechaVencimientoPago { get; set; } // = FechaEmision + DiasVencimiento
     public DateTime? FechaPago            { get; set; } // null hasta marcar pagado
+    public DateTime? FechaIncobrable      { get; set; } // null = no dado de baja; excluyente con FechaPago
+    public string?   MotivoIncobrable     { get; set; } // motivo opcional de la baja
 
     public NotaDeCredito? NotaDeCredito { get; set; }
 }
@@ -189,28 +190,35 @@ public class Configuracion : BaseEntity
     public List<PuntoDeVenta> PuntosDeVenta { get; set; } = new();
     // [NotMapped] PuntoDeVentaActivo => PuntosDeVenta.FirstOrDefault(p => p.Activo)
 
-    public int DiasVencimiento { get; set; } = 30;
+    public int DiasVencimiento { get; set; } = 15;
 
-    // Mail saliente (secretos en texto plano)
-    public string? SmtpHost       { get; set; }
-    public int     SmtpPort       { get; set; }
-    public int     SmtpSeguridad  { get; set; } = 0; // 0=Auto, 1=SslOnConnect, 2=None
-    public string? SmtpUsuario    { get; set; }
-    public string? SmtpPassword   { get; set; }
-    public string? EmailRemitente { get; set; }
+    // Cuentas de correo saliente (cada una con su SMTP/auth; una activa). Ver CuentaCorreo (D-27).
+    public List<CuentaCorreo> CuentasCorreo { get; set; } = new();
+    // [NotMapped] CuentaCorreoActiva => CuentasCorreo.FirstOrDefault(c => c.Activo)
+}
+```
 
-    // Autenticación de correo (ver D-26)
-    public int Autenticacion  { get; set; } = 1; // 0=Ninguna, 1=Básica, 2=OAuth2
-    public int OAuthProveedor { get; set; } = 0; // 0=Microsoft, 1=Google, 2=Personalizado
-    public int OAuthFlujo     { get; set; } = 0; // 0=Interactivo, 1=Cliente
-    public string? OAuthClientId          { get; set; }
-    public string? OAuthClientSecret      { get; set; }
-    public string? OAuthTenantId          { get; set; }
-    public string? OAuthScope             { get; set; }
-    public string? OAuthAuthorizeEndpoint { get; set; } // solo Personalizado
-    public string? OAuthTokenEndpoint     { get; set; } // solo Personalizado
-    public string? OAuthRefreshToken      { get; set; } // del flujo interactivo
-    public string? OAuthUsuario           { get; set; } // email autenticado (login XOAUTH2)
+`CuentaCorreo` (una por app; espejo de `PuntoDeVenta`, secretos en texto plano):
+
+```csharp
+public class CuentaCorreo : BaseEntity
+{
+    public int    ConfiguracionId { get; set; }
+    public string Nombre { get; set; } = "";   // etiqueta: "Ventas", "Administración"
+    public bool   Activo { get; set; }          // solo una activa por app
+
+    // Transporte SMTP
+    public string? SmtpHost; public int SmtpPort; public int SmtpSeguridad; public string? EmailRemitente;
+
+    // Autenticación: 0=Ninguna, 1=Básica, 2=OAuth2
+    public int Autenticacion; public string? SmtpUsuario; public string? SmtpPassword;
+
+    // OAuth2: proveedor 0=Microsoft,1=Google,2=Personalizado,3=OutlookPersonal; flujo 0=Interactivo,1=Cliente
+    public int OAuthProveedor; public int OAuthFlujo;
+    public string? OAuthClientId, OAuthClientSecret, OAuthTenantId, OAuthScope;
+    public string? OAuthAuthorizeEndpoint, OAuthTokenEndpoint; // solo Personalizado
+    public string? OAuthRefreshToken;  // del flujo interactivo
+    public string? OAuthUsuario;       // email autenticado (login XOAUTH2)
 }
 ```
 
@@ -228,7 +236,6 @@ public class Agencia : BaseEntity
     public string? Domicilio    { get; set; }
     public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor, RG 5616)
     public bool    Activa       { get; set; } = true;
-    public bool    EsMoroso     { get; set; } = false;
 
     public ICollection<EmailAgencia> Emails   { get; set; } = [];
     public ICollection<AgenciaGrupo> Grupos   { get; set; } = [];
@@ -363,7 +370,7 @@ public class Recibo : BaseEntity
     public DateTime        FechaVencimientoCAE { get; set; }
     public DateTime        FechaEmision        { get; set; }
 
-    public ReciboEstado Estado { get; set; } = ReciboEstado.Emitido;
+    public EstadoFiscal EstadoFiscal { get; set; } = EstadoFiscal.Emitido; // único estado de flujo persistido
 
     public string?   UltimoErrorCae  { get; set; }
     public string?   UltimoErrorMail { get; set; }
@@ -371,12 +378,14 @@ public class Recibo : BaseEntity
 
     public DateTime  FechaVencimientoPago { get; set; }
     public DateTime? FechaPago            { get; set; }
+    public DateTime? FechaIncobrable      { get; set; } // eje de cobro; excluyente con FechaPago
+    public string?   MotivoIncobrable     { get; set; }
 
     public ICollection<Voucher> Vouchers      { get; set; } = [];
     public NotaDeCredito?       NotaDeCredito { get; set; }
 }
 // Índice único: (PuntoDeVenta, NumeroComprobante, CodigoAfip) WHERE NumeroComprobante > 0
-// Índice único parcial: (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=1 AND Estado<>'Anulado'
+// Índice único parcial: (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=1 AND EstadoFiscal<>'Anulado'
 ```
 
 ### `ReciboLinea`
@@ -445,24 +454,11 @@ public class Configuracion : BaseEntity
     // Vouchers
     public decimal ImporteVoucherPredeterminado { get; set; } = 0;
 
-    public int DiasVencimiento { get; set; } = 30;
+    public int DiasVencimiento { get; set; } = 15;
 
-    // Mail saliente (secretos en texto plano)
-    public string? SmtpHost       { get; set; }
-    public int     SmtpPort       { get; set; }
-    public int     SmtpSeguridad  { get; set; } = 0;
-    public string? SmtpUsuario    { get; set; }
-    public string? SmtpPassword   { get; set; }
-    public string? EmailRemitente { get; set; }
-
-    // Autenticación de correo (ver D-26): mismos campos que CentroMaritimo.Configuracion
-    public int Autenticacion  { get; set; } = 1; // 0=Ninguna, 1=Básica, 2=OAuth2
-    public int OAuthProveedor { get; set; } = 0; // 0=Microsoft, 1=Google, 2=Personalizado
-    public int OAuthFlujo     { get; set; } = 0; // 0=Interactivo, 1=Cliente
-    public string? OAuthClientId, OAuthClientSecret, OAuthTenantId, OAuthScope;
-    public string? OAuthAuthorizeEndpoint, OAuthTokenEndpoint; // solo Personalizado
-    public string? OAuthRefreshToken; // del flujo interactivo
-    public string? OAuthUsuario;      // email autenticado (login XOAUTH2)
+    // Cuentas de correo saliente (igual que CentroMaritimo: ver CuentaCorreo, D-27). Una activa.
+    public List<CuentaCorreo> CuentasCorreo { get; set; } = new();
+    // [NotMapped] CuentaCorreoActiva => CuentasCorreo.FirstOrDefault(c => c.Activo)
 }
 ```
 
@@ -471,15 +467,19 @@ public class Configuracion : BaseEntity
 ## Enums compartidos — `Core/Enums/`
 
 ```csharp
-public enum ReciboEstado
+// Único estado de flujo persistido del recibo (eje fiscal/AFIP).
+public enum EstadoFiscal
 {
-    Emitido,  // CAE obtenido
-    Enviado,  // mail enviado exitosamente
-    Pagado,
-    Anulado,
-    Pendiente // creado sin CAE todavía (reintentable)
+    Pendiente, // creado sin CAE todavía (reintentable)
+    Emitido,   // CAE obtenido
+    Anulado    // anulado con Nota de Crédito
 }
-// "Vencido" se calcula en presentación: FechaVencimientoPago < DateTime.Today && Estado != Pagado/Anulado
+// Los otros ejes NO se persisten como estado; se derivan en EstadoReciboHelper:
+//   Envío  = FechaEnvioMail!=null ? Enviado : UltimoErrorMail!=null ? Fallido : NoEnviado
+//   Cobro  = FechaIncobrable!=null ? Incobrable : FechaPago!=null ? Pagado : PendienteDeCobro
+//   Vencido = EstadoFiscal==Emitido && Cobro==PendienteDeCobro && FechaVencimientoPago < hoy
+public enum EstadoEnvio { NoEnviado, Enviado, Fallido }
+public enum EstadoCobro { PendienteDeCobro, Pagado, Incobrable }
 
 public enum TipoComprobante { Recibo, NotaDeCredito }
 // Códigos AFIP: Recibo A=4 B=9 C=15 | Factura A=1 B=6 C=11 | NC A=3 B=8 C=13

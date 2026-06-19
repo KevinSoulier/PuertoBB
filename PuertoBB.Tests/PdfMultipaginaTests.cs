@@ -58,7 +58,7 @@ public class PdfMultipaginaTests
 
         Assert.True(bytes.Length > 1000);
         using var ms = new MemoryStream(bytes);
-        using var pdf = PdfReader.Open(ms, PdfDocumentOpenMode.InformationOnly);
+        using var pdf = PdfReader.Open(ms, PdfDocumentOpenMode.Import);
         Assert.True(pdf.PageCount >= 2, $"Se esperaba un PDF multipágina; tiene {pdf.PageCount} página(s).");
     }
 }

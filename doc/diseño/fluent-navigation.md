@@ -177,9 +177,10 @@ Colors.xaml contiene **únicamente** los colores de dominio que el tema Fluent n
 
 <!-- Estados de recibo (colores de dominio, solo usados en EstadoReciboToBrushConverter) -->
 <SolidColorBrush x:Key="EstadoEmitidoBrush">#E3F2FD</SolidColorBrush>
-<SolidColorBrush x:Key="EstadoEnviadoBrush">#FFF9C4</SolidColorBrush>
+<SolidColorBrush x:Key="EstadoEnviadoBrush">#E0F7FA</SolidColorBrush>
 <SolidColorBrush x:Key="EstadoPagadoBrush">#E8F5E9</SolidColorBrush>
 <SolidColorBrush x:Key="EstadoVencidoBrush">#FFEBEE</SolidColorBrush>
+<SolidColorBrush x:Key="EstadoIncobrableBrush">#FBE9E7</SolidColorBrush>
 <SolidColorBrush x:Key="EstadoAnuladoBrush">#F5F5F5</SolidColorBrush>
 ```
 

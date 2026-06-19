@@ -42,13 +42,11 @@ public class DashboardViewModel : PageViewModel
         IrABarcosCommand       = new RelayCommand(_ => _nav.Navigate(typeof(BarcosPage)));
         IrAGruposCommand       = new RelayCommand(_ => _nav.Navigate(typeof(GruposPage)));
 
-        _ = CargarResumenAsync();
+        CargarSeguro(CargarResumenAsync);
     }
 
-    private async Task CargarResumenAsync()
-    {
-        IsBusy = true;
-        try
+    private Task CargarResumenAsync()
+        => EjecutarOcupadoAsync("Cargando", async () =>
         {
             var hoy = DateTime.Today;
             var vouchers = await _vouchers.GetPendientesAsync(hoy.Year, hoy.Month);
@@ -58,11 +56,9 @@ public class DashboardViewModel : PageViewModel
             if (pendientes.Success && pendientes.Data is not null)
             {
                 var vencidos = pendientes.Data.Count(r =>
-                    PuertoBB.Core.Common.EstadoReciboHelper.EstaVencido(r.Estado, r.FechaVencimientoPago, hoy));
+                    PuertoBB.Core.Common.EstadoReciboHelper.EstaVencido(r, hoy));
                 ResumenRecibosVencidos = vencidos.ToString();
                 ResumenRecibosPendientes = pendientes.Data.Count.ToString();
             }
-        }
-        finally { IsBusy = false; }
-    }
+        });
 }

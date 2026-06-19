@@ -83,26 +83,26 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             <WrapPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <StackPanel Margin="0,0,8,0">
+                                <StackPanel Margin="0,0,8,8">
                                     <TextBlock Text="Descripción" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                FontSize="11" Margin="0,0,0,2" />
                                     <TextBox Text="{Binding DescripcionLinea, UpdateSourceTrigger=PropertyChanged}" Width="200" />
                                 </StackPanel>
-                                <StackPanel Margin="0,0,8,0">
+                                <StackPanel Margin="0,0,8,8">
                                     <TextBlock Text="Cantidad" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                FontSize="11" Margin="0,0,0,2" />
                                     <ui:NumberBox Value="{Binding CantidadLinea, UpdateSourceTrigger=PropertyChanged}"
                                                   Minimum="0.001" Maximum="1000000000" ClearButtonEnabled="False"
                                                   SpinButtonPlacementMode="Hidden" Width="80" />
                                 </StackPanel>
-                                <StackPanel Margin="0,0,8,0">
+                                <StackPanel Margin="0,0,8,8">
                                     <TextBlock Text="Precio unit." Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                FontSize="11" Margin="0,0,0,2" />
                                     <ui:NumberBox Value="{Binding PrecioUnitarioLinea, UpdateSourceTrigger=PropertyChanged}"
                                                   Minimum="0" Maximum="1000000000" ClearButtonEnabled="False"
                                                   SpinButtonPlacementMode="Hidden" Width="120" />
                                 </StackPanel>
-                                <StackPanel VerticalAlignment="Bottom">
+                                <StackPanel VerticalAlignment="Bottom" Margin="0,0,8,8">
                                     <ui:Button Content="Agregar ítem" Command="{Binding AgregarLineaCommand}"
                                                Style="{StaticResource AccionIconButton}"
                                                ToolTip="Agregar este ítem al grupo">
@@ -161,35 +161,35 @@
                     </ListBox>
 
                     <StackPanel Grid.Row="5" Margin="0,12,0,0">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <WrapPanel Margin="0,0,0,8">
                             <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                       Style="{StaticResource AccionIconButton}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Crear un nuevo grupo de facturación">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Editar" Command="{Binding EditarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Editar el grupo seleccionado">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Eliminar el grupo seleccionado">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        </WrapPanel>
+                        <WrapPanel>
                             <ui:Button Content="Aceptar" Command="{Binding AceptarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                                        ToolTip="Guardar los cambios del grupo">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Cancelar" Command="{Binding CancelarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Cancelar la edición">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
+                        </WrapPanel>
                     </StackPanel>
                 </Grid>
             </Border>

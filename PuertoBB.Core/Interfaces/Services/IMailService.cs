@@ -1,4 +1,5 @@
 using PuertoBB.Core.Common;
+using PuertoBB.Core.Models.Mail;
 
 namespace PuertoBB.Core.Interfaces.Services;
 
@@ -11,8 +12,12 @@ public interface IMailService
         string nombreAdjunto,
         string asunto,
         string cuerpo,
+        string? cuerpoHtml = null,
         CancellationToken ct = default);
 
-    /// <summary>Verifica la conexión SMTP sin enviar ningún mensaje. Retorna el banner del servidor si OK.</summary>
+    /// <summary>Verifica la conexión SMTP de la cuenta activa, sin enviar ningún mensaje. Retorna el banner del servidor si OK.</summary>
     Task<ServiceResult<string>> ProbarConexionAsync(CancellationToken ct = default);
+
+    /// <summary>Verifica la conexión SMTP de la configuración indicada (p. ej. la cuenta en edición, antes de guardarla).</summary>
+    Task<ServiceResult<string>> ProbarConexionAsync(MailConfig config, CancellationToken ct = default);
 }

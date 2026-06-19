@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Interfaces.Services;
@@ -86,6 +88,14 @@ public sealed class OAuthTokenProvider : IMailTokenProvider
     private static string ClaveCache(MailConfig config, OAuthEndpoints endpoints)
     {
         var secreto = config.OAuthFlujo == OAuthFlujo.Cliente ? config.OAuthClientSecret : config.OAuthRefreshToken;
-        return string.Join('|', config.OAuthFlujo, config.OAuthClientId, endpoints.TokenEndpoint, endpoints.Scope, secreto?.GetHashCode());
+        return string.Join('|', config.OAuthFlujo, config.OAuthClientId, endpoints.TokenEndpoint, endpoints.Scope, HashSecreto(secreto));
+    }
+
+    /// <summary>Hash estable del secreto para la clave de cache: SHA-256 (no depende del randomized string
+    /// hashing del proceso como <c>GetHashCode</c>, y no incorpora el secreto crudo a la clave).</summary>
+    private static string HashSecreto(string? secreto)
+    {
+        if (string.IsNullOrEmpty(secreto)) return "0";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secreto)));
     }
 }

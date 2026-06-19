@@ -9,6 +9,24 @@ Outlook / Microsoft 365. Si al **Probar conexión** aparece:
 
 …hay que enviar el correo con **OAuth2** en lugar de contraseña.
 
+> **Varias cuentas:** en **Configuración → Correo** podés cargar **varias cuentas** de correo (ej. "Ventas",
+> "Administración") y marcar **una como activa** con *Marcar activa* — la activa es la que la app usa para enviar
+> (igual que los puntos de venta). En el formulario de cada cuenta, elegí el **Proveedor** (Microsoft 365 /
+> Outlook.com personal / Google / Otro) y el servidor, puerto, seguridad y modo se autocompletan; solo cargás
+> las credenciales.
+
+## Recomendación rápida por proveedor
+
+| Proveedor | Qué usar |
+|---|---|
+| **Outlook / Hotmail / Microsoft 365** | **OAuth2** (Microsoft ya **no** permite contraseña ni contraseña de aplicación para SMTP). Setup único en Azure, después permanente (no vence). |
+| **Gmail** | **Básica con contraseña de aplicación** (verificación en 2 pasos → `myaccount.google.com/apppasswords`). El OAuth de Gmail personal vence a los 7 días en modo prueba; no conviene. |
+| **Yahoo / iCloud / Zoho** | Básica con **contraseña de aplicación**. |
+| **Brevo / SendGrid / Mailjet / SES / Postmark** | Básica con la **API key** como contraseña. |
+
+> En la app esta misma guía aparece en **Configuración → Correo → "Guía del proveedor seleccionado"**
+> (el panel se actualiza según el proveedor que elijas).
+
 La app lo configura en **Configuración → Correo → Autenticación: OAuth2**. Hay dos flujos,
 seleccionables según el caso:
 
@@ -74,20 +92,28 @@ hay un proveedor aparte en la app.
 
 ---
 
-## Gmail / Google Workspace (flujo Interactivo)
+## Gmail / Google Workspace
 
-1. Google Cloud Console → **APIs & Services → Credentials → Create credentials → OAuth client ID**,
-   tipo **Desktop app**. Anotá **Client ID** (y **Client Secret**, que Google entrega para apps
-   de escritorio).
-2. En la **OAuth consent screen**, agregá el scope `https://mail.google.com/` y, si la app está en
-   modo *Testing*, agregá tu cuenta como **test user**.
-3. En la app: Proveedor **Google / Gmail**, flujo **Interactivo**, pegá Client ID (+ Client Secret).
-   **Iniciar sesión…**, consentí y **Guardá**.
+**Recomendado (lo que la app elige por defecto): Básica con contraseña de aplicación.** Al elegir el
+proveedor **Google / Gmail**, la cuenta queda en **Autenticación: Básica** con `smtp.gmail.com:587`
+autocompletado — solo cargás las credenciales.
+
+1. Activá la **verificación en 2 pasos** en tu cuenta de Google.
+2. Generá una **contraseña de aplicación** en `myaccount.google.com/apppasswords` (16 letras).
+3. En la app: Proveedor **Google / Gmail**, **Usuario** tu Gmail, **Contraseña** la de aplicación
+   (pegala sin espacios). **Guardá** y **Probá conexión**.
 
 Host SMTP sugerido: `smtp.gmail.com`, puerto **587**, seguridad **Auto (STARTTLS)**.
 
-> Alternativa simple para Gmail: dejar **Autenticación: Básica** y usar una **contraseña de
-> aplicación** (requiere verificación en 2 pasos en la cuenta). No necesita OAuth.
+### OAuth2 (solo si lo necesitás)
+Cambiá **Autenticación** a **OAuth2**.
+1. Google Cloud Console → **APIs & Services → Credentials → Create credentials → OAuth client ID**,
+   tipo **Desktop app**. Anotá **Client ID** (y **Client Secret**, que Google entrega para apps de
+   escritorio).
+2. En la **OAuth consent screen**, agregá el scope `https://mail.google.com/` y, si la app está en
+   modo *Testing*, agregá tu cuenta como **test user**.
+3. **Iniciar sesión…**, consentí y **Guardá**. Ojo: en modo *Testing* el token de Gmail vence a los
+   7 días; por eso conviene la contraseña de aplicación.
 
 ---
 

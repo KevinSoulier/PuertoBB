@@ -16,26 +16,31 @@ public class MailConfigProvider : IMailConfigProvider
     public async Task<MailConfig> GetAsync(CancellationToken ct = default)
     {
         var c = await _config.GetSinTrackingAsync(ct);
+        var nombreRemitente = string.IsNullOrWhiteSpace(c.RazonSocial) ? "Centro Marítimo" : c.RazonSocial;
+        var cuenta = c.CuentaCorreoActiva;
+        if (cuenta is null)
+            return new MailConfig { NombreRemitente = nombreRemitente }; // sin cuenta activa → EstaConfigurado=false
+
         return new MailConfig
         {
-            SmtpHost        = c.SmtpHost,
-            SmtpPort        = c.SmtpPort,
-            SmtpSeguridad   = (PuertoBB.Core.Models.Mail.SmtpSeguridad)c.SmtpSeguridad,
-            SmtpUsuario     = c.SmtpUsuario,
-            SmtpPassword    = c.SmtpPassword,
-            EmailRemitente  = c.EmailRemitente,
-            NombreRemitente = string.IsNullOrWhiteSpace(c.RazonSocial) ? "Centro Marítimo" : c.RazonSocial,
-            Autenticacion   = (MailAutenticacion)c.Autenticacion,
-            OAuthProveedor  = (OAuthProveedor)c.OAuthProveedor,
-            OAuthFlujo      = (OAuthFlujo)c.OAuthFlujo,
-            OAuthClientId          = c.OAuthClientId,
-            OAuthClientSecret      = c.OAuthClientSecret,
-            OAuthTenantId          = c.OAuthTenantId,
-            OAuthScope             = c.OAuthScope,
-            OAuthAuthorizeEndpoint = c.OAuthAuthorizeEndpoint,
-            OAuthTokenEndpoint     = c.OAuthTokenEndpoint,
-            OAuthRefreshToken      = c.OAuthRefreshToken,
-            OAuthUsuario           = c.OAuthUsuario
+            SmtpHost        = cuenta.SmtpHost,
+            SmtpPort        = cuenta.SmtpPort,
+            SmtpSeguridad   = (PuertoBB.Core.Models.Mail.SmtpSeguridad)cuenta.SmtpSeguridad,
+            SmtpUsuario     = cuenta.SmtpUsuario,
+            SmtpPassword    = cuenta.SmtpPassword,
+            EmailRemitente  = cuenta.EmailRemitente,
+            NombreRemitente = nombreRemitente,
+            Autenticacion   = (MailAutenticacion)cuenta.Autenticacion,
+            OAuthProveedor  = (OAuthProveedor)cuenta.OAuthProveedor,
+            OAuthFlujo      = (OAuthFlujo)cuenta.OAuthFlujo,
+            OAuthClientId          = cuenta.OAuthClientId,
+            OAuthClientSecret      = cuenta.OAuthClientSecret,
+            OAuthTenantId          = cuenta.OAuthTenantId,
+            OAuthScope             = cuenta.OAuthScope,
+            OAuthAuthorizeEndpoint = cuenta.OAuthAuthorizeEndpoint,
+            OAuthTokenEndpoint     = cuenta.OAuthTokenEndpoint,
+            OAuthRefreshToken      = cuenta.OAuthRefreshToken,
+            OAuthUsuario           = cuenta.OAuthUsuario
         };
     }
 }

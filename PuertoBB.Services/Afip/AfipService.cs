@@ -5,6 +5,7 @@ using PuertoBB.Core.Afip;
 using PuertoBB.Core.Common;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Afip;
+using PuertoBB.Services.Common;
 
 namespace PuertoBB.Services.Afip;
 
@@ -158,6 +159,23 @@ public class AfipService : IAfipService
             });
         }
 
+        // Vigencia del certificado: avisar claro si está vencido/por vencer antes de que WSAA falle
+        // con el 600 genérico ("token/credenciales inválidos").
+        try
+        {
+            using var cert = global::Afip.Wsaa.TraBuilder.CargarCertificado(options);
+            var hoy = DateTime.Now;
+            if (cert.NotAfter < hoy)
+                detalles.Add($"Certificado: VENCIDO el {cert.NotAfter:dd/MM/yyyy}. Generá uno nuevo en Configuración.");
+            else if (cert.NotBefore > hoy)
+                detalles.Add($"Certificado: todavía no es válido (rige desde {cert.NotBefore:dd/MM/yyyy}).");
+            else if (cert.NotAfter < hoy.AddDays(30))
+                detalles.Add($"Certificado: por vencer el {cert.NotAfter:dd/MM/yyyy}; conviene renovarlo.");
+            else
+                detalles.Add($"Certificado: vigente hasta {cert.NotAfter:dd/MM/yyyy}.");
+        }
+        catch (Exception ex) { detalles.Add($"Certificado: no se pudo leer ({ex.Message})."); }
+
         bool autOk = false;
         long? ultimo = null;
         try
@@ -280,19 +298,27 @@ public class AfipService : IAfipService
         UsarHomologacion = c.UsarHomologacion
     };
 
-    private static AfipComprobanteRequest ToAfipRequest(ComprobanteAfipRequest r) => new()
+    private static AfipComprobanteRequest ToAfipRequest(ComprobanteAfipRequest r)
     {
-        CodigoComprobante = r.CodigoAfip,
-        PuntoDeVenta = r.PuntoDeVenta,
-        DocNroReceptor = long.TryParse(r.CuitReceptor, out var docReceptor) ? docReceptor : 0,
-        CondicionIvaReceptorId = r.CondicionIvaReceptorId,
-        ImporteTotal = r.ImporteTotal,
-        FechaComprobante = r.FechaEmision,
-        ServicioDesde = r.PeriodoServicioDesde,
-        ServicioHasta = r.PeriodoServicioHasta,
-        VencimientoPago = r.FechaVencimientoPago,
-        ComprobanteAsociado = r.ComprobanteAsociado is { } a
-            ? new AfipComprobanteAsociado { Tipo = a.Tipo, PuntoDeVenta = a.PuntoDeVenta, Numero = a.Numero, Cuit = long.TryParse(a.CuitEmisor, out var cuitEmisor) ? cuitEmisor : 0 }
-            : null
-    };
+        // Única fuente de verdad para (DocTipo, DocNro): la misma que usa el QR del PDF
+        // (Formato.ParseReceptorDoc). Así WSFE y el QR no pueden divergir: con CUIT → (80, nro);
+        // sin CUIT (Consumidor Final) → (99, 0). Enviar 80+0 sería incorrecto para tipo C.
+        var (docTipoReceptor, docNroReceptor) = Formato.ParseReceptorDoc(r.CuitReceptor);
+        return new AfipComprobanteRequest
+        {
+            CodigoComprobante = r.CodigoAfip,
+            PuntoDeVenta = r.PuntoDeVenta,
+            DocTipoReceptor = docTipoReceptor,
+            DocNroReceptor = docNroReceptor,
+            CondicionIvaReceptorId = r.CondicionIvaReceptorId,
+            ImporteTotal = r.ImporteTotal,
+            FechaComprobante = r.FechaEmision,
+            ServicioDesde = r.PeriodoServicioDesde,
+            ServicioHasta = r.PeriodoServicioHasta,
+            VencimientoPago = r.FechaVencimientoPago,
+            ComprobanteAsociado = r.ComprobanteAsociado is { } a
+                ? new AfipComprobanteAsociado { Tipo = a.Tipo, PuntoDeVenta = a.PuntoDeVenta, Numero = a.Numero, Cuit = long.TryParse(a.CuitEmisor, out var cuitEmisor) ? cuitEmisor : 0 }
+                : null
+        };
+    }
 }

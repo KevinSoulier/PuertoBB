@@ -36,6 +36,15 @@ Cada app crea su base SQLite en `%LocalAppData%\PuertoBB\<App>`. El modo demo se
 Skills útiles: `/validar-plataforma` (validación integral), `/testing` (guía de tests),
 `/desarrollador`, `/diseño-wpf`, `/arquitecto`, `/investigador-afip`.
 
+## Documentación
+
+Toda la documentación vive en [`doc/`](doc/): negocio, arquitectura, diseño, usuario, decisiones.
+
+- **Integraciones externas (base de conocimiento reutilizable):** [`doc/integraciones/`](doc/integraciones/)
+  — [AFIP/ARCA](doc/integraciones/afip.md) (`Afip.Net`: WSAA/WSFE/padrón) y [correo SMTP + OAuth2](doc/integraciones/correo.md).
+- **Auditoría pre-producción:** [`doc/auditoria/auditoria-pre-produccion.md`](doc/auditoria/auditoria-pre-produccion.md).
+- **Decisiones de diseño:** [`doc/decisiones/registro-decisiones.md`](doc/decisiones/registro-decisiones.md) (D-01…D-28).
+
 ## Stack
 
 - .NET 10 · WPF · EF Core + SQLite · QuestPDF · MailKit · AFIP WSFE (SOAP)

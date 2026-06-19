@@ -1,7 +1,70 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Mail;
+using PuertoBB.Services.Mail;
+using PuertoBB.Tests.TestSupport;
 using Xunit;
+using CpRepos = PuertoBB.Infrastructure.Repositories.CamaraPortuaria;
+using CpEntities = PuertoBB.Core.Entities.CamaraPortuaria;
 
 namespace PuertoBB.Tests;
+
+public class CuentaCorreoRepoTests
+{
+    [Fact]
+    public async Task Seed_TienePrincipalActiva()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var repo = new CpRepos.ConfiguracionRepository(db);
+
+        var cuentas = await repo.GetCuentasCorreoAsync();
+
+        var activa = Assert.Single(cuentas, c => c.Activo);
+        Assert.Equal("Principal", activa.Nombre);
+    }
+
+    [Fact]
+    public async Task MarcarActiva_DejaExactamenteUnaActiva()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var repo = new CpRepos.ConfiguracionRepository(db);
+        var nueva = await repo.GuardarCuentaCorreoAsync(new CpEntities.CuentaCorreo { Nombre = "Ventas", SmtpPort = 587, Autenticacion = 2 });
+
+        await repo.MarcarCuentaCorreoActivaAsync(nueva.Id);
+
+        var cuentas = await repo.GetCuentasCorreoAsync();
+        Assert.Equal(2, cuentas.Count);
+        Assert.Equal(nueva.Id, Assert.Single(cuentas, c => c.Activo).Id);
+    }
+
+    [Fact]
+    public async Task Eliminar_QuitaLaCuenta()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var repo = new CpRepos.ConfiguracionRepository(db);
+        var nueva = await repo.GuardarCuentaCorreoAsync(new CpEntities.CuentaCorreo { Nombre = "Temp", SmtpPort = 587 });
+
+        await repo.EliminarCuentaCorreoAsync(nueva.Id);
+
+        Assert.DoesNotContain(await repo.GetCuentasCorreoAsync(), c => c.Id == nueva.Id);
+    }
+
+    [Fact]
+    public async Task CuentaActiva_SeReflejaEnConfiguracion()
+    {
+        using var fx = SqliteTestDb.CreateCamara(out var db);
+        var repo = new CpRepos.ConfiguracionRepository(db);
+        var nueva = await repo.GuardarCuentaCorreoAsync(new CpEntities.CuentaCorreo { Nombre = "Admin", SmtpHost = "smtp.x.com", SmtpPort = 587 });
+        await repo.MarcarCuentaCorreoActivaAsync(nueva.Id);
+
+        var config = await repo.GetSinTrackingAsync();
+
+        Assert.NotNull(config.CuentaCorreoActiva);
+        Assert.Equal("Admin", config.CuentaCorreoActiva!.Nombre);
+        Assert.Equal("smtp.x.com", config.CuentaCorreoActiva.SmtpHost);
+    }
+}
 
 public class OAuthPresetsTests
 {
@@ -177,5 +240,43 @@ public class MailErroresTests
     {
         const string m = "No route to host";
         Assert.Equal(m, MailErrores.Describir(m));
+    }
+
+    [Fact]
+    public void Timeout_NoCanceladoPorUsuario_SugiereReintentar() =>
+        Assert.Contains("tiempo de espera",
+            MailErrores.Describir(new TaskCanceledException(), canceladoPorUsuario: false));
+
+    [Fact]
+    public void Cancelacion_DelUsuario_NoEsMensajeDeTimeout() =>
+        Assert.DoesNotContain("tiempo de espera",
+            MailErrores.Describir(new TaskCanceledException(), canceladoPorUsuario: true));
+}
+
+public class MailServiceProbarConexionTests
+{
+    // QW2: la sobrecarga que recibe un MailConfig debe probar ESE config (la cuenta en edición),
+    // sin consultar al provider (la cuenta activa de la base).
+    [Fact]
+    public async Task ProbarConexionConConfig_UsaElConfigRecibido_NoConsultaElActivo()
+    {
+        var provider = Substitute.For<IMailConfigProvider>();
+        provider.GetAsync(Arg.Any<CancellationToken>())
+            .Returns(new MailConfig { SmtpHost = "smtp.activa.com", EmailRemitente = "activa@x.com" });
+        var svc = new MailService(provider, Substitute.For<IMailTokenProvider>(), NullLogger<MailService>.Instance);
+
+        // Config en edición sin servidor → falla por validación local antes de tocar la red.
+        var res = await svc.ProbarConexionAsync(new MailConfig { EmailRemitente = "edit@x.com" });
+
+        Assert.False(res.Success);
+        await provider.DidNotReceive().GetAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Fake_ProbarConexionConConfig_Ok()
+    {
+        var fake = new FakeMailService(NullLogger<FakeMailService>.Instance);
+        var res = await fake.ProbarConexionAsync(new MailConfig { SmtpHost = "smtp.x.com", EmailRemitente = "a@b.com" });
+        Assert.True(res.Success);
     }
 }

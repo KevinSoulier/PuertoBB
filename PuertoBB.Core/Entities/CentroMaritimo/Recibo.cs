@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.Common;
 using PuertoBB.Core.Enums;
 
@@ -10,7 +12,7 @@ namespace PuertoBB.Core.Entities.CentroMaritimo;
 /// Recibos consolidados únicos por (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=true;
 /// el anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
-public class Recibo : BaseEntity
+public class Recibo : BaseEntity, IReciboEstadoView
 {
     public int     AgenciaId { get; set; }
     public Agencia Agencia   { get; set; } = null!;
@@ -46,17 +48,24 @@ public class Recibo : BaseEntity
     public DateTime        FechaVencimientoCAE { get; set; }
     public DateTime        FechaEmision        { get; set; }
 
-    public ReciboEstado Estado { get; set; } = ReciboEstado.Emitido;
+    /// <summary>Único estado de flujo persistido (eje fiscal). Envío y cobro se derivan.</summary>
+    public EstadoFiscal EstadoFiscal { get; set; } = EstadoFiscal.Emitido;
 
     // Trazabilidad de emisión (para mostrar estado y permitir reintento idempotente).
     public string?   UltimoErrorCae  { get; set; } // null = CAE OK; con texto = por qué quedó Pendiente
     public string?   UltimoErrorMail { get; set; } // null = el mail no falló; con texto = por qué no se envió
     public DateTime? FechaEnvioMail  { get; set; } // null = mail no enviado
 
-    // Control de pagos
+    // Control de pagos (eje de cobro: Pendiente de cobro / Pagado / Incobrable, derivado de estas fechas)
     public DateTime  FechaVencimientoPago { get; set; }
     public DateTime? FechaPago            { get; set; }
+    public DateTime? FechaIncobrable      { get; set; } // null = no dado de baja; excluyente con FechaPago
+    public string?   MotivoIncobrable     { get; set; } // motivo opcional de la baja (auditoría)
 
     public ICollection<Voucher> Vouchers      { get; set; } = [];
     public NotaDeCredito?       NotaDeCredito { get; set; }
+
+    /// <summary>True si tiene Nota de Crédito asociada (recibo anulado). Derivado.</summary>
+    [NotMapped]
+    public bool TieneNotaCredito => NotaDeCredito is not null;
 }

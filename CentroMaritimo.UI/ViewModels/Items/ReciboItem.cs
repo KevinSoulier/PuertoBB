@@ -11,7 +11,6 @@ public class ReciboItem
     public int Id { get; }
     public int AgenciaId { get; }
     public string Agencia { get; }
-    public bool EsMoroso { get; }
     public string Periodo { get; }
     public string Importe { get; }
     public string Comprobante { get; }
@@ -19,12 +18,15 @@ public class ReciboItem
     public string FechaEmision { get; }
     public string FechaVencimiento { get; }
     public bool Consolidado { get; }
-    public ReciboEstado EstadoPersistido { get; }
+    public EstadoFiscal EstadoFiscal { get; }
+    /// <summary>Columna "Estado" (fiscal + cobro): Pendiente / Emitido / Vencido / Pagado / Incobrable / Anulado.</summary>
     public string Estado { get; }
-    public int DiasAtraso { get; }
-
-    /// <summary>Estado del envío/CAE para la grilla: "Enviado" / "Sin enviar" / "Mail falló" / "CAE pendiente".</summary>
+    /// <summary>Columna "Envío" (solo mail): Enviado / Sin enviar / Mail falló / —.</summary>
     public string EstadoEnvio { get; }
+    public int DiasAtraso { get; }
+    public bool EsIncobrable { get; }
+    public string? MotivoIncobrable { get; }
+
     /// <summary>Detalle del último error (CAE o mail) para el tooltip; null si no hubo.</summary>
     public string? Error { get; }
     public bool CaeOk { get; }
@@ -34,23 +36,25 @@ public class ReciboItem
     /// <summary>Comprobante de la nota de crédito formateado ("0001-00000095"); null si no hay NC.</summary>
     public string? NotaCreditoComprobante { get; }
 
-    /// <summary>Reenviable: el recibo (Emitido/Enviado) o su nota de crédito si está Anulado.</summary>
-    public bool EsReenviable => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado
-                                || (EstadoPersistido is ReciboEstado.Anulado && TieneNotaCredito);
-    public bool EsPagable    => EstadoPersistido is ReciboEstado.Emitido or ReciboEstado.Enviado;
-    /// <summary>Anulable: no anulado y con CAE (el service exige CAE para emitir la NC).</summary>
-    public bool EsAnulable   => EstadoPersistido != ReciboEstado.Anulado && CaeOk;
+    /// <summary>Reenviable: el recibo (con CAE) o su nota de crédito si está Anulado.</summary>
+    public bool EsReenviable { get; }
+    public bool EsPagable { get; }
+    public bool EsAnulable { get; }
     /// <summary>El paso de emisión/CAE está pendiente (sin CAE). El mail fallido lo cubre <see cref="EsReenviable"/>.</summary>
     public bool EsReintentable { get; }
+    public bool EsMarcableIncobrable { get; }
+    public bool EsQuitableIncobrable { get; }
+    /// <summary>Recibo Pendiente (sin CAE): se puede editar el contenido o eliminarlo para rehacerlo.</summary>
+    public bool EsEditable => EstadoFiscal == EstadoFiscal.Pendiente;
 
     public ReciboItem(Recibo r)
     {
         var hoy = DateTime.Today;
+        var acc = AccionesRecibo.De(r);
         Id = r.Id;
         AgenciaId = r.AgenciaId;
         // Nombre desde el snapshot fiscal (inmutable); fallback a la navegación para recibos legacy.
         Agencia = r.ReceptorNombre is { Length: > 0 } nombre ? nombre : r.Agencia?.Nombre ?? $"#{r.AgenciaId}";
-        EsMoroso = r.Agencia?.EsMoroso ?? false;
         Periodo = Formato.Periodo(r.PeriodoAnio, r.PeriodoMes);
         Importe = Formato.Moneda(r.Importe);
         CaeOk = !string.IsNullOrEmpty(r.CAE);
@@ -61,21 +65,20 @@ public class ReciboItem
         FechaEmision = Formato.Fecha(r.FechaEmision);
         FechaVencimiento = Formato.Fecha(r.FechaVencimientoPago);
         Consolidado = r.EsConsolidadoVouchers;
-        EstadoPersistido = r.Estado;
-        Estado = r.Agencia?.EsMoroso == true
-            ? "Moroso"
-            : EstadoReciboHelper.EtiquetaEstado(r.Estado, r.FechaVencimientoPago, hoy);
-        DiasAtraso = EstadoReciboHelper.DiasAtraso(r.Estado, r.FechaVencimientoPago, hoy);
-        MailEnviado = r.Estado == ReciboEstado.Enviado;
+        EstadoFiscal = r.EstadoFiscal;
+        Estado = EstadoReciboHelper.EtiquetaEstado(r, hoy);
+        EstadoEnvio = EstadoReciboHelper.EtiquetaEnvio(r);
+        DiasAtraso = EstadoReciboHelper.DiasAtraso(r, hoy);
+        EsIncobrable = EstadoReciboHelper.Cobro(r) == EstadoCobro.Incobrable;
+        MotivoIncobrable = r.MotivoIncobrable;
+        MailEnviado = r.FechaEnvioMail is not null;
         FechaEnvioMailFormateada = r.FechaEnvioMail.HasValue ? Formato.Fecha(r.FechaEnvioMail.Value) : null;
         Error = r.UltimoErrorCae ?? r.UltimoErrorMail;
-        EsReintentable = r.Estado == ReciboEstado.Pendiente;
-        EstadoEnvio = r.Estado switch
-        {
-            ReciboEstado.Pendiente => "CAE pendiente",
-            ReciboEstado.Enviado   => "Enviado",
-            ReciboEstado.Emitido   => r.UltimoErrorMail is not null ? "Mail falló" : "Sin enviar",
-            _                      => "—"
-        };
+        EsReenviable = acc.EsEnviable || (r.EstadoFiscal == EstadoFiscal.Anulado && TieneNotaCredito);
+        EsPagable = acc.EsPagable;
+        EsAnulable = acc.EsAnulable;
+        EsReintentable = acc.EsReintentable;
+        EsMarcableIncobrable = acc.EsMarcableIncobrable;
+        EsQuitableIncobrable = acc.EsQuitableIncobrable;
     }
 }

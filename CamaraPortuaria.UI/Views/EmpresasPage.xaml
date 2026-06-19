@@ -31,7 +31,9 @@
                       SelectionMode="Single" IsEnabled="{Binding NoEnEdicion}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*" />
+                    <DataGridTextColumn Header="Domicilio" Binding="{Binding Domicilio}" Width="2*" />
                     <DataGridTextColumn Header="CUIT" Binding="{Binding Cuit}" Width="130" />
+                    <DataGridTextColumn Header="Mail" Binding="{Binding EmailsTexto}" Width="2*" />
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -70,35 +72,35 @@
                                  TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <WrapPanel Margin="0,0,0,8">
                             <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
-                                       Style="{StaticResource AccionIconButton}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Crear una nueva empresa">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Editar" Command="{Binding EditarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Editar la empresa seleccionada">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Eliminar la empresa seleccionada">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        </WrapPanel>
+                        <WrapPanel>
                             <ui:Button Content="Aceptar" Command="{Binding AceptarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Appearance="Primary"
+                                       Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
                                        ToolTip="Guardar los cambios de la empresa">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Cancelar" Command="{Binding CancelarCommand}"
-                                       Style="{StaticResource AccionIconButton}" Margin="8,0,0,0"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Cancelar la edición">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                             </ui:Button>
-                        </StackPanel>
+                        </WrapPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>

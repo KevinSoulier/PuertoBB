@@ -74,7 +74,7 @@ public class CamaraRepositorioTests
         {
             EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 50, Detalle = "individual", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now,
-            Estado = PuertoBB.Core.Enums.ReciboEstado.Pendiente
+            EstadoFiscal = PuertoBB.Core.Enums.EstadoFiscal.Pendiente
         });
         await repo.AddAsync(new Cp.Recibo
         {

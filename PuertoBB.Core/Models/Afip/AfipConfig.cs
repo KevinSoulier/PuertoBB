@@ -14,4 +14,5 @@ public record AfipConfig
     public required bool     UsarHomologacion        { get; init; }
     public string?           IngresosBrutos      { get; init; }
     public DateTime?         InicioActividades   { get; init; }
+    public byte[]?           LogoPng             { get; init; } // logo del emisor para el header del PDF
 }

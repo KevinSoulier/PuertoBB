@@ -22,6 +22,7 @@ public class CentroMaritimoDbContext : DbContext
     public DbSet<NotaDeCredito>    NotasDeCredito  => Set<NotaDeCredito>();
     public DbSet<Configuracion>    Configuraciones => Set<Configuracion>();
     public DbSet<PuntoDeVenta>     PuntosDeVenta   => Set<PuntoDeVenta>();
+    public DbSet<CuentaCorreo>     CuentasCorreo   => Set<CuentaCorreo>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -20,11 +20,14 @@ public interface ICamaraPortuariaReciboService
     /// <summary>
     /// Emite un recibo por cada empresa pendiente del grupo en el período. Si <paramref name="enviarMail"/>
     /// es false solo obtiene el CAE ("Emitir"); si es true además envía el mail ("Emitir y enviar").
+    /// Es idempotente: los recibos ya completos (emitidos y enviados) se OMITEN (no fallan). Si
+    /// <paramref name="reenviarYaEnviados"/> es true y <paramref name="enviarMail"/> también, además reenvía
+    /// el mail de los ya enviados. <paramref name="progreso"/> recibe el avance por empresa.
     /// </summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, bool reenviarYaEnviados = false, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
     /// <summary>Envía por mail los recibos del grupo que ya tienen CAE y aún no fueron enviados ("Enviar").</summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EnviarMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EnviarMasivoAsync(int grupoId, int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
     /// <summary>Emite/continúa el recibo de UNA empresa del grupo en el período (acción por fila).</summary>
     Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirDeGrupoAsync(int grupoId, int empresaId, int anio, int mes, bool enviarMail, CancellationToken ct = default);
@@ -43,6 +46,12 @@ public interface ICamaraPortuariaReciboService
     /// </summary>
     Task<ServiceResult<ResultadoEmisionPorEntidad>> ReintentarAsync(int reciboId, bool enviarMail, CancellationToken ct = default);
 
+    /// <summary>Edita el contenido (líneas/importe/detalle) de un recibo Pendiente (sin CAE). Rechaza si ya tiene CAE.</summary>
+    Task<ServiceResult<bool>> EditarReciboPendienteAsync(int reciboId, IReadOnlyList<ReciboLineaInput> lineas, CancellationToken ct = default);
+
+    /// <summary>Elimina un recibo Pendiente (sin CAE) — p. ej. para rehacer uno trabado por una emisión fallida. Rechaza si ya tiene CAE.</summary>
+    Task<ServiceResult<bool>> EliminarReciboPendienteAsync(int reciboId, CancellationToken ct = default);
+
     /// <summary>
     /// Anula un recibo emitido generando una nota de crédito. Si <paramref name="enviarMail"/> es true
     /// además envía la NC por mail; el fallo del mail NO falla la operación y se informa en
@@ -55,6 +64,12 @@ public interface ICamaraPortuariaReciboService
 
     /// <summary>Marca un recibo como pagado y registra la fecha.</summary>
     Task<ServiceResult<bool>> MarcarPagadoAsync(int reciboId, CancellationToken ct = default);
+
+    /// <summary>Marca un recibo emitido e impago como incobrable (baja de la deuda), con motivo opcional.</summary>
+    Task<ServiceResult<bool>> MarcarIncobrableAsync(int reciboId, string? motivo, CancellationToken ct = default);
+
+    /// <summary>Revierte la baja por incobrable: el recibo vuelve a estar pendiente de cobro.</summary>
+    Task<ServiceResult<bool>> QuitarIncobrableAsync(int reciboId, CancellationToken ct = default);
 
     /// <summary>Recibos del dashboard de pendientes según filtro.</summary>
     Task<ServiceResult<IReadOnlyList<Recibo>>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);

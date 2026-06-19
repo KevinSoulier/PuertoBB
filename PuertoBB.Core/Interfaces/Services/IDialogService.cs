@@ -30,6 +30,11 @@ public interface IDialogService
         IReadOnlyList<EntidadEmisionItem> entidades,
         IReadOnlyList<string> conceptos);
 
+    /// <summary>Editor de ítems de un recibo Pendiente (sin CAE). Devuelve las líneas nuevas, o null si se canceló.</summary>
+    Task<IReadOnlyList<ReciboLineaInput>?> ShowEditarReciboAsync(
+        IReadOnlyList<ReciboLineaInput> lineasActuales,
+        IReadOnlyList<string> conceptos);
+
     /// <summary>
     /// Asistente para generar un certificado AFIP nuevo (clave privada + CSR). Devuelve la clave
     /// generada para cargarla en el punto de venta (modo CRT+KEY), o null si el usuario canceló.

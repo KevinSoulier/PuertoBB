@@ -40,9 +40,9 @@ internal static class EstadoReciboColorHelper
         "Vencido"     => "#FFEBEE",
         "Anulado"     => "#F5F5F5",
         "Pendiente"   => "#FFF3E0",
-        "Moroso"      => "#FBE9E7",
+        "Incobrable"  => "#FBE9E7",
         "No emitido"  => "#ECEFF1",
-        _             => "#FFFFFF"
+        _             => "#ECEFF1" // estado inesperado: pill neutro visible (antes #FFFFFF se perdía sobre fondo blanco)
     };
 
     internal static string Foreground(string? estado) => estado switch
@@ -53,7 +53,7 @@ internal static class EstadoReciboColorHelper
         "Vencido"     => "#C62828",
         "Anulado"     => "#616161",
         "Pendiente"   => "#E65100",
-        "Moroso"      => "#BF360C",
+        "Incobrable"  => "#BF360C",
         "No emitido"  => "#607D8B",
         _             => "#212121"
     };

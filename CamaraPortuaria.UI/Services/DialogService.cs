@@ -1,11 +1,8 @@
-using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using CamaraPortuaria.UI.Dialogs;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models;
-using PuertoBB.Services.Common;
 
 namespace CamaraPortuaria.UI.Services;
 
@@ -42,33 +39,10 @@ public class DialogService : IDialogService
         return ShowAsync(dialog, dialog.Result);
     }
 
-    public async Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null)
+    public Task ShowPdfAsync(byte[] pdfBytes, string titulo, string? nombreArchivo = null)
     {
-        // Cámara Portuaria aún no tiene visor embebido: abre el PDF en el visor externo del sistema.
-        // Subdir único para que el archivo conserve el nombre lindo sin chocar con otros.
-        LimpiarPreviewsViejos();
-        var carpeta = Path.Combine(Path.GetTempPath(), $"pbb_preview_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(carpeta);
-        var ruta = Path.Combine(carpeta, $"{Formato.NombreArchivoSeguro(nombreArchivo)}.pdf");
-        await File.WriteAllBytesAsync(ruta, pdfBytes);
-        Process.Start(new ProcessStartInfo(ruta) { UseShellExecute = true });
-    }
-
-    /// <summary>P3-15 (parcial): borra los subdirectorios de preview de corridas anteriores (> 1 día).</summary>
-    private static void LimpiarPreviewsViejos()
-    {
-        try
-        {
-            var limite = DateTime.Now.AddDays(-1);
-            foreach (var dir in Directory.EnumerateDirectories(Path.GetTempPath(), "pbb_preview_*"))
-                try
-                {
-                    if (Directory.GetCreationTime(dir) < limite)
-                        Directory.Delete(dir, recursive: true);
-                }
-                catch { /* archivo en uso por el visor: se reintenta en la próxima corrida */ }
-        }
-        catch { /* nunca romper la preview por la limpieza */ }
+        var dialog = new PdfPreviewDialog(pdfBytes, titulo, nombreArchivo);
+        return ShowAsync(dialog, dialog.Result);
     }
 
     public Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
@@ -77,6 +51,14 @@ public class DialogService : IDialogService
         IReadOnlyList<string> conceptos)
     {
         var dialog = new EmisionIndividualDialog(labelEntidad, entidades, conceptos);
+        return ShowAsync(dialog, dialog.Result);
+    }
+
+    public Task<IReadOnlyList<ReciboLineaInput>?> ShowEditarReciboAsync(
+        IReadOnlyList<ReciboLineaInput> lineasActuales,
+        IReadOnlyList<string> conceptos)
+    {
+        var dialog = new EditarReciboDialog(lineasActuales, conceptos);
         return ShowAsync(dialog, dialog.Result);
     }
 

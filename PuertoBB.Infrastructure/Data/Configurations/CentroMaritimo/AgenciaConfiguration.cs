@@ -13,7 +13,6 @@ public class AgenciaConfiguration : IEntityTypeConfiguration<Agencia>
         b.Property(a => a.RazonSocial).IsRequired().HasMaxLength(200);
         b.Property(a => a.Cuit).IsRequired().HasMaxLength(13);
         b.Property(a => a.Domicilio).HasMaxLength(300);
-        b.Property(a => a.EsMoroso).HasDefaultValue(false);
         b.HasIndex(a => a.Cuit);
 
         b.HasMany(a => a.Emails).WithOne(x => x.Agencia).HasForeignKey(x => x.AgenciaId).OnDelete(DeleteBehavior.Cascade);

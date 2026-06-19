@@ -39,7 +39,7 @@ public class EmisionMasivaViewModel : PageViewModel
     public int MesIndex
     {
         get => _mesIndex;
-        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; _ = CargarEstadoAsync(); } }
+        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; CargarSeguro(CargarEstadoAsync); } }
     }
 
     private int _mes = DateTime.Today.Month;
@@ -48,14 +48,14 @@ public class EmisionMasivaViewModel : PageViewModel
     public int Anio
     {
         get => _anio;
-        set { if (SetField(ref _anio, value)) _ = CargarEstadoAsync(); }
+        set { if (SetField(ref _anio, value)) CargarSeguro(CargarEstadoAsync); }
     }
 
     private GrupoFacturacion? _grupo;
     public GrupoFacturacion? Grupo
     {
         get => _grupo;
-        set { if (SetField(ref _grupo, value)) _ = CargarEstadoAsync(); }
+        set { if (SetField(ref _grupo, value)) CargarSeguro(CargarEstadoAsync); }
     }
 
     private EmisionMasivaItem? _seleccionado;
@@ -76,6 +76,7 @@ public class EmisionMasivaViewModel : PageViewModel
     public ICommand EmitirCommand { get; }
     public ICommand EnviarCommand { get; }
     public ICommand PrevisualizarCommand { get; }
+    public ICommand EliminarCommand { get; }
 
     public EmisionMasivaViewModel(
         ICentroMaritimoReciboService service,
@@ -92,13 +93,14 @@ public class EmisionMasivaViewModel : PageViewModel
 
         EmitirTodosCommand = new AsyncRelayCommand(() => EmitirTodosAsync(enviarMail: false), () => Grupo is not null);
         EmitirYEnviarTodosCommand = new AsyncRelayCommand(() => EmitirTodosAsync(enviarMail: true), () => Grupo is not null);
-        EnviarTodosCommand = new AsyncRelayCommand(EnviarTodosAsync, () => Grupo is not null);
+        EnviarTodosCommand = new AsyncRelayCommand(EnviarTodosAsync, () => Grupo is not null && Items.Any(i => i.EsEnviable));
 
         EmitirCommand = new AsyncRelayCommand(EmitirSeleccionadoAsync, () => Seleccionado?.EsEmitible == true);
         EnviarCommand = new AsyncRelayCommand(EnviarSeleccionadoAsync, () => Seleccionado?.EsEnviable == true);
         PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarSeleccionadoAsync, () => Seleccionado?.EsPrevisualizable == true);
+        EliminarCommand = new AsyncRelayCommand(EliminarSeleccionadoAsync, () => Seleccionado?.EsEliminable == true);
 
-        _ = CargarGruposAsync();
+        CargarSeguro(CargarGruposAsync);
     }
 
     private async Task CargarGruposAsync()
@@ -124,79 +126,100 @@ public class EmisionMasivaViewModel : PageViewModel
             if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo cargar el estado del grupo."); return; }
 
             foreach (var e in res.Data)
-                Items.Add(new EmisionMasivaItem(e.EntidadId, e.EntidadNombre, e.Recibo));
+                Items.Add(new EmisionMasivaItem(e.EntidadId, e.EntidadNombre, e.Recibo, e.ImporteEsperado));
 
             var total = Items.Count;
             var emitidos = Items.Count(i => i.CaeOk);
             Resumen = $"{total} miembro(s) · {emitidos} emitido(s) · {total - emitidos} sin emitir";
             HayItems = total > 0;
+            CommandManager.InvalidateRequerySuggested();
         }
         catch (OperationCanceledException) { }
     }
 
     private async Task EmitirTodosAsync(bool enviarMail)
     {
-        if (Grupo is null) return;
+        if (Grupo is not { } grupo) return;
         var pregunta = enviarMail
-            ? $"¿Emitir y enviar los recibos del grupo «{Grupo.Nombre}» de {Formato.Periodo(_anio, _mes)} a cada agencia?"
-            : $"¿Emitir (obtener CAE) los recibos pendientes del grupo «{Grupo.Nombre}» de {Formato.Periodo(_anio, _mes)}? No se enviarán por mail.";
+            ? $"¿Emitir y enviar los recibos del grupo «{grupo.Nombre}» de {Formato.Periodo(_anio, _mes)} a cada agencia?"
+            : $"¿Emitir (obtener CAE) los recibos pendientes del grupo «{grupo.Nombre}» de {Formato.Periodo(_anio, _mes)}? No se enviarán por mail.";
         if (!await _dialog.ShowConfirmAsync(enviarMail ? "Emitir y enviar" : "Emitir", pregunta)) return;
 
-        await EjecutarMasivoAsync(() => _service.EmitirMasivoAsync(Grupo.Id, _anio, _mes, enviarMail),
+        // Idempotente: lo ya emitido/enviado se omite (no falla). Si hay ya enviados, preguntar si reenviarlos.
+        var reenviar = false;
+        if (enviarMail)
+        {
+            var yaEnviados = Items.Count(i => i.MailEnviado);
+            if (yaEnviados > 0)
+                reenviar = await _dialog.ShowConfirmAsync("Reenviar comprobantes",
+                    $"{yaEnviados} recibo(s) del grupo ya fueron enviados por mail. ¿Reenviarlos también?",
+                    "Reenviar todos", "Solo lo pendiente");
+        }
+
+        await EjecutarMasivoAsync(
+            enviarMail ? "Emitiendo y enviando" : "Emitiendo",
+            (progreso, ct) => _service.EmitirMasivoAsync(grupo.Id, _anio, _mes, enviarMail, reenviar, progreso, ct),
             enviarMail ? "Emisión y envío" : "Emisión");
     }
 
     private async Task EnviarTodosAsync()
     {
-        if (Grupo is null) return;
+        if (Grupo is not { } grupo) return;
         if (!await _dialog.ShowConfirmAsync("Enviar",
-                $"¿Enviar por mail los recibos ya emitidos del grupo «{Grupo.Nombre}» de {Formato.Periodo(_anio, _mes)} que aún no se enviaron?")) return;
+                $"¿Enviar por mail los recibos ya emitidos del grupo «{grupo.Nombre}» de {Formato.Periodo(_anio, _mes)} que aún no se enviaron?")) return;
 
-        await EjecutarMasivoAsync(() => _service.EnviarMasivoAsync(Grupo.Id, _anio, _mes), "Envío");
+        await EjecutarMasivoAsync(
+            "Enviando",
+            (progreso, ct) => _service.EnviarMasivoAsync(grupo.Id, _anio, _mes, progreso, ct),
+            "Envío");
     }
 
-    private async Task EjecutarMasivoAsync(Func<Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>>> operacion, string accion)
+    private async Task EjecutarMasivoAsync(
+        string titulo,
+        Func<IProgress<ProgresoMasivo>, CancellationToken, Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>>> operacion,
+        string accion)
     {
         LimpiarStatus();
-        IsBusy = true;
-        try
-        {
-            var res = await operacion();
-            if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo completar la operación."); return; }
+        var res = await EjecutarConProgresoAsync(titulo, operacion);
+        if (res is null) { await CargarEstadoAsync(); return; }   // cancelado por el usuario
+        if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo completar la operación."); return; }
 
-            var datos = res.Data!;
-            var ok = datos.Count(r => r.Exito);
-            var fallidos = datos.Where(r => !r.Exito).ToList();
-            var primerError = fallidos.FirstOrDefault()?.ErrorEmision ?? "Error desconocido.";
+        var datos = res.Data!;
+        var ok = datos.Count(r => r.Exito);
+        var omitidos = datos.Count(r => r.Omitido);                       // ya completos: NO son error
+        var fallidos = datos.Where(r => !r.Exito && !r.Omitido).ToList();
+        var primerError = fallidos.FirstOrDefault()?.ErrorEmision ?? "Error desconocido.";
 
-            if (datos.Count == 0) MostrarError("No había nada para procesar en el período.");
-            else if (ok == 0) MostrarError($"{accion} fallida: {fallidos.Count} omitido(s)/con error. {primerError}");
-            else if (fallidos.Count > 0) MostrarAdvertencia($"{accion} parcial: {ok} ok, {fallidos.Count} omitido(s)/con error. Primer error: {primerError}");
-            else MostrarExito($"{accion} finalizada: {ok} ok.");
-            await CargarEstadoAsync();
-        }
-        finally { IsBusy = false; }
+        if (datos.Count == 0)
+            MostrarError("No había nada para procesar en el período.");
+        else if (fallidos.Count == 0)                                     // sin errores reales: éxito (aunque haya omitidos)
+            MostrarExito(omitidos > 0
+                ? $"{accion} finalizada: {ok} procesado(s), {omitidos} ya estaba(n) al día."
+                : $"{accion} finalizada: {ok} ok.");
+        else if (ok == 0 && omitidos == 0)
+            MostrarError($"{accion} fallida: {fallidos.Count} con error. {primerError}");
+        else
+            MostrarAdvertencia($"{accion} parcial: {ok} ok, {omitidos} ya estaba(n), {fallidos.Count} con error. Primer error: {primerError}");
+        await CargarEstadoAsync();
     }
 
     private async Task EmitirSeleccionadoAsync()
     {
-        if (Grupo is null || Seleccionado is null) return;
+        if (Grupo is not { } grupo || Seleccionado is not { } sel) return;
         LimpiarStatus();
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Emitiendo recibo", async () =>
         {
-            // Sin recibo aún → crear y emitir; ya existe (Pendiente) → reintentar el CAE. En ambos casos sin mail.
-            var res = Seleccionado.ReciboId is int reciboId
-                ? await _service.ReintentarAsync(reciboId, enviarMail: false)
-                : await _service.EmitirDeGrupoAsync(Grupo.Id, Seleccionado.EntidadId, _anio, _mes, enviarMail: false);
+            // Siempre vía el grupo: re-sincroniza importe/líneas del grupo ACTUAL antes de (re)intentar el CAE,
+            // así un Pendiente trabado por datos viejos (p. ej. monto cero ya corregido en el grupo) se recupera.
+            // (EmitirDeGrupoAsync sirve para "sin recibo" y para "Pendiente existente".)
+            var res = await _service.EmitirDeGrupoAsync(grupo.Id, sel.EntidadId, _anio, _mes, enviarMail: false);
 
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo emitir."); return; }
             var r = res.Data!;
             if (r.Exito) MostrarExito($"Recibo emitido (Nro. {r.NumeroComprobante}).");
             else MostrarError(r.ErrorEmision ?? "No se pudo emitir.");
             await CargarEstadoAsync();
-        }
-        finally { IsBusy = false; }
+        });
     }
 
     private async Task EnviarSeleccionadoAsync()
@@ -212,29 +235,45 @@ public class EmisionMasivaViewModel : PageViewModel
         }
 
         LimpiarStatus();
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Enviando", async () =>
         {
             var res = await _service.ReenviarMailAsync(reciboId);
             if (res.Success) MostrarExito("Mail enviado correctamente.");
             else MostrarError(res.ErrorMessage ?? "No se pudo enviar el mail.");
             await CargarEstadoAsync();
-        }
-        finally { IsBusy = false; }
+        });
+    }
+
+    private async Task EliminarSeleccionadoAsync()
+    {
+        if (Seleccionado is not { ReciboId: int reciboId } sel) return;
+        if (!await _dialog.ShowConfirmAsync("Eliminar recibo",
+                $"¿Eliminar el recibo Pendiente de {sel.Agencia}? No tiene CAE y esta acción no se puede deshacer.",
+                "Eliminar", "Cancelar")) return;
+
+        LimpiarStatus();
+        await EjecutarOcupadoAsync("Eliminando recibo", async () =>
+        {
+            var res = await _service.EliminarReciboPendienteAsync(reciboId);
+            if (res.Success) MostrarExito("Recibo eliminado.");
+            else MostrarError(res.ErrorMessage ?? "No se pudo eliminar.");
+            await CargarEstadoAsync();
+        });
     }
 
     private async Task PrevisualizarSeleccionadoAsync()
     {
-        if (Seleccionado?.ReciboId is not int reciboId) return;
-        var recibo = await _recibosRepo.GetConDetalleAsync(reciboId);
-        if (recibo is null) { MostrarError("El recibo no se encontró."); return; }
-        IsBusy = true;
-        try
+        if (Seleccionado is not { ReciboId: int reciboId } sel) return;
+        await EjecutarOcupadoAsync("Generando PDF", async () =>
         {
-            var bytes = await _pdf.GenerarPdfReciboAsync(recibo);
-            await _dialog.ShowPdfAsync(bytes, $"Recibo {Seleccionado.Comprobante}", $"Recibo_{Seleccionado.Agencia}_{Seleccionado.Comprobante}");
-        }
-        catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
-        finally { IsBusy = false; }
+            var recibo = await _recibosRepo.GetConDetalleAsync(reciboId);
+            if (recibo is null) { MostrarError("El recibo no se encontró."); return; }
+            try
+            {
+                var bytes = await _pdf.GenerarPdfReciboAsync(recibo);
+                await _dialog.ShowPdfAsync(bytes, $"Recibo {sel.Comprobante}", $"Recibo_{sel.Agencia}_{sel.Comprobante}");
+            }
+            catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
+        });
     }
 }

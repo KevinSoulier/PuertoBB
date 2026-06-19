@@ -16,6 +16,9 @@ public class WsaaSoapClient : IWsaaClient
     {
         var url = usarHomologacion ? UrlHomologacion : UrlProduccion;
         var client = new LoginCMSClient(LoginCMSClient.EndpointConfiguration.LoginCms, new EndpointAddress(url));
+        // Timeout explícito (en vez del default de WCF): un WSAA lento falla en un tiempo acotado y diagnosticable.
+        var b = client.Endpoint.Binding;
+        b.SendTimeout = b.ReceiveTimeout = b.OpenTimeout = b.CloseTimeout = TimeSpan.FromSeconds(60);
         try
         {
             var respuesta = await client.loginCmsAsync(cmsFirmadoBase64);

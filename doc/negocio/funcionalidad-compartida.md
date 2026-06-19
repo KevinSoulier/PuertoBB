@@ -26,7 +26,6 @@ El **Grupo de Facturación** es el concepto central de la emisión masiva:
 
 - Alta, baja y modificación de Empresas (Cámara) o Agencias (Centro).
 - CUIT validado con dígito verificador (pesos 5,4,3,2,7,6,5,4,3,2) al guardar.
-- `EsMoroso` es un flag manual que se muestra en la lista; no bloquea la emisión.
 - ABM de Grupos de Facturación: crear grupos, asignar/quitar integrantes, definir ítems.
 
 ## Emisión de recibos
@@ -44,16 +43,22 @@ El **Grupo de Facturación** es el concepto central de la emisión masiva:
 
 ## Estados de recibo
 
+El recibo tiene **un solo estado de flujo persistido** (`EstadoFiscal`: Pendiente → Emitido → Anulado). El envío del mail y el cobro se **derivan** de fechas, no se guardan como estado. La grilla los muestra en **dos columnas**: `Estado` (fiscal + cobro) y `Envío` (solo mail).
+
+**Columna `Estado`** (prioridad Anulado → Incobrable → Pagado → Pendiente → Vencido → Emitido):
+
 | Estado | Color de fondo | Significado |
 | --- | --- | --- |
 | Pendiente | `#FFF3E0` (naranja claro) | Creado; CAE pendiente (reintentable) |
-| Emitido | `#E3F2FD` (azul claro) | CAE obtenido; mail no enviado aún |
-| Enviado | `#FFF9C4` (amarillo claro) | Mail enviado exitosamente |
-| Pagado | `#E8F5E9` (verde claro) | Laura lo marcó como cobrado |
-| Vencido | `#FFEBEE` (rojo claro) | Calculado en presentación (no persistido) |
+| Emitido | `#E3F2FD` (azul claro) | CAE obtenido |
+| Vencido | `#FFEBEE` (rojo claro) | Emitido, impago y pasada la fecha de vencimiento (derivado) |
+| Pagado | `#E8F5E9` (verde claro) | Marcado como cobrado (`FechaPago`) |
+| Incobrable | `#FBE9E7` (rojo grisáceo) | Deuda dada de baja (`FechaIncobrable`); reemplaza al viejo flag "Moroso" de empresa |
 | Anulado | `#F5F5F5` (gris claro) | Anulado con NC |
 
-"Vencido" no es un estado persistido: se calcula visualmente cuando `FechaVencimientoPago < hoy` y el estado es `Emitido` o `Enviado` (un `Pendiente` sin CAE no se considera vencido; `Pagado`/`Anulado` tampoco). Implementado en `EstadoReciboHelper`.
+**Columna `Envío`** (solo mail, derivada de `FechaEnvioMail`/`UltimoErrorMail`): `Enviado` (`#E0F7FA`, cian) / `Sin enviar` / `Mail falló` / `—` (sin CAE o anulado).
+
+"Vencido", "Pagado", "Incobrable" y el estado de envío **no** son valores persistidos: se derivan en `EstadoReciboHelper` a partir de `EstadoFiscal` + las fechas. "Vencido" requiere `EstadoFiscal == Emitido`, pendiente de cobro (ni pagado ni incobrable) y `FechaVencimientoPago < hoy`.
 
 ## Integración AFIP/ARCA
 
@@ -74,7 +79,7 @@ El **Grupo de Facturación** es el concepto central de la emisión masiva:
 
 - Laura marca manualmente un recibo como **Pagado** desde la vista de recibos o el dashboard.
 - Al marcar como pagado se registra la `FechaPago`.
-- `FechaVencimientoPago` = `FechaEmision` + `DiasVencimiento` (configurable, ej. 30 días).
+- `FechaVencimientoPago` = `FechaEmision` + `DiasVencimiento` (configurable, default 15 días). Lo fija el emisor, no AFIP (ver [`../integraciones/afip.md`](../integraciones/afip.md)).
 - **"Vencido" no es un estado persistido** — se calcula visualmente.
 
 ## Dashboard de pendientes

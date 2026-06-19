@@ -43,12 +43,27 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         q = q.Where(r => r.EmpresaId == empresaId && r.PeriodoAnio == anio && r.PeriodoMes == mes);
         return grupoId is int gid
             ? q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid)
-            : q.Where(r => r.EmisionGrupo == null && r.Estado == Core.Enums.ReciboEstado.Pendiente);
+            : q.Where(r => r.EmisionGrupo == null && r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente);
+    }
+
+    public async Task EliminarPendienteAsync(int reciboId, CancellationToken ct = default)
+    {
+        var recibo = await _db.Recibos
+            .Include(r => r.Lineas)
+            .Include(r => r.EmisionGrupo)
+            .FirstOrDefaultAsync(r => r.Id == reciboId, ct);
+        if (recibo is null) return;
+
+        // Remover explícitamente los dependientes (no dependemos de la config de cascade del modelo).
+        if (recibo.EmisionGrupo is not null) _db.Remove(recibo.EmisionGrupo);
+        _db.RemoveRange(recibo.Lineas);
+        _db.Recibos.Remove(recibo);
+        await GuardarAsync(ct);
     }
 
     public async Task AnularConNotaAsync(Recibo recibo, Core.Entities.CamaraPortuaria.NotaDeCredito nota, CancellationToken ct = default)
     {
-        recibo.Estado = Core.Enums.ReciboEstado.Anulado;
+        recibo.EstadoFiscal = Core.Enums.EstadoFiscal.Anulado;
         recibo.UpdatedAt = DateTime.Now;
         nota.CreatedAt = DateTime.Now;
         _db.Set<Core.Entities.CamaraPortuaria.NotaDeCredito>().Add(nota);
@@ -71,13 +86,14 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         if (f.PeriodoMes is int mes)          q = q.Where(r => r.PeriodoMes == mes);
         if (f.GrupoFacturacionId is int gid)  q = q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid);
         if (f.EntidadId is int eid)           q = q.Where(r => r.EmpresaId == eid);
-        if (f.Estado is { } estado)           q = q.Where(r => r.Estado == estado);
-        if (f.ExcluirMorosos)                  q = q.Where(r => !r.Empresa.EsMoroso);
+        if (f.Estado is { } estado)           q = q.Where(r => r.EstadoFiscal == estado);
+        if (f.ExcluirIncobrables)              q = q.Where(r => r.FechaIncobrable == null);
 
         var hoy = DateTime.Today;
         if (f.SoloVencidos)
             q = q.Where(r => r.FechaVencimientoPago < hoy &&
-                             (r.Estado == Core.Enums.ReciboEstado.Emitido || r.Estado == Core.Enums.ReciboEstado.Enviado));
+                             r.EstadoFiscal == Core.Enums.EstadoFiscal.Emitido &&
+                             r.FechaPago == null && r.FechaIncobrable == null);
 
         return await q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Empresa.Nombre).ToListAsync(ct);
     }

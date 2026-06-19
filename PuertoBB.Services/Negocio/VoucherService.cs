@@ -107,7 +107,7 @@ public class VoucherService : IVoucherService
                                .ToList();
                 var reciboConsolidado = recibos.Count == 1 ? recibos[0] : null;
 
-                var estado = MapEstado(reciboConsolidado?.Estado);
+                var estado = MapEstado(reciboConsolidado);
 
                 var vouchers = g.OrderBy(v => v.Numero)
                                 .Select(v => new VoucherCierreVm(
@@ -133,15 +133,16 @@ public class VoucherService : IVoucherService
         return ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>.Ok(agencias);
     }
 
-    private static EstadoCierreAgencia MapEstado(ReciboEstado? estadoRecibo) => estadoRecibo switch
+    // Resumen derivado del consolidado (no es un estado persistido paralelo): el eje fiscal + si ya
+    // se envió el mail o se cobró. "Completo" = enviado o pagado.
+    private static EstadoCierreAgencia MapEstado(Recibo? recibo) => recibo switch
     {
-        null                  => EstadoCierreAgencia.Pendiente,
-        ReciboEstado.Emitido  => EstadoCierreAgencia.Emitido,
-        ReciboEstado.Enviado  => EstadoCierreAgencia.Completo,
-        ReciboEstado.Pagado   => EstadoCierreAgencia.Completo,
+        null                                      => EstadoCierreAgencia.Pendiente,
         // Decisión: un consolidado Anulado vuelve a figurar como Pendiente para permitir reemitir el período.
-        // (Si en el futuro se quiere distinguirlo visualmente, agregar un estado "Anulado" a EstadoCierreAgencia.)
-        ReciboEstado.Anulado  => EstadoCierreAgencia.Pendiente,
-        _                     => EstadoCierreAgencia.Pendiente
+        { EstadoFiscal: EstadoFiscal.Anulado }    => EstadoCierreAgencia.Pendiente,
+        { EstadoFiscal: EstadoFiscal.Pendiente }  => EstadoCierreAgencia.Pendiente,
+        { FechaEnvioMail: not null }              => EstadoCierreAgencia.Completo,
+        { FechaPago: not null }                   => EstadoCierreAgencia.Completo,
+        _                                         => EstadoCierreAgencia.Emitido
     };
 }

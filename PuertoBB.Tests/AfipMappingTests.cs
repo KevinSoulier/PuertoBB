@@ -3,9 +3,40 @@ using Afip.Abstractions;
 using Afip.Soap;
 using Afip.Soap.Wsfe;
 using Afip.Wsaa;
+using PuertoBB.Services.Common;
 using Xunit;
 
 namespace PuertoBB.Tests;
+
+/// <summary>
+/// Contrato de <see cref="Formato.ParseReceptorDoc"/>: única fuente de verdad del documento del
+/// receptor. Tanto la request a WSFE (AfipService.ToAfipRequest) como el QR del PDF
+/// (CentroMaritimo/CamaraPortuariaPdfService) derivan (DocTipo, DocNro) de acá, así no pueden
+/// divergir y romper la validación del QR ("tipo y número de documento del receptor no se corresponde").
+/// </summary>
+public class FormatoReceptorDocTests
+{
+    [Theory]
+    [InlineData("30711234561", 80, 30711234561L)]   // CUIT real → 80
+    [InlineData("30-71123456-1", 80, 30711234561L)] // con guiones/espacios → mismos dígitos
+    public void ParseReceptorDoc_ConCuit_DevuelveTipo80(string cuit, int tipoEsperado, long nroEsperado)
+    {
+        var (tipo, nro) = Formato.ParseReceptorDoc(cuit);
+        Assert.Equal(tipoEsperado, tipo);
+        Assert.Equal(nroEsperado, nro);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ParseReceptorDoc_SinCuit_ConsumidorFinal_99Cero(string? cuit)
+    {
+        var (tipo, nro) = Formato.ParseReceptorDoc(cuit);
+        Assert.Equal(99, tipo);   // Consumidor Final (no 80+0, que AFIP rechaza para tipo C)
+        Assert.Equal(0L, nro);
+    }
+}
 
 public class WsfeMapperRequestTests
 {

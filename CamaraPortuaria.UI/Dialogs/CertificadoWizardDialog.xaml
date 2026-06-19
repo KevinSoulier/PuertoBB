@@ -34,11 +34,11 @@
             <TextBlock x:Name="ErrorText" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                        TextWrapping="Wrap" Margin="0,0,0,12" Visibility="Collapsed"/>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <WrapPanel HorizontalAlignment="Right">
                 <Button x:Name="CancelarButton" Content="Cancelar" MinWidth="90" Margin="0,0,8,0" Click="Cancelar_Click"/>
                 <Button x:Name="FinalizarButton" Content="Usar esta clave" MinWidth="120" Click="Finalizar_Click"
                         IsEnabled="False" Style="{DynamicResource AccentButtonStyle}"/>
-            </StackPanel>
+            </WrapPanel>
         </StackPanel>
     </Border>
 </UserControl>

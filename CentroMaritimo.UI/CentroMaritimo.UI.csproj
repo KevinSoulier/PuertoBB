@@ -5,6 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\app.ico" />
+    <!-- Logo del emisor embebido para comprobante/voucher (lo lee AfipConfigProvider) -->
+    <EmbeddedResource Include="Resources\CMBB_Logo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\PuertoBB.Core\PuertoBB.Core.csproj" />
     <ProjectReference Include="..\PuertoBB.Services\PuertoBB.Services.csproj" />
     <ProjectReference Include="..\PuertoBB.Infrastructure\PuertoBB.Infrastructure.csproj" />
@@ -20,6 +26,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <Version>1.0.0</Version>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>

@@ -16,4 +16,10 @@ public interface IConfiguracionRepository
     Task EliminarPuntoDeVentaAsync(int id, CancellationToken ct = default);
     /// <summary>Marca el punto de venta indicado como activo y desactiva el resto.</summary>
     Task MarcarPuntoDeVentaActivoAsync(int id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<CuentaCorreo>> GetCuentasCorreoAsync(CancellationToken ct = default);
+    Task<CuentaCorreo> GuardarCuentaCorreoAsync(CuentaCorreo cuenta, CancellationToken ct = default);
+    Task EliminarCuentaCorreoAsync(int id, CancellationToken ct = default);
+    /// <summary>Marca la cuenta de correo indicada como activa y desactiva el resto.</summary>
+    Task MarcarCuentaCorreoActivaAsync(int id, CancellationToken ct = default);
 }

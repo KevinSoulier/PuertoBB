@@ -13,7 +13,6 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         b.Property(e => e.RazonSocial).IsRequired().HasMaxLength(200);
         b.Property(e => e.Cuit).IsRequired().HasMaxLength(13);
         b.Property(e => e.Domicilio).HasMaxLength(300);
-        b.Property(e => e.EsMoroso).HasDefaultValue(false);
         b.HasIndex(e => e.Cuit);
 
         b.HasMany(e => e.Emails).WithOne(x => x.Empresa).HasForeignKey(x => x.EmpresaId).OnDelete(DeleteBehavior.Cascade);

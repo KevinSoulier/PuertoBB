@@ -34,7 +34,7 @@ public class AgenciasViewModel : PageViewModel
     public Agencia? Seleccionada
     {
         get => _seleccionada;
-        set { if (SetField(ref _seleccionada, value) && value is not null) _ = MostrarAsync(value.Id); }
+        set { if (SetField(ref _seleccionada, value) && value is not null) CargarSeguro(() => MostrarAsync(value.Id)); }
     }
 
     public string NombreEdit { get; set; } = string.Empty;
@@ -73,7 +73,7 @@ public class AgenciasViewModel : PageViewModel
         CancelarCommand = new RelayCommand(_ => Cancelar(), _ => EnEdicion);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionada is not null && !EnEdicion);
         ValidarCuitCommand = new AsyncRelayCommand(ValidarCuitAsync, () => EnEdicion && !string.IsNullOrWhiteSpace(CuitEdit));
-        _ = CargarListaAsync();
+        CargarSeguro(CargarListaAsync);
     }
 
     /// <summary>Consulta la constancia de inscripción en ARCA y autocompleta razón social,
@@ -93,7 +93,7 @@ public class AgenciasViewModel : PageViewModel
         if (!string.IsNullOrWhiteSpace(c.RazonSocial)) RazonSocialEdit = c.RazonSocial;
         if (!string.IsNullOrWhiteSpace(c.Domicilio)) DomicilioEdit = c.Domicilio;
         if (c.CondicionIvaId is not null) CondicionIvaIdEdit = c.CondicionIvaId;
-        Notificar();
+        NotificarEdicion();
 
         if (c.Observaciones.Count > 0)
             await _dialog.ShowAlertAsync("Padrón ARCA", string.Join("\n", c.Observaciones));
@@ -128,7 +128,7 @@ public class AgenciasViewModel : PageViewModel
         _seleccionada = null;
         OnPropertyChanged(nameof(Seleccionada));
         TomarSnapshot();
-        Notificar();
+        NotificarEdicion();
         EnEdicion = true;
         LimpiarStatus();
     }
@@ -157,7 +157,7 @@ public class AgenciasViewModel : PageViewModel
             CondicionIvaIdEdit = _snapCondicionIvaId;
             EmailsEdit = _snapEmails;
         }
-        Notificar();
+        NotificarEdicion();
         EnEdicion = false;
         LimpiarStatus();
     }
@@ -183,7 +183,7 @@ public class AgenciasViewModel : PageViewModel
         DomicilioEdit = a.Domicilio ?? string.Empty;
         CondicionIvaIdEdit = a.CondicionIvaId;
         EmailsEdit = string.Join(Environment.NewLine, a.Emails.Select(x => x.Email));
-        Notificar();
+        NotificarEdicion();
     }
 
     private async Task AceptarAsync()
@@ -192,23 +192,31 @@ public class AgenciasViewModel : PageViewModel
         if (string.IsNullOrWhiteSpace(CuitEdit)) { MostrarError("El CUIT es obligatorio."); return; }
         if (!CuitValidator.EsValido(CuitEdit)) { MostrarError("El CUIT no es válido."); return; }
 
-        var emails = EmailsEdit.Split(['\n', '\r', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().ToList();
-        var esAlta = _editId == 0;
-        var nueva = esAlta ? new Agencia
-        {
-            Nombre = NombreEdit.Trim(),
-            RazonSocial = RazonSocialEdit.Trim(),
-            Cuit = CuitEdit.Trim(),
-            Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
-            CondicionIvaId = CondicionIvaIdEdit,
-            Activa = true,
-            Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
-        } : null!;
+        // El CUIT no debería repetirse, pero se permiten excepciones: avisar y dejar continuar.
+        var cuitDigitos = new string(CuitEdit.Where(char.IsDigit).ToArray());
+        var duplicada = _todasLasAgencias.FirstOrDefault(a => a.Id != _editId
+            && new string(a.Cuit.Where(char.IsDigit).ToArray()) == cuitDigitos);
+        if (duplicada is not null && !await _dialog.ShowConfirmAsync("CUIT duplicado",
+                $"Ya existe «{duplicada.Nombre}» con el CUIT {CuitEdit.Trim()}. ¿Guardar de todos modos?", "Guardar igual", "Cancelar"))
+            return;
+
+        var emails = ParsearEmails();
         try
         {
-            if (esAlta)
+            if (_editId == 0)
             {
+                var nueva = new Agencia
+                {
+                    Nombre = NombreEdit.Trim(),
+                    RazonSocial = RazonSocialEdit.Trim(),
+                    Cuit = CuitEdit.Trim(),
+                    Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
+                    CondicionIvaId = CondicionIvaIdEdit,
+                    Activa = true,
+                    Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
+                };
                 await _repo.AddAsync(nueva);
+                _editId = nueva.Id;
                 MostrarExito("Agencia creada.");
             }
             else
@@ -226,14 +234,17 @@ public class AgenciasViewModel : PageViewModel
                 await _repo.UpdateAsync(existente);
                 MostrarExito("Agencia actualizada.");
             }
-            var idGuardado = esAlta ? nueva.Id : _editId;
+            var idGuardado = _editId;
             await CargarListaAsync();
             var guardada = AgenciasFiltradas.FirstOrDefault(a => a.Id == idGuardado)
                            ?? _todasLasAgencias.FirstOrDefault(a => a.Id == idGuardado);
             if (guardada is not null) { _seleccionada = guardada; OnPropertyChanged(nameof(Seleccionada)); }
             EnEdicion = false;
         }
-        catch (Exception ex) { MostrarError($"No se pudo guardar: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            MostrarError($"No se pudo guardar: {ex.Message}");
+        }
     }
 
     private async Task EliminarAsync()
@@ -250,14 +261,18 @@ public class AgenciasViewModel : PageViewModel
             CondicionIvaIdEdit = null;
             _seleccionada = null;
             OnPropertyChanged(nameof(Seleccionada));
-            Notificar();
+            NotificarEdicion();
             EnEdicion = false;
             await CargarListaAsync();
         }
         catch (Exception ex) { MostrarError($"No se pudo eliminar (¿tiene recibos/vouchers?): {ex.Message}"); }
     }
 
-    private void Notificar()
+    private List<string> ParsearEmails()
+        => EmailsEdit.Split(['\n', '\r', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct().ToList();
+
+    private void NotificarEdicion()
     {
         OnPropertyChanged(nameof(NombreEdit));
         OnPropertyChanged(nameof(RazonSocialEdit));

@@ -34,7 +34,7 @@ public class EmpresasViewModel : PageViewModel
     public Empresa? Seleccionada
     {
         get => _seleccionada;
-        set { if (SetField(ref _seleccionada, value) && value is not null) _ = MostrarAsync(value.Id); }
+        set { if (SetField(ref _seleccionada, value) && value is not null) CargarSeguro(() => MostrarAsync(value.Id)); }
     }
 
     public string NombreEdit { get; set; } = string.Empty;
@@ -73,7 +73,7 @@ public class EmpresasViewModel : PageViewModel
         CancelarCommand = new RelayCommand(_ => Cancelar(), _ => EnEdicion);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionada is not null && !EnEdicion);
         ValidarCuitCommand = new AsyncRelayCommand(ValidarCuitAsync, () => EnEdicion && !string.IsNullOrWhiteSpace(CuitEdit));
-        _ = CargarListaAsync();
+        CargarSeguro(CargarListaAsync);
     }
 
     /// <summary>Consulta la constancia de inscripción en ARCA y autocompleta razón social,
@@ -191,6 +191,14 @@ public class EmpresasViewModel : PageViewModel
         if (string.IsNullOrWhiteSpace(NombreEdit)) { MostrarError("El nombre es obligatorio."); return; }
         if (string.IsNullOrWhiteSpace(CuitEdit)) { MostrarError("El CUIT es obligatorio."); return; }
         if (!CuitValidator.EsValido(CuitEdit)) { MostrarError("El CUIT no es válido."); return; }
+
+        // El CUIT no debería repetirse, pero se permiten excepciones: avisar y dejar continuar.
+        var cuitDigitos = new string(CuitEdit.Where(char.IsDigit).ToArray());
+        var duplicada = _todasLasEmpresas.FirstOrDefault(e => e.Id != _editId
+            && new string(e.Cuit.Where(char.IsDigit).ToArray()) == cuitDigitos);
+        if (duplicada is not null && !await _dialog.ShowConfirmAsync("CUIT duplicado",
+                $"Ya existe «{duplicada.Nombre}» con el CUIT {CuitEdit.Trim()}. ¿Guardar de todos modos?", "Guardar igual", "Cancelar"))
+            return;
 
         var emails = ParsearEmails();
         try

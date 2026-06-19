@@ -32,13 +32,13 @@ public class CierrePeriodoViewModel : PageViewModel
             .ToList();
 
     private int _anio = DateTime.Today.Year;
-    public int Anio { get => _anio; set { if (SetField(ref _anio, value)) _ = CargarAsync(); } }
+    public int Anio { get => _anio; set { if (SetField(ref _anio, value)) CargarSeguro(CargarAsync); } }
 
     private int _mesIndex = DateTime.Today.Month - 1;
     public int MesIndex
     {
         get => _mesIndex;
-        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; _ = CargarAsync(); } }
+        set { if (SetField(ref _mesIndex, value)) { _mes = value + 1; CargarSeguro(CargarAsync); } }
     }
 
     private int _mes = DateTime.Today.Month;
@@ -96,44 +96,40 @@ public class CierrePeriodoViewModel : PageViewModel
             CerrarPeriodoAsync,
             () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Pendiente || a.ReciboId is not null));
 
-        _ = CargarAsync();
+        CargarSeguro(CargarAsync);
     }
 
     private async Task EmitirReciboAgenciaAsync(AgenciaCierrePeriodoVm? agencia)
     {
-        if (agencia is null) return;
+        if (agencia is not { } ag) return;
         if (!await _dialog.ShowConfirmAsync("Generar recibo",
-                $"Se generará el recibo AFIP de {agencia.AgenciaNombre} ({agencia.Vouchers.Count} voucher(s), {Formato.Moneda(agencia.Total)}). El mail NO se enviará aún. ¿Continuar?")) return;
+                $"Se generará el recibo AFIP de {ag.AgenciaNombre} ({ag.Vouchers.Count} voucher(s), {Formato.Moneda(ag.Total)}). El mail NO se enviará aún. ¿Continuar?")) return;
 
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Emitiendo recibo", async () =>
         {
-            var res = await _reciboService.EmitirReciboAgenciaAsync(agencia.AgenciaId, Anio, _mes);
+            var res = await _reciboService.EmitirReciboAgenciaAsync(ag.AgenciaId, Anio, _mes);
             if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo generar el recibo."); return; }
 
             var r = res.Data;
             if (!r.Exito) MostrarError(r.ErrorEmision ?? "No se pudo generar el recibo.");
             else MostrarExito($"Recibo de {r.AgenciaNombre} emitido en AFIP (Nro. {r.NumeroComprobante}). Pendiente de envío.");
-        }
-        finally { IsBusy = false; }
+        });
 
         await CargarAsync();
     }
 
     private async Task EnviarMailAgenciaAsync(AgenciaCierrePeriodoVm? agencia)
     {
-        if (agencia is null || agencia.ReciboId is null) return;
+        if (agencia is not { ReciboId: int reciboId } ag) return;
         if (!await _dialog.ShowConfirmAsync("Enviar mail",
-                $"Se enviará el PDF del recibo consolidado de {agencia.AgenciaNombre}. ¿Continuar?")) return;
+                $"Se enviará el PDF del recibo consolidado de {ag.AgenciaNombre}. ¿Continuar?")) return;
 
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Enviando mail", async () =>
         {
-            var res = await _reciboService.ReenviarMailAsync(agencia.ReciboId.Value);
+            var res = await _reciboService.ReenviarMailAsync(reciboId);
             if (!res.Success) MostrarError(res.ErrorMessage ?? "No se pudo enviar el mail.");
-            else MostrarExito($"Mail enviado correctamente para {agencia.AgenciaNombre}.");
-        }
-        finally { IsBusy = false; }
+            else MostrarExito($"Mail enviado correctamente para {ag.AgenciaNombre}.");
+        });
 
         await CargarAsync();
     }
@@ -146,15 +142,13 @@ public class CierrePeriodoViewModel : PageViewModel
         if (!await _dialog.ShowConfirmAsync("Emitir recibos",
                 $"Se generarán los recibos AFIP para {pendientes} agencia(s) pendiente(s) del período {Formato.Periodo(Anio, _mes)}. Los mails NO se enviarán. ¿Continuar?")) return;
 
-        IsBusy = true;
-        try
+        var res = await EjecutarConProgresoAsync("Emitiendo recibos",
+            (progreso, ct) => _reciboService.EmitirRecibosPeriodoAsync(Anio, _mes, progreso, ct));
+        if (res is not null)
         {
-            var res = await _reciboService.EmitirRecibosPeriodoAsync(Anio, _mes);
-            if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo emitir los recibos."); return; }
-
-            MostrarResultadoMasivo(res.Data, "Emisión", "Pendientes de envío por mail.");
+            if (!res.Success || res.Data is null) MostrarError(res.ErrorMessage ?? "No se pudo emitir los recibos.");
+            else MostrarResultadoMasivo(res.Data, "Emisión", "Pendientes de envío por mail.");
         }
-        finally { IsBusy = false; }
 
         await CargarAsync();
     }
@@ -196,16 +190,18 @@ public class CierrePeriodoViewModel : PageViewModel
     }
 
     /// <summary>Reenvía el mail del recibo de cada agencia (siempre, sin importar si ya fue enviado) y resume el resultado.</summary>
-    private async Task ReenviarMailsAsync(IReadOnlyList<AgenciaCierrePeriodoVm> conRecibo)
-    {
-        IsBusy = true;
-        int ok = 0;
-        var errores = new List<string>();
-        try
+    private Task ReenviarMailsAsync(IReadOnlyList<AgenciaCierrePeriodoVm> conRecibo)
+        => EjecutarConProgresoAsync("Enviando mails", async (progreso, ct) =>
         {
+            int ok = 0;
+            var errores = new List<string>();
+            var total = conRecibo.Count;
+            var i = 0;
             foreach (var agencia in conRecibo)
             {
-                var res = await _reciboService.ReenviarMailAsync(agencia.ReciboId!.Value);
+                ct.ThrowIfCancellationRequested();
+                progreso.Report(new ProgresoMasivo(++i, total, agencia.AgenciaNombre));
+                var res = await _reciboService.ReenviarMailAsync(agencia.ReciboId!.Value, ct);
                 if (res.Success) ok++;
                 else errores.Add($"{agencia.AgenciaNombre}: {res.ErrorMessage ?? "error desconocido"}");
             }
@@ -213,9 +209,7 @@ public class CierrePeriodoViewModel : PageViewModel
             if (errores.Count == 0) MostrarExito($"Mails enviados correctamente: {ok} agencia(s).");
             else if (ok == 0) MostrarError($"No se pudo enviar ningún mail ({errores.Count} con error). {errores[0]}");
             else MostrarAdvertencia($"Envío parcial: {ok} correctos, {errores.Count} con error. Primer error: {errores[0]}");
-        }
-        finally { IsBusy = false; }
-    }
+        });
 
     private async Task CerrarPeriodoAsync()
     {
@@ -227,15 +221,13 @@ public class CierrePeriodoViewModel : PageViewModel
             if (!await _dialog.ShowConfirmAsync("Cerrar período",
                     $"Se generará un recibo consolidado para {pendientes} agencia(s) pendiente(s) del período {Formato.Periodo(Anio, _mes)} y se enviarán por mail. ¿Continuar?")) return;
 
-            IsBusy = true;
-            try
+            var res = await EjecutarConProgresoAsync("Cerrando período",
+                (progreso, ct) => _reciboService.CerrarPeriodoAsync(Anio, _mes, progreso, ct));
+            if (res is not null)
             {
-                var res = await _reciboService.CerrarPeriodoAsync(Anio, _mes);
-                if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo cerrar el período."); return; }
-
-                MostrarResultadoMasivo(res.Data, "Cierre", "Mails enviados.");
+                if (!res.Success || res.Data is null) MostrarError(res.ErrorMessage ?? "No se pudo cerrar el período.");
+                else MostrarResultadoMasivo(res.Data, "Cierre", "Mails enviados.");
             }
-            finally { IsBusy = false; }
 
             await CargarAsync();
             return;
@@ -255,8 +247,7 @@ public class CierrePeriodoViewModel : PageViewModel
     private async Task CargarAsync()
     {
         LimpiarStatus();
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Cargando", async () =>
         {
             var res = await _voucherService.GetCierrePeriodoAsync(Anio, _mes);
             Agencias.Clear();
@@ -271,8 +262,7 @@ public class CierrePeriodoViewModel : PageViewModel
             foreach (var a in res.Data) Agencias.Add(a);
             TotalPeriodo = Agencias.Sum(a => a.Total);
             Resumen = ArmarResumen(Agencias);
-        }
-        finally { IsBusy = false; }
+        });
     }
 
     private static string ArmarResumen(IEnumerable<AgenciaCierrePeriodoVm> agencias)
@@ -288,46 +278,48 @@ public class CierrePeriodoViewModel : PageViewModel
 
     private async Task DescargarPdfAsync(AgenciaCierrePeriodoVm? agencia)
     {
-        if (agencia is null) return;
+        if (agencia is not { } ag) return;
 
         var dlg = new SaveFileDialog
         {
             Filter = "PDF (*.pdf)|*.pdf",
-            FileName = $"{NombreArchivoAgencia(agencia)}.pdf"
+            FileName = $"{NombreArchivoAgencia(ag)}.pdf"
         };
         if (dlg.ShowDialog() != true) return;
 
-        IsBusy = true;
-        try
+        await EjecutarOcupadoAsync("Generando PDF", async () =>
         {
-            var bytes = await GenerarPdfAgenciaAsync(agencia);
-            if (bytes is null) return;
+            try
+            {
+                var bytes = await GenerarPdfAgenciaAsync(ag);
+                if (bytes is null) return;
 
-            await File.WriteAllBytesAsync(dlg.FileName, bytes);
-            MostrarExito($"PDF generado: {Path.GetFileName(dlg.FileName)}");
-        }
-        catch (Exception ex)
-        {
-            MostrarError($"No se pudo generar el PDF: {ex.Message}");
-        }
-        finally { IsBusy = false; }
+                await File.WriteAllBytesAsync(dlg.FileName, bytes);
+                MostrarExito($"PDF generado: {Path.GetFileName(dlg.FileName)}");
+            }
+            catch (Exception ex)
+            {
+                MostrarError($"No se pudo generar el PDF: {ex.Message}");
+            }
+        });
     }
 
     private async Task PrevisualizarPdfAsync(AgenciaCierrePeriodoVm? agencia)
     {
-        if (agencia is null) return;
+        if (agencia is not { } ag) return;
 
-        byte[]? bytes;
-        IsBusy = true;
-        try { bytes = await GenerarPdfAgenciaAsync(agencia); }
-        catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); return; }
-        finally { IsBusy = false; }
+        byte[]? bytes = null;
+        await EjecutarOcupadoAsync("Generando PDF", async () =>
+        {
+            try { bytes = await GenerarPdfAgenciaAsync(ag); }
+            catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
+        });
 
         if (bytes is null) return;
-        var titulo = agencia.ReciboId is not null
-            ? $"Recibo consolidado — {agencia.AgenciaNombre}"
-            : $"Vouchers — {agencia.AgenciaNombre}";
-        await _dialog.ShowPdfAsync(bytes, titulo, NombreArchivoAgencia(agencia));
+        var titulo = ag.ReciboId is not null
+            ? $"Recibo consolidado — {ag.AgenciaNombre}"
+            : $"Vouchers — {ag.AgenciaNombre}";
+        await _dialog.ShowPdfAsync(bytes, titulo, NombreArchivoAgencia(ag));
     }
 
     private string NombreArchivoAgencia(AgenciaCierrePeriodoVm agencia)

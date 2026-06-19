@@ -12,8 +12,9 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
         b.Property(r => r.Importe).HasColumnType("TEXT");
         b.Property(r => r.Detalle).HasMaxLength(2000); // unificado con CM (F-02)
         b.Property(r => r.CAE).HasMaxLength(20);
-        b.Property(r => r.Estado).HasConversion<string>().HasMaxLength(20);
+        b.Property(r => r.EstadoFiscal).HasConversion<string>().HasMaxLength(20);
         b.Property(r => r.TipoComprobante).HasConversion<string>().HasMaxLength(20);
+        b.Property(r => r.MotivoIncobrable).HasMaxLength(300);
 
         // Snapshot fiscal del receptor (copiado al emitir)
         b.Property(r => r.ReceptorNombre).IsRequired().HasMaxLength(200);

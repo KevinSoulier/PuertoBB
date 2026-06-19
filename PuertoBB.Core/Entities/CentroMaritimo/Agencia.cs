@@ -11,7 +11,6 @@ public class Agencia : BaseEntity
     public string? Domicilio     { get; set; }
     public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor), ej. 1 = IVA Responsable Inscripto
     public bool    Activa        { get; set; } = true;
-    public bool    EsMoroso      { get; set; } = false;
 
     public ICollection<EmailAgencia> Emails   { get; set; } = [];
     public ICollection<AgenciaGrupo> Grupos   { get; set; } = [];

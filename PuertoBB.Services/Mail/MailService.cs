@@ -11,6 +11,10 @@ namespace PuertoBB.Services.Mail;
 /// <summary>Envío de comprobantes por SMTP con MailKit. Lee la config vigente de la app.</summary>
 public class MailService : IMailService
 {
+    // MailKit aplica este timeout por operación de socket. El default (2 min) se queda corto
+    // subiendo adjuntos grandes (PDF consolidado de varios MB) por conexiones lentas.
+    private const int SmtpTimeoutMs = 300_000; // 5 min
+
     private readonly IMailConfigProvider _configProvider;
     private readonly IMailTokenProvider _tokenProvider;
     private readonly ILogger<MailService> _logger;
@@ -28,6 +32,7 @@ public class MailService : IMailService
         string nombreAdjunto,
         string asunto,
         string cuerpo,
+        string? cuerpoHtml = null,
         CancellationToken ct = default)
     {
         var config = await _configProvider.GetAsync(ct);
@@ -63,10 +68,11 @@ public class MailService : IMailService
             mensaje.Subject = asunto;
 
             var builder = new BodyBuilder { TextBody = cuerpo };
+            if (!string.IsNullOrWhiteSpace(cuerpoHtml)) builder.HtmlBody = cuerpoHtml;
             builder.Attachments.Add(nombreAdjunto, pdfAdjunto, ContentType.Parse("application/pdf"));
             mensaje.Body = builder.ToMessageBody();
 
-            using var client = new SmtpClient();
+            using var client = new SmtpClient { Timeout = SmtpTimeoutMs };
             await client.ConnectAsync(config.SmtpHost!, config.SmtpPort, ResolverOpciones(config), ct);
             await AutenticarAsync(client, config, ct);
             await client.SendAsync(mensaje, ct);
@@ -78,13 +84,18 @@ public class MailService : IMailService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Falló el envío de mail: {Asunto}", asunto);
-            return ServiceResult<bool>.Fail($"No se pudo enviar el mail: {MapearErrorSmtp(ex)}");
+            return ServiceResult<bool>.Fail($"No se pudo enviar el mail: {MailErrores.Describir(ex, ct.IsCancellationRequested)}");
         }
     }
 
     public async Task<ServiceResult<string>> ProbarConexionAsync(CancellationToken ct = default)
     {
         var config = await _configProvider.GetAsync(ct);
+        return await ProbarConexionAsync(config, ct);
+    }
+
+    public async Task<ServiceResult<string>> ProbarConexionAsync(MailConfig config, CancellationToken ct = default)
+    {
         if (!config.EstaConfigurado)
             return ServiceResult<string>.Fail("Configure el servidor y el email remitente antes de probar.");
         if (!MailboxAddress.TryParse(config.EmailRemitente?.Trim(), out _))
@@ -93,7 +104,7 @@ public class MailService : IMailService
 
         try
         {
-            using var client = new SmtpClient();
+            using var client = new SmtpClient { Timeout = SmtpTimeoutMs };
             await client.ConnectAsync(config.SmtpHost!, config.SmtpPort, ResolverOpciones(config), ct);
             await AutenticarAsync(client, config, ct);
             await client.DisconnectAsync(true, ct);
@@ -104,7 +115,7 @@ public class MailService : IMailService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Falló prueba SMTP: {Host}:{Port}", config.SmtpHost, config.SmtpPort);
-            return ServiceResult<string>.Fail($"No se pudo conectar: {MapearErrorSmtp(ex)}");
+            return ServiceResult<string>.Fail($"No se pudo conectar: {MailErrores.Describir(ex, ct.IsCancellationRequested)}");
         }
     }
 
@@ -141,7 +152,4 @@ public class MailService : IMailService
         SmtpSeguridad.None         => SecureSocketOptions.None,
         _                          => SecureSocketOptions.StartTlsWhenAvailable
     };
-
-    /// <summary>Traduce errores SMTP conocidos a un mensaje accionable (ver <see cref="MailErrores"/>).</summary>
-    private static string MapearErrorSmtp(Exception ex) => MailErrores.Describir(ex.Message);
 }
