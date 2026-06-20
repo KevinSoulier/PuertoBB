@@ -3,7 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:controls="clr-namespace:CamaraPortuaria.UI.Controls"
-      Title="Control de pagos">
+      Title="Control">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -11,9 +11,10 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Control de pagos" Style="{StaticResource PageTitle}" />
+        <TextBlock Grid.Row="0" Text="Control" Style="{StaticResource PageTitle}" />
 
         <!-- Fila de filtros -->
         <WrapPanel Grid.Row="2" Margin="0,0,0,8">
@@ -93,6 +94,25 @@
             </DataGrid>
         </Grid>
 
-        <controls:BusyOverlay Grid.RowSpan="5" />
+        <!-- Fila de paginado -->
+        <WrapPanel Grid.Row="5" Margin="0,12,0,0" VerticalAlignment="Center">
+            <ui:Button Content="« Primera" Command="{Binding PrimeraCommand}" Margin="0,0,4,0"
+                       ToolTip="Primera página" />
+            <ui:Button Content="‹ Anterior" Command="{Binding AnteriorCommand}" Margin="0,0,4,0"
+                       ToolTip="Página anterior" />
+            <TextBlock VerticalAlignment="Center" Margin="8,0">
+                <Run Text="Página " /><Run Text="{Binding PaginaActual, Mode=OneWay}" /><Run Text=" de " /><Run Text="{Binding TotalPaginas, Mode=OneWay}" />
+            </TextBlock>
+            <ui:Button Content="Siguiente ›" Command="{Binding SiguienteCommand}" Margin="4,0,4,0"
+                       ToolTip="Página siguiente" />
+            <ui:Button Content="Última »" Command="{Binding UltimaCommand}" Margin="0,0,16,0"
+                       ToolTip="Última página" />
+            <TextBlock Text="Por página:" VerticalAlignment="Center" Margin="0,0,6,0"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <ComboBox ItemsSource="{Binding TamaniosPagina}" SelectedItem="{Binding TamanioPagina}"
+                      Width="80" VerticalAlignment="Center" />
+        </WrapPanel>
+
+        <controls:BusyOverlay Grid.RowSpan="6" />
     </Grid>
 </Page>

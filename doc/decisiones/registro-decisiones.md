@@ -748,3 +748,45 @@ monto antes de emitir para detectar el cero. Editar/eliminar dan salida directa 
 `EliminarReciboPendiente_BorraSinCae_YRechazaConCae`.
 
 **Docs:** `doc/diseño/emision-masiva.md`.
+
+---
+
+## D-32 — Recibo consolidado complementario (vouchers olvidados tras emitir, CM)
+
+**Decisión:** Permitir **más de un consolidado de vouchers por `(Agencia, Período)`** cuando los anteriores
+**ya tienen CAE**. Si después de emitir aparece un voucher olvidado (se carga libre, `ReciboId IS NULL`),
+volver a **Emitir/Cerrar** genera un **recibo consolidado complementario** —comprobante adicional con su
+propio número y CAE, solo por los vouchers libres— y **deja intacto el original** (sin Nota de Crédito).
+
+**Cambio de invariante:** de *"un consolidado no anulado por período"* a **"un solo consolidado *Pendiente*
+(sin CAE) por período; varios con CAE"**. Se materializa cambiando el filtro del índice único parcial de
+`Recibo` de `EsConsolidadoVouchers=1 AND EstadoFiscal<>'Anulado'` a
+`EsConsolidadoVouchers=1 AND EstadoFiscal='Pendiente'`.
+
+**Motivo:** Antes, agregar un voucher olvidado a un período ya emitido obligaba a **anular** el consolidado
+(emite NC, libera todos los vouchers) y **reemitir todo** → 3 documentos a la agencia por un solo voucher.
+El complementario lo resuelve con un comprobante adicional. La anulación+reemisión sigue disponible para
+**corregir/eliminar** vouchers ya consolidados.
+
+**Cómo cae solo:** `GetPendientesByPeriodoAsync` ya excluye vouchers consolidados, así que la rama de
+"nuevo consolidado" de `ProcesarCierreAgenciaAsync` sirve para la 1ª emisión y para el complementario sin
+ramas nuevas. Se renombró `IReciboRepository.GetConsolidadoAsync` → **`GetConsolidadoPendienteAsync`**
+(filtro `EstadoFiscal==Pendiente`; el target de reintento) y se quitó el corte `EsCompleto → Omitida`.
+
+**Estado en UI:** una agencia es **Pendiente** si tiene vouchers libres (1ª emisión o complementario);
+`AgenciaCierrePeriodoVm` ahora expone la lista `Consolidados` (0..n) y cada `VoucherCierreVm` su comprobante
+(o "Libre"). La página de Cierre tiene acciones de PDF/mail **por recibo** en el detalle y, por fila, emisión
+de los vouchers libres (la confirmación avisa cuando será complementario).
+
+**Migración:** se editó la `Inicial` de `CentroMaritimoDbContext` (filtro del índice) — convención de una
+migración por contexto (D-24/D-19); se respaldó la `.db` de dev para que `MigrateAsync` la recree.
+
+**Tests:** `EmitirRecibos_VoucherOlvidadoTrasConsolidadoConCae_CreaComplementario`,
+`GetCierrePeriodo_ConsolidadoEmitidoMasVoucherLibre_QuedaPendiente`.
+
+**Alcance:** `PuertoBB.Core` (`AgenciaCierrePeriodoVm`/`ConsolidadoCierreVm`/`VoucherCierreVm`,
+`IReciboRepository`), `PuertoBB.Services` (`CentroMaritimoReciboService`, `VoucherService`),
+`PuertoBB.Infrastructure` (`ReciboRepository`, `ReciboConfiguration`, migración `Inicial` CM),
+`CentroMaritimo.UI` (`CierrePeriodoViewModel` + `CierrePeriodoPage.xaml`).
+
+**Docs:** `doc/negocio/cierre-periodo.md`, `doc/usuario/manual-centro-maritimo.md`, `doc/arquitectura/flujos.md`.

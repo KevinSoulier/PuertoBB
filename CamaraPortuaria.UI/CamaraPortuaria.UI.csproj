@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- appsettings.json es solo para desarrollo (prende MailMockService/AfipMockService).
+         CopyToPublishDirectory=Never lo excluye del publish: el .exe distribuido va sin él y
+         corre en producción por los defaults (ambos mocks en false). -->
+    <Content Include="appsettings.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <ItemGroup>

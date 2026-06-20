@@ -84,4 +84,7 @@ public interface ICentroMaritimoReciboService
     Task<ServiceResult<bool>> QuitarIncobrableAsync(int reciboId, CancellationToken ct = default);
 
     Task<ServiceResult<IReadOnlyList<Recibo>>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
+
+    /// <summary>Una página de recibos para la sección "Control" (paginado server-side).</summary>
+    Task<ServiceResult<PaginaResultado<Recibo>>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default);
 }

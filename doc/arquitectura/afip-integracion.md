@@ -325,13 +325,14 @@ dotnet-svcutil "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"   -n "*,Af
 **Selector de modo AFIP:** se configura en `appsettings.json` de cada app → `PuertoBB:Afip` (`Mock` | `Real`),
 leído en `App.xaml.cs` (enum `AfipModo`):
 
-| Valor | Servicio registrado | Requiere cert | Llama a AFIP |
+| `AfipMockService` | Servicio registrado | Requiere cert | Llama a AFIP |
 |---|---|---|---|
-| `Mock` | `Afip.Net.Mock` (mapper/WsfeService/caché reales, clientes SOAP simulados) | No | No |
-| `Real` | `AfipService` → WSAA + WSFE | Sí | Sí |
+| `true` | `Afip.Net.Mock` (mapper/WsfeService/caché reales, clientes SOAP simulados) | No | No |
+| `false` | `AfipService` → WSAA + WSFE | Sí | Sí |
 
-**Activar AFIP real:** poner `"Afip": "Real"` en el `appsettings.json` de cada app (activado el 2026-06-12
-para la validación en homologación). `ModoDemo` es independiente y controla solo Mail fake + seed.
+**Activar AFIP real:** poner `"AfipMockService": false` en el `appsettings.json` de cada app (default).
+`MailMockService` es independiente (controla solo el Mail fake); el seed + rótulo "MODO DEMO" se activan
+si cualquiera de los dos mocks está en `true`.
 Luego, en Configuración: cargar el `.p12`, su contraseña, el CUIT emisor y el punto de venta habilitado
 como "Exento en IVA - Web Services", elegir ambiente y usar **Probar conexión**.
 

@@ -7,7 +7,7 @@ autenticación (Ninguna / Básica / **OAuth2**) y el modelo **multi-cuenta**. La
 ## Arquitectura
 
 ```
-IMailService           → MailService (MailKit SMTP)  |  FakeMailService (ModoDemo: escribe el PDF a disco)
+IMailService           → MailService (MailKit SMTP)  |  FakeMailService (MailMockService: escribe el PDF a disco)
 IMailConfigProvider    → MailConfigProvider (mapea la CuentaCorreo activa → MailConfig)
 IMailTokenProvider     → OAuthTokenProvider (access token XOAUTH2; cachea y renueva)
 IOAuthInteractiveFlow  → OAuthInteractiveFlow (consentimiento interactivo: auth-code + PKCE + loopback)

@@ -310,8 +310,6 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Cuit");
-
                     b.ToTable("Empresas");
                 });
 
@@ -635,6 +633,8 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
+
+                    b.HasIndex("PeriodoAnio", "PeriodoMes");
 
                     b.HasIndex("PuntoDeVenta", "NumeroComprobante", "CodigoAfip")
                         .IsUnique()

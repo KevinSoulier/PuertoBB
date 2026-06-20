@@ -3,6 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:controls="clr-namespace:CentroMaritimo.UI.Controls"
+      xmlns:behaviors="clr-namespace:CentroMaritimo.UI.Behaviors"
       Title="Cierre de período">
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -34,7 +35,7 @@
             </ui:Button>
             <ui:Button Content="Enviar mails" Command="{Binding EnviarMailsCommand}"
                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
-                       ToolTip="Envía el mail con el PDF consolidado a todas las agencias con recibo emitido.">
+                       ToolTip="Envía el mail con el PDF consolidado de todos los recibos del período.">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Cerrar período" Command="{Binding CerrarCommand}"
@@ -54,19 +55,20 @@
             </TextBlock>
         </StackPanel>
 
-        <!-- Grilla por agencia con sublista de vouchers -->
+        <!-- Grilla por agencia con sublista de vouchers y recibos -->
         <Grid Grid.Row="3">
             <DataGrid ItemsSource="{Binding Agencias}" AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
                       RowDetailsVisibilityMode="VisibleWhenSelected"
                       SelectionMode="Single" SelectionUnit="FullRow"
+                      ScrollViewer.CanContentScroll="False"
                       RowHeight="40" MinColumnWidth="60">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Agencia" Binding="{Binding AgenciaNombre}" Width="*" />
-                    <DataGridTextColumn Header="Vouchers" Binding="{Binding Vouchers.Count}" Width="90" />
+                    <DataGridTextColumn Header="Vouchers" Binding="{Binding Vouchers.Count}" Width="80" />
                     <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C2}" Width="120" />
-                    <DataGridTextColumn Header="Nro. comp." Binding="{Binding NumeroComprobante}" Width="100" />
-                    <DataGridTemplateColumn Header="Estado" Width="160">
+                    <DataGridTextColumn Header="Recibos" Binding="{Binding Consolidados.Count}" Width="80" />
+                    <DataGridTemplateColumn Header="Estado" Width="150">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border Background="{Binding Estado, Converter={StaticResource EstadoCierreToBrushConverter}}"
@@ -78,33 +80,27 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Acciones" Width="230">
+                    <DataGridTemplateColumn Header="Acciones (vouchers libres)" Width="200">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <WrapPanel>
-                                    <ui:Button Command="{Binding DataContext.PrevisualizarPdfCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                <WrapPanel VerticalAlignment="Center">
+                                    <ui:Button Command="{Binding DataContext.PrevisualizarLibresCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
-                                               ToolTip="Previsualizar PDF">
+                                               ToolTip="Previsualizar PDF de los vouchers libres">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Command="{Binding DataContext.DescargarPdfCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                    <ui:Button Command="{Binding DataContext.DescargarLibresCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
-                                               ToolTip="Descargar PDF">
+                                               ToolTip="Descargar PDF de los vouchers libres">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Command="{Binding DataContext.EmitirReciboAgenciaCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}" Appearance="Primary" Margin="0,0,6,6"
-                                               ToolTip="Generar recibo en AFIP (sin enviar mail)">
+                                               ToolTip="Generar recibo en AFIP por los vouchers libres (complementario si ya hay uno)">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentBulletList24" /></ui:Button.Icon>
-                                    </ui:Button>
-                                    <ui:Button Command="{Binding DataContext.EnviarMailAgenciaCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                               CommandParameter="{Binding}"
-                                               Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
-                                               ToolTip="Enviar mail con PDF consolidado">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </WrapPanel>
                             </DataTemplate>
@@ -120,7 +116,7 @@
                                 Background="{DynamicResource LayerFillColorDefaultBrush}"
                                 CornerRadius="8">
                             <StackPanel>
-                                <TextBlock Text="Vouchers incluidos" FontWeight="SemiBold" FontSize="12"
+                                <TextBlock Text="Vouchers del período" FontWeight="SemiBold" FontSize="12"
                                            Margin="0,0,0,10"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <DataGrid ItemsSource="{Binding Vouchers}" AutoGenerateColumns="False"
@@ -130,6 +126,7 @@
                                           RowHeight="36"
                                           MinColumnWidth="60"
                                           HorizontalScrollBarVisibility="Disabled"
+                                          behaviors:MouseWheel.BubbleToParent="True"
                                           SelectionMode="Single">
                                     <DataGrid.Resources>
                                         <Style x:Key="CeldaVoucher" TargetType="TextBlock">
@@ -146,8 +143,81 @@
                                                             ElementStyle="{StaticResource CeldaVoucher}" />
                                         <DataGridTextColumn Header="Importe" Binding="{Binding Importe, StringFormat=C2}" Width="130"
                                                             ElementStyle="{StaticResource CeldaVoucher}" />
+                                        <DataGridTextColumn Header="Comprobante" Binding="{Binding ComprobanteTexto}" Width="120"
+                                                            ElementStyle="{StaticResource CeldaVoucher}" />
                                     </DataGrid.Columns>
                                 </DataGrid>
+
+                                <!-- Recibos consolidados emitidos (original + complementarios) -->
+                                <StackPanel Margin="0,16,0,0"
+                                            Visibility="{Binding TieneConsolidados, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock Text="Recibos emitidos" FontWeight="SemiBold" FontSize="12"
+                                               Margin="0,0,0,10"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <DataGrid ItemsSource="{Binding Consolidados}" AutoGenerateColumns="False"
+                                              IsReadOnly="True" HeadersVisibility="Column"
+                                              GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                                              Background="Transparent"
+                                              RowHeight="40"
+                                              MinColumnWidth="60"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              behaviors:MouseWheel.BubbleToParent="True"
+                                              SelectionMode="Single">
+                                        <DataGrid.Resources>
+                                            <Style x:Key="CeldaRecibo" TargetType="TextBlock">
+                                                <Setter Property="Margin" Value="8,0" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGrid.Resources>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Nro. comp." Binding="{Binding NumeroComprobante}" Width="110"
+                                                                ElementStyle="{StaticResource CeldaRecibo}" />
+                                            <DataGridTextColumn Header="Vouchers" Binding="{Binding CantVouchers}" Width="90"
+                                                                ElementStyle="{StaticResource CeldaRecibo}" />
+                                            <DataGridTextColumn Header="Importe" Binding="{Binding Importe, StringFormat=C2}" Width="130"
+                                                                ElementStyle="{StaticResource CeldaRecibo}" />
+                                            <DataGridTemplateColumn Header="Estado" Width="140">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="{Binding Estado, Converter={StaticResource EstadoCierreToBrushConverter}}"
+                                                                CornerRadius="10" Padding="10,3" HorizontalAlignment="Left"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Estado, Converter={StaticResource EstadoCierreToTextoConverter}}"
+                                                                       FontSize="11" FontWeight="SemiBold"
+                                                                       Foreground="{Binding Estado, Converter={StaticResource EstadoCierreToFgBrushConverter}}" />
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Acciones" Width="180">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <WrapPanel VerticalAlignment="Center">
+                                                            <ui:Button Command="{Binding DataContext.PrevisualizarReciboCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                       CommandParameter="{Binding}"
+                                                                       Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,0"
+                                                                       ToolTip="Previsualizar PDF del recibo">
+                                                                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+                                                            </ui:Button>
+                                                            <ui:Button Command="{Binding DataContext.DescargarReciboCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                       CommandParameter="{Binding}"
+                                                                       Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,0"
+                                                                       ToolTip="Descargar PDF del recibo">
+                                                                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
+                                                            </ui:Button>
+                                                            <ui:Button Command="{Binding DataContext.EnviarMailReciboCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                       CommandParameter="{Binding}"
+                                                                       Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,0"
+                                                                       ToolTip="Enviar mail con el PDF del recibo">
+                                                                <ui:Button.Icon><ui:SymbolIcon Symbol="Mail24" /></ui:Button.Icon>
+                                                            </ui:Button>
+                                                        </WrapPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </DataTemplate>

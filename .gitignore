@@ -187,6 +187,9 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# Salida de publish.ps1 (autoejecutables single-file)
+dist/
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml

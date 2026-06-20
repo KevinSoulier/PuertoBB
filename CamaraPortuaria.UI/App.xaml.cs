@@ -23,36 +23,28 @@ using Wpf.Ui.DependencyInjection;
 
 namespace CamaraPortuaria.UI;
 
-/// <summary>Modo de integración AFIP para esta app.</summary>
-public enum AfipModo
-{
-    /// <summary>Afip.Net.Mock — mapper/WsfeService/caché reales, sin red ni certificado.</summary>
-    Mock,
-    /// <summary>WSAA + WSFE reales. Requiere certificado .p12 configurado.</summary>
-    Real,
-}
-
 public partial class App : Application
 {
     private IHost _host = null!;
     private ILogger<App>? _logger;
 
     /// <summary>
-    /// Modo desarrollo/demo: usa servicio de Mail falso y siembra datos de ejemplo.
-    /// Configurable en appsettings.json → PuertoBB:ModoDemo.
+    /// Usa FakeMailService en lugar de MailKit (no envía correo real).
+    /// Configurable en appsettings.json → PuertoBB:MailMockService. Default: false (correo real).
     /// </summary>
-    public static bool ModoDemo { get; private set; } = true;
+    public static bool MailMockService { get; private set; }
 
     /// <summary>
-    /// Fuerza el envío de mail real (MailKit) aunque <see cref="ModoDemo"/> sea true, para poder
-    /// probar el envío con datos sembrados. Configurable en appsettings.json → PuertoBB:MailReal.
+    /// Usa el stack AFIP mock (Afip.Net.Mock, sin red ni certificado) en lugar de WSAA/WSFE reales.
+    /// Configurable en appsettings.json → PuertoBB:AfipMockService. Default: false (AFIP real).
     /// </summary>
-    public static bool MailReal { get; private set; }
+    public static bool AfipMockService { get; private set; }
 
     /// <summary>
-    /// Modo de integración AFIP. Configurable en appsettings.json → PuertoBB:Afip (Mock|Real).
+    /// Modo demo = cualquiera de los dos mocks activo. Controla la siembra de datos de ejemplo
+    /// (SeedData) y el rótulo "— MODO DEMO" en el título de la ventana.
     /// </summary>
-    public static AfipModo Afip { get; private set; } = AfipModo.Mock;
+    public static bool ModoDemo => MailMockService || AfipMockService;
 
     private static string AppDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PuertoBB", "CamaraPortuaria");
@@ -70,9 +62,8 @@ public partial class App : Application
             var cfg = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true).Build();
-            ModoDemo = cfg.GetValue("PuertoBB:ModoDemo", true);
-            MailReal = cfg.GetValue("PuertoBB:MailReal", false);
-            Afip     = Enum.TryParse<AfipModo>(cfg["PuertoBB:Afip"], out var m) ? m : AfipModo.Mock;
+            MailMockService = cfg.GetValue("PuertoBB:MailMockService", false);
+            AfipMockService = cfg.GetValue("PuertoBB:AfipMockService", false);
 
             _host = Host.CreateDefaultBuilder()
                 .ConfigureLogging(logging =>
@@ -110,11 +101,11 @@ public partial class App : Application
         services.AddCamaraPortuariaInfrastructure(dbPath);
         services.AddCamaraPortuariaServices();
         services.AddPuertoBBPdf();
-        if (Afip == AfipModo.Real)
-            services.AddPuertoBBAfip(ticketCacheDir: Path.Combine(AppDataDir, "afip-ticket-cache"));
-        else
+        if (AfipMockService)
             services.AddPuertoBBAfipMock();
-        services.AddPuertoBBMail(usarFake: ModoDemo && !MailReal);
+        else
+            services.AddPuertoBBAfip(ticketCacheDir: Path.Combine(AppDataDir, "afip-ticket-cache"));
+        services.AddPuertoBBMail(usarFake: MailMockService);
 
         services.AddTransient<IAfipConfigProvider, AfipConfigProvider>();
         services.AddTransient<IMailConfigProvider, MailConfigProvider>();

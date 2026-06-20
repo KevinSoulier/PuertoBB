@@ -13,7 +13,8 @@ public class AgenciaConfiguration : IEntityTypeConfiguration<Agencia>
         b.Property(a => a.RazonSocial).IsRequired().HasMaxLength(200);
         b.Property(a => a.Cuit).IsRequired().HasMaxLength(13);
         b.Property(a => a.Domicilio).HasMaxLength(300);
-        b.HasIndex(a => a.Cuit);
+        // Sin índice por Cuit: la búsqueda y el chequeo de duplicado son en memoria (UI), y se permiten
+        // CUIT repetidos a propósito; ninguna consulta SQL filtra por Cuit.
 
         b.HasMany(a => a.Emails).WithOne(x => x.Agencia).HasForeignKey(x => x.AgenciaId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(a => a.Grupos).WithOne(x => x.Agencia).HasForeignKey(x => x.AgenciaId).OnDelete(DeleteBehavior.Cascade);

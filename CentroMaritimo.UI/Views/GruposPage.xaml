@@ -74,6 +74,7 @@
                                                                      RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                            CommandParameter="{Binding}"
                                                            Style="{StaticResource AccionIconButtonCompact}"
+                                                           VerticalAlignment="Center"
                                                            ToolTip="Quitar este ítem">
                                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                                                 </ui:Button>
@@ -150,6 +151,7 @@
                                                CommandParameter="{Binding}"
                                                MinHeight="24" Padding="4,4"
                                                Style="{StaticResource AccionIconButtonCompact}"
+                                               VerticalAlignment="Center"
                                                ToolTip="Quitar del grupo">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                                     </ui:Button>

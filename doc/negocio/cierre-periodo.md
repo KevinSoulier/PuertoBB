@@ -60,34 +60,74 @@ que admite recibo opcional:
 ## Estados visibles en la UI
 
 La página de **Cierre de período** muestra una fila por agencia con los vouchers del
-período expandibles. El flag de estado por agencia se deriva del `Recibo` consolidado:
+período expandibles. El flag de estado por agencia se deriva de los vouchers libres y de
+los `Recibo` consolidados de la agencia (puede haber más de uno: original + complementarios):
 
-| Flag UI | Condición | Derivado del consolidado |
-|---|---|---|
-| **Pendiente** | No hay recibo consolidado para `(Agencia, Período)`, o está anulado | — / `EstadoFiscal=Anulado` |
-| **Emitido** | Recibo persistido con CAE, mail aún no enviado | `EstadoFiscal=Emitido` y `FechaEnvioMail=null` |
-| **Completo** | Recibo enviado por mail (o ya cobrado) | `FechaEnvioMail!=null` o `FechaPago!=null` |
+| Flag UI | Condición |
+|---|---|
+| **Pendiente** | Hay vouchers libres por consolidar (1ª emisión o complementario), o un consolidado sin CAE |
+| **Emitido** | No quedan vouchers libres; algún consolidado con CAE aún sin enviar por mail |
+| **Completo** | No quedan vouchers libres y todos los consolidados están enviados (o cobrados) |
 
 Al **anular** un consolidado se emite la nota de crédito y sus vouchers quedan
 **desvinculados** (vuelven a estar libres): la agencia aparece de nuevo como **Pendiente**
-y el período se puede reemitir con un consolidado nuevo (el anulado y su NC quedan en el
-historial de Recibos).
+y el período se puede reemitir (el anulado y su NC quedan en el historial de Recibos).
 
-El mapeo está implementado en `VoucherService.MapEstado` y se sirve a través de
-`VoucherService.GetCierrePeriodoAsync`, que devuelve `AgenciaCierrePeriodoVm` con los
-vouchers, el total y el estado calculado.
+El mapeo por recibo está en `VoucherService.MapEstado`; la agregación por agencia y la lista
+de consolidados se arman en `VoucherService.GetCierrePeriodoAsync`, que devuelve
+`AgenciaCierrePeriodoVm` con los vouchers (cada uno con su comprobante o "Libre"), el total,
+el estado calculado y la lista `Consolidados`.
 
 ---
 
-## Acciones disponibles por agencia
+## Recibo consolidado complementario (voucher olvidado tras emitir)
 
-| Acción | Estado en que aplica | Resultado |
+No existe un "período cerrado" que bloquee la carga de vouchers: cerrar es consolidar +
+CAE + PDF + mail, no un candado. Si después de emitir aparece un **voucher olvidado**, se
+carga normalmente y queda **libre** (`ReciboId IS NULL`) en su período.
+
+- **Si el consolidado todavía está Pendiente** (sin CAE, p. ej. AFIP falló): volver a emitir
+  lo **incorpora al mismo recibo** (reintento idempotente, Pendiente-first).
+- **Si el consolidado ya tiene CAE** (Emitido/Completo): no se puede tocar el comprobante
+  autorizado. Volver a **Emitir/Cerrar** genera un **recibo consolidado complementario** —
+  un comprobante **adicional** con su propio número y CAE, solo por los vouchers libres— y
+  **deja intacto el original** (sin Nota de Crédito). El recibo anterior y el complementario
+  conviven en el período.
+
+**Invariante:** se admite **un solo consolidado Pendiente (sin CAE) por `(Agencia, Período)`**
+—evita dos emisiones en curso a la vez—, pero **varios consolidados con CAE** (original +
+complementarios). Lo garantiza el índice único parcial de `Recibo`
+(`EsConsolidadoVouchers=1 AND EstadoFiscal='Pendiente'`).
+
+> La alternativa más pesada de **anular + reemitir todo** sigue disponible (emite NC, libera
+> todos los vouchers y reemite el período): conviene cuando hay que corregir/eliminar vouchers
+> ya consolidados, no solo agregar uno olvidado.
+
+---
+
+## Acciones disponibles
+
+Por **agencia** (fila), sobre los **vouchers libres** (lo que se va a emitir):
+
+| Acción | Aplica cuando | Resultado |
 |---|---|---|
-| **Descargar PDF** (parcial) | Pendiente | Concatenación de los PDFs de vouchers del período. |
-| **Descargar PDF** (completa) | Emitido / Completo | Recibo (con CAE+QR) + vouchers concatenados. |
-| **Emitir recibos** | Pendiente | Fases 1→2 (consolidar + CAE) para todas las agencias, sin mail. |
-| **Enviar mails** | Emitido | Fases 3→4 (PDF único + mail) de los ya emitidos. |
-| **Cerrar período** (masivo) | — | Fases 1→4 completas para todas las agencias pendientes (también disponible por agencia). |
+| **Previsualizar / Descargar PDF** (libres) | Hay vouchers libres | Concatenación de los PDFs de los vouchers libres del período. |
+| **Emitir recibo** | Pendiente | Fases 1→2 (consolidar + CAE) de los vouchers libres; genera un **complementario** si la agencia ya tiene un consolidado. |
+
+Por **recibo consolidado** (en el detalle expandible, una fila por consolidado — original o complementario):
+
+| Acción | Resultado |
+|---|---|
+| **Previsualizar / Descargar PDF** | Recibo (con CAE+QR) + sus vouchers concatenados. |
+| **Enviar mail** | PDF único del recibo a los emails activos de la agencia. |
+
+Globales (toolbar):
+
+| Acción | Resultado |
+|---|---|
+| **Emitir recibos** | Fases 1→2 para todas las agencias pendientes, sin mail. |
+| **Enviar mails** | Fases 3→4 de todos los consolidados del período (incluye complementarios). |
+| **Cerrar período** | Fases 1→4 completas para todas las agencias pendientes. |
 
 En la página de **Vouchers** además se puede:
 

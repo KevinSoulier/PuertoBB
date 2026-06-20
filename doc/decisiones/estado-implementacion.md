@@ -77,14 +77,16 @@ Crean su base SQLite en `%LocalAppData%\PuertoBB\<App>` y la siembran con datos 
 **Tests:** `dotnet test PuertoBB.Tests/PuertoBB.Tests.csproj`
 **Validación integral:** skill `/validar-plataforma`.
 
-El **modo demo** se controla con la constante `App.ModoDemo` en cada `App.xaml.cs`
-(`true` = `FakeAfipService` + `FakeMailService` + seed). Ponerlo en `false` para producción.
+Los servicios mock se controlan con dos flags bool en `appsettings.json` (`PuertoBB:MailMockService` y
+`PuertoBB:AfipMockService`, ambos default `false` = real). El **modo demo** (`App.ModoDemo`, computado)
+es `true` si cualquiera de los dos está activo, y agrega el seed + rótulo "MODO DEMO". Dejar ambos en
+`false` para producción.
 
 ---
 
 ## AFIP real — ✅ implementado (actualización)
 
-El **cliente SOAP real de AFIP** ya está implementado: WSAA/WSFE generados con `dotnet-svcutil` en `PuertoBB.Services/Afip/Soap/`, con `WsaaSoapClient`/`WsfeSoapClient` + `WsfeMapper` (mapeo exento C sin IVA, `CbtesAsoc` en NC) y tests de mapeo/firma. Se activan con `App.ModoDemo = false`. Detalle en `doc/arquitectura/afip-integracion.md`. Tests totales: **23 verdes**.
+El **cliente SOAP real de AFIP** ya está implementado: WSAA/WSFE generados con `dotnet-svcutil` en `PuertoBB.Services/Afip/Soap/`, con `WsaaSoapClient`/`WsfeSoapClient` + `WsfeMapper` (mapeo exento C sin IVA, `CbtesAsoc` en NC) y tests de mapeo/firma. Se activan con `AfipMockService = false` (default). Detalle en `doc/arquitectura/afip-integracion.md`. Tests totales: **23 verdes**.
 
 ## Pendiente para producción (fuera del alcance autónomo)
 

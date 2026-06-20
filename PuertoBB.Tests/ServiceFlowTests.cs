@@ -1490,6 +1490,67 @@ public class CentroCierreTests
         Assert.Equal(3, nuevo.Vouchers.Count); // 3 vouchers en el nuevo consolidado
     }
 
+    // ── Recibo consolidado complementario (voucher olvidado tras emitir) ──
+
+    [Fact]
+    public async Task EmitirRecibos_VoucherOlvidadoTrasConsolidadoConCae_CreaComplementario()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, barco) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk());
+
+        // Cierre del período → consolidado original con CAE (Nro. 1).
+        var cierre1 = await service.CerrarPeriodoAsync(2026, 6);
+        Assert.True(cierre1.Data![0].Exito);
+        var original = db.Recibos.Single();
+        Assert.False(string.IsNullOrEmpty(original.CAE));
+
+        // Voucher olvidado: se carga libre en el MISMO período ya emitido.
+        db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+
+        // Volver a emitir → consolidado COMPLEMENTARIO por el voucher libre, sin tocar el original.
+        var cierre2 = await service.EmitirRecibosPeriodoAsync(2026, 6);
+        Assert.True(cierre2.Data![0].Exito);
+
+        var consolidados = db.Recibos.Where(r => r.EsConsolidadoVouchers && r.EstadoFiscal != EstadoFiscal.Anulado).ToList();
+        Assert.Equal(2, consolidados.Count);                                  // original + complementario
+        Assert.Equal(EstadoFiscal.Emitido, db.Recibos.Single(r => r.Id == original.Id).EstadoFiscal); // original intacto
+        Assert.Empty(db.NotasDeCredito.ToList());                            // NO se emitió Nota de Crédito
+
+        var complementario = consolidados.Single(r => r.Id != original.Id);
+        Assert.NotEqual(original.NumeroComprobante, complementario.NumeroComprobante);
+        Assert.Single(complementario.Vouchers);
+        Assert.Equal(500m, complementario.Importe);
+        Assert.Equal(complementario.Id, db.Vouchers.Single(v => v.Numero == 3).ReciboId); // el olvidado quedó en el complementario
+        Assert.Equal(2, db.Vouchers.Count(v => v.ReciboId == original.Id));   // los 2 originales siguen en el original
+    }
+
+    [Fact]
+    public async Task GetCierrePeriodo_ConsolidadoEmitidoMasVoucherLibre_QuedaPendiente()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, barco) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk());
+
+        await service.CerrarPeriodoAsync(2026, 6);   // consolidado emitido
+        db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.SaveChanges();
+
+        var voucherService = new VoucherService(
+            new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
+            new CmRepos.ContadorVoucherRepository(db),
+            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
+            NullLogger<VoucherService>.Instance);
+
+        var res = await voucherService.GetCierrePeriodoAsync(2026, 6);
+        var a = Assert.Single(res.Data!);
+        Assert.Equal(EstadoCierreAgencia.Pendiente, a.Estado);  // hay un voucher libre → vuelve a Pendiente
+        Assert.Equal(1, a.VouchersLibres);
+        Assert.Single(a.Consolidados);                          // el consolidado original sigue listado
+    }
+
     // ── P1-4 (CM) ──
 
     [Fact]
@@ -1778,15 +1839,15 @@ public class VoucherServiceTests
 
         Assert.Equal(2, rNorte.Vouchers.Count);
         Assert.Equal(3000m, rNorte.Total);
-        Assert.Equal(101, rNorte.NumeroComprobante);
+        Assert.Equal(101, rNorte.Consolidados.Single().NumeroComprobante);
 
         Assert.Single(rCentro.Vouchers);
         Assert.Equal(1500m, rCentro.Total);
 
         Assert.Equal(2, rSur.Vouchers.Count);
         Assert.Equal(1200m, rSur.Total);
-        Assert.Null(rSur.NumeroComprobante);
-        Assert.Null(rSur.ReciboId);
+        Assert.Empty(rSur.Consolidados);     // Sur no tiene consolidado: sus 2 vouchers están libres
+        Assert.Equal(2, rSur.VouchersLibres);
     }
 
     [Fact]

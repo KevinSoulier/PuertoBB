@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PuertoBB.Core.Entities.CamaraPortuaria;
+using PuertoBB.Core.Enums;
 using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Models.Resultados;
 using PuertoBB.Infrastructure.Data;
@@ -96,6 +97,61 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
                              r.FechaPago == null && r.FechaIncobrable == null);
 
         return await q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Empresa.Nombre).ToListAsync(ct);
+    }
+
+    public async Task<PaginaResultado<Recibo>> GetControlPaginadoAsync(FiltroControlPagos f, CancellationToken ct = default)
+    {
+        var hoy = DateTime.Today;
+        var q = _db.Recibos.AsNoTracking().Include(r => r.Empresa).AsQueryable();
+
+        // Predicado de estado: espejo de EstadoReciboHelper.EtiquetaEstado (mantener en sync con esa fuente).
+        q = f.Estado switch
+        {
+            FiltroEstadoControl.PendientesDePago => q.Where(r =>
+                (r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaPago == null && r.FechaIncobrable == null
+                    && (!f.SoloVencidos || r.FechaVencimientoPago < hoy))
+                || (f.IncluirIncobrables && r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaIncobrable != null)),
+            FiltroEstadoControl.Emitido => q.Where(r =>
+                r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaPago == null && r.FechaIncobrable == null
+                && r.FechaVencimientoPago >= hoy),
+            FiltroEstadoControl.Vencido => q.Where(r =>
+                r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaPago == null && r.FechaIncobrable == null
+                && r.FechaVencimientoPago < hoy),
+            FiltroEstadoControl.Pagado => q.Where(r =>
+                r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaIncobrable == null && r.FechaPago != null),
+            FiltroEstadoControl.Incobrable => q.Where(r =>
+                r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaIncobrable != null),
+            FiltroEstadoControl.Anulado => q.Where(r => r.EstadoFiscal == EstadoFiscal.Anulado),
+            _ => q, // Todos
+        };
+
+        // Búsqueda de texto contra columnas clave. Contains→instr es case-sensitive en SQLite, así que
+        // comparamos en minúsculas (lower() ASCII; alcanza para nombre/comprobante/CAE).
+        if (!string.IsNullOrWhiteSpace(f.Texto))
+        {
+            var texto = f.Texto.Trim().ToLower();
+            q = q.Where(r =>
+                r.ReceptorNombre.ToLower().Contains(texto) ||
+                r.Empresa.Nombre.ToLower().Contains(texto) ||
+                r.CAE.ToLower().Contains(texto) ||
+                r.NumeroComprobante.ToString().Contains(texto));
+        }
+
+        var total = await q.CountAsync(ct);
+        var vencidos = await q.CountAsync(r =>
+            r.EstadoFiscal == EstadoFiscal.Emitido && r.FechaPago == null && r.FechaIncobrable == null
+            && r.FechaVencimientoPago < hoy, ct);
+
+        var tamanio = f.TamanioPagina > 0 ? f.TamanioPagina : 100;
+        var totalPaginas = Math.Max(1, (int)Math.Ceiling((double)total / tamanio));
+        var pagina = Math.Clamp(f.Pagina, 1, totalPaginas);
+
+        var items = await q
+            .OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Empresa.Nombre)
+            .Skip((pagina - 1) * tamanio).Take(tamanio)
+            .ToListAsync(ct);
+
+        return new PaginaResultado<Recibo>(items, total, vencidos, pagina, tamanio);
     }
 
     public async Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default)

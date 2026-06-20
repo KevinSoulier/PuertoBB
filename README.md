@@ -29,12 +29,27 @@ dotnet run --project CentroMaritimo.UI/CentroMaritimo.UI.csproj
 dotnet test PuertoBB.Tests/PuertoBB.Tests.csproj
 ```
 
-Cada app crea su base SQLite en `%LocalAppData%\PuertoBB\<App>`. El modo demo se controla con
-`App.ModoDemo` en cada `App.xaml.cs`. Estado de implementación y pendientes:
+Cada app crea su base SQLite en `%LocalAppData%\PuertoBB\<App>`. Los servicios mock se controlan con
+los flags `MailMockService` y `AfipMockService` (ambos default `false`) en `appsettings.json`; el modo
+demo (seed + rótulo "MODO DEMO") se activa si cualquiera está en `true`. Estado de implementación y pendientes:
 [`doc/decisiones/estado-implementacion.md`](doc/decisiones/estado-implementacion.md).
 
 Skills útiles: `/validar-plataforma` (validación integral), `/testing` (guía de tests),
 `/desarrollador`, `/diseño-wpf`, `/arquitecto`, `/investigador-afip`.
+
+## Distribución
+
+Para empaquetar cada app como un **único `.exe`** (autoejecutable single-file, framework-dependent):
+
+```powershell
+pwsh ./publish.ps1   # genera dist\CamaraPortuaria\*.exe y dist\CentroMaritimo\*.exe
+```
+
+El `.exe` distribuido va **sin `appsettings.json`** (excluido del publish con
+`CopyToPublishDirectory=Never`), por lo que corre en **producción** por los defaults (ambos
+mocks en `false`). Requiere en la PC destino el **.NET 10 Desktop Runtime (x64)** y el
+**WebView2 Runtime** (incluido en Windows 11). Puesta en marcha:
+[`doc/usuario/paso-a-produccion.md`](doc/usuario/paso-a-produccion.md).
 
 ## Documentación
 

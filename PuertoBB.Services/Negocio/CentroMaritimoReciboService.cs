@@ -115,8 +115,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         if (vouchersAgencia.Count == 0)
         {
             // Sin vouchers libres solo se sigue si hay un consolidado Pendiente (sin CAE) para reintentar.
-            var consolidado = await _recibos.GetConsolidadoAsync(agenciaId, anio, mes, ct);
-            if (consolidado is null || !string.IsNullOrEmpty(consolidado.CAE))
+            if (await _recibos.GetConsolidadoPendienteAsync(agenciaId, anio, mes, ct) is null)
                 return ServiceResult<ResultadoCierrePorAgencia>.Fail("La agencia no tiene vouchers pendientes en el período.");
         }
 
@@ -132,39 +131,33 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         var nombreAgencia = vouchersAgencia.FirstOrDefault()?.Agencia?.Nombre ?? $"#{agenciaId}";
         try
         {
-            var existente = await _recibos.GetConsolidadoAsync(agenciaId, anio, mes, ct);
+            // Reintento: si quedó un consolidado Pendiente (sin CAE), incorporar los vouchers libres y re-sincronizar.
+            var existente = await _recibos.GetConsolidadoPendienteAsync(agenciaId, anio, mes, ct);
             if (existente is not null)
             {
                 var agenciaExistente = existente.Agencia;
-                if (EsCompleto(existente))
-                    return ResultadoCierrePorAgencia.Omitida(agenciaId, agenciaExistente?.Nombre ?? nombreAgencia, "Ya existe un recibo consolidado para este período.");
-
-                if (string.IsNullOrEmpty(existente.CAE))
+                if (vouchersAgencia.Count > 0)
                 {
-                    // Recibo Pendiente: vincular nuevos vouchers (si los hay) y re-sincronizar snapshot.
-                    if (vouchersAgencia.Count > 0)
-                    {
-                        await _vouchers.MarcarConsolidadosAsync(vouchersAgencia.Select(v => v.Id), existente.Id, ct);
-                        // N-3: los vínculos se guardaron en OTRO DbContext (transient). Recargar para que
-                        // la colección Vouchers de ESTE contexto incluya los nuevos (mail y count correctos).
-                        existente = await _recibos.GetConsolidadoAsync(agenciaId, anio, mes, ct)
-                                    ?? throw new InvalidOperationException("El consolidado desapareció durante el reintento.");
-                    }
-
-                    var todosVouchers = existente.Vouchers.OrderBy(v => v.Numero).ToList();
-                    existente.Importe = todosVouchers.Sum(v => Round2(v.Importe));
-                    existente.Detalle = "Vouchers Nros: " + string.Join(", ", todosVouchers.Select(v => v.Numero));
-                    existente.Lineas.Clear();
-                    foreach (var (v, i) in todosVouchers.Select((v, i) => (v, i)))
-                        existente.Lineas.Add(new ReciboLinea
-                        {
-                            Descripcion    = $"Voucher {v.Numero} — {v.Barco?.Nombre ?? $"#{v.BarcoId}"} — {Formato.Fecha(v.Fecha)}",
-                            Cantidad       = 1,
-                            PrecioUnitario = v.Importe,
-                            Importe        = Round2(v.Importe),
-                            Orden          = i
-                        });
+                    await _vouchers.MarcarConsolidadosAsync(vouchersAgencia.Select(v => v.Id), existente.Id, ct);
+                    // N-3: los vínculos se guardaron en OTRO DbContext (transient). Recargar para que
+                    // la colección Vouchers de ESTE contexto incluya los nuevos (mail y count correctos).
+                    existente = await _recibos.GetConsolidadoPendienteAsync(agenciaId, anio, mes, ct)
+                                ?? throw new InvalidOperationException("El consolidado desapareció durante el reintento.");
                 }
+
+                var todosVouchers = existente.Vouchers.OrderBy(v => v.Numero).ToList();
+                existente.Importe = todosVouchers.Sum(v => Round2(v.Importe));
+                existente.Detalle = "Vouchers Nros: " + string.Join(", ", todosVouchers.Select(v => v.Numero));
+                existente.Lineas.Clear();
+                foreach (var (v, i) in todosVouchers.Select((v, i) => (v, i)))
+                    existente.Lineas.Add(new ReciboLinea
+                    {
+                        Descripcion    = $"Voucher {v.Numero} — {v.Barco?.Nombre ?? $"#{v.BarcoId}"} — {Formato.Fecha(v.Fecha)}",
+                        Cantidad       = 1,
+                        PrecioUnitario = v.Importe,
+                        Importe        = Round2(v.Importe),
+                        Orden          = i
+                    });
 
                 var resExistente = await ProcesarReciboAsync(existente, existente.Agencia, config, enviarMail, forzarEnvio: false, ct);
                 return resExistente.Exito
@@ -172,7 +165,9 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                     : ResultadoCierrePorAgencia.Fallo(agenciaId, agenciaExistente?.Nombre ?? nombreAgencia, resExistente.ErrorEmision ?? "No se pudo procesar el recibo consolidado.");
             }
 
-            // Caso nuevo: persistir Pendiente ANTES de pedir el CAE.
+            // Caso nuevo: persistir Pendiente ANTES de pedir el CAE. Sirve para la 1ª emisión del período y para
+            // un consolidado COMPLEMENTARIO (vouchers olvidados después de emitir): los vouchers libres no incluyen
+            // los ya consolidados, así que el complementario sale por su cuenta con su propio Nro/CAE.
             var agencia = await _agencias.GetConDetalleAsync(agenciaId, ct);
             if (agencia is null)
                 return ResultadoCierrePorAgencia.Fallo(agenciaId, nombreAgencia, "La agencia no existe.");
@@ -876,4 +871,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
 
     public async Task<ServiceResult<IReadOnlyList<Recibo>>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default)
         => ServiceResult<IReadOnlyList<Recibo>>.Ok(await _recibos.GetPendientesAsync(filtro, ct));
+
+    public async Task<ServiceResult<PaginaResultado<Recibo>>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default)
+        => ServiceResult<PaginaResultado<Recibo>>.Ok(await _recibos.GetControlPaginadoAsync(filtro, ct));
 }

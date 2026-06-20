@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CentroMaritimo.UI.ViewModels.Base;
 using CentroMaritimo.UI.ViewModels.Items;
 using PuertoBB.Core.Common;
+using PuertoBB.Core.Enums;
 using PuertoBB.Core.Interfaces.Services;
 using PuertoBB.Core.Models.Resultados;
 
@@ -13,35 +15,49 @@ public class ControlPagosViewModel : PageViewModel
     private readonly ICentroMaritimoReciboService _recibos;
     private readonly IDialogService _dialog;
 
-    private List<ReciboItem> _todosRecibos = [];
+    // Debounce del buscador: evita pegarle a la base en cada tecla.
+    private readonly DispatcherTimer _debounce;
+
+    // Coalescencia de cargas: si llega una recarga mientras otra está en curso, se reejecuta al final
+    // (en vez de cancelar con excepciones o solaparse). El dispatcher es single-thread, así que alcanza.
+    private bool _cargando;
+    private bool _recargaPendiente;
+
     public ObservableCollection<ReciboItem> Recibos { get; private set; } = [];
 
     private bool _soloVencidos;
-    public bool SoloVencidos { get => _soloVencidos; set { if (SetField(ref _soloVencidos, value)) AplicarFiltro(); } }
+    public bool SoloVencidos { get => _soloVencidos; set { if (SetField(ref _soloVencidos, value)) ResetYRecargar(); } }
 
     private bool _incluirIncobrables;
-    public bool IncluirIncobrables
-    {
-        get => _incluirIncobrables;
-        set { if (SetField(ref _incluirIncobrables, value)) AplicarFiltro(); }
-    }
+    public bool IncluirIncobrables { get => _incluirIncobrables; set { if (SetField(ref _incluirIncobrables, value)) ResetYRecargar(); } }
 
     private string _textoBusqueda = string.Empty;
     public string TextoBusqueda
     {
         get => _textoBusqueda;
-        set { if (SetField(ref _textoBusqueda, value)) AplicarFiltro(); }
+        set { if (SetField(ref _textoBusqueda, value)) { _debounce.Stop(); _debounce.Start(); } }
     }
 
     public IReadOnlyList<string> EstadosFiltro { get; } =
         ["Pendientes de pago", "Emitido", "Vencido", "Pagado", "Incobrable", "Anulado", "Todos"];
 
     private string _filtroEstado = "Pendientes de pago";
-    public string FiltroEstado
-    {
-        get => _filtroEstado;
-        set { if (SetField(ref _filtroEstado, value)) AplicarFiltro(); }
-    }
+    public string FiltroEstado { get => _filtroEstado; set { if (SetField(ref _filtroEstado, value)) ResetYRecargar(); } }
+
+    // ── Paginado ────────────────────────────────────────────────────────────────────────────────
+    public IReadOnlyList<int> TamaniosPagina { get; } = [50, 100, 200];
+
+    private int _tamanioPagina = 100;
+    public int TamanioPagina { get => _tamanioPagina; set { if (SetField(ref _tamanioPagina, value)) ResetYRecargar(); } }
+
+    private int _paginaActual = 1;
+    public int PaginaActual { get => _paginaActual; private set => SetField(ref _paginaActual, value); }
+
+    private int _totalPaginas = 1;
+    public int TotalPaginas { get => _totalPaginas; private set => SetField(ref _totalPaginas, value); }
+
+    private int _totalRegistros;
+    public int TotalRegistros { get => _totalRegistros; private set => SetField(ref _totalRegistros, value); }
 
     private ReciboItem? _seleccionado;
     public ReciboItem? Seleccionado { get => _seleccionado; set => SetField(ref _seleccionado, value); }
@@ -53,6 +69,10 @@ public class ControlPagosViewModel : PageViewModel
     public string Resumen { get => _resumen; set => SetField(ref _resumen, value); }
 
     public ICommand BuscarCommand { get; }
+    public ICommand PrimeraCommand { get; }
+    public ICommand AnteriorCommand { get; }
+    public ICommand SiguienteCommand { get; }
+    public ICommand UltimaCommand { get; }
     public ICommand MarcarPagadoCommand { get; }
     public ICommand ReenviarCommand { get; }
     public ICommand MarcarIncobrableCommand { get; }
@@ -62,62 +82,86 @@ public class ControlPagosViewModel : PageViewModel
     {
         _recibos = recibos;
         _dialog = dialog;
-        BuscarCommand = new AsyncRelayCommand(BuscarAsync);
+
+        _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _debounce.Tick += (_, _) => { _debounce.Stop(); ResetYRecargar(); };
+
+        BuscarCommand = new AsyncRelayCommand(CargarPaginaAsync);
+        PrimeraCommand = new AsyncRelayCommand(() => IrAPaginaAsync(1), () => PaginaActual > 1);
+        AnteriorCommand = new AsyncRelayCommand(() => IrAPaginaAsync(PaginaActual - 1), () => PaginaActual > 1);
+        SiguienteCommand = new AsyncRelayCommand(() => IrAPaginaAsync(PaginaActual + 1), () => PaginaActual < TotalPaginas);
+        UltimaCommand = new AsyncRelayCommand(() => IrAPaginaAsync(TotalPaginas), () => PaginaActual < TotalPaginas);
         MarcarPagadoCommand = new AsyncRelayCommand(MarcarPagadoAsync, () => Seleccionados.Any(x => x.EsPagable));
         ReenviarCommand = new AsyncRelayCommand(ReenviarAsync, () => Seleccionado?.EsReenviable == true);
         MarcarIncobrableCommand = new AsyncRelayCommand(MarcarIncobrableAsync, () => Seleccionados.Any(x => x.EsMarcableIncobrable));
         QuitarIncobrableCommand = new AsyncRelayCommand(QuitarIncobrableAsync, () => Seleccionados.Any(x => x.EsQuitableIncobrable));
-        CargarSeguro(BuscarAsync);
+
+        CargarSeguro(CargarPaginaAsync);
     }
 
-    private Task BuscarAsync()
+    /// <summary>Cualquier cambio de filtro vuelve a la página 1 y recarga (con manejo de errores).</summary>
+    private void ResetYRecargar() { PaginaActual = 1; CargarSeguro(CargarPaginaAsync); }
+
+    private Task IrAPaginaAsync(int pagina)
     {
-        LimpiarStatus();
-        return EjecutarOcupadoAsync("Actualizando", async () =>
-        {
-            // Cargamos todo (incluso incobrables/pagados/anulados) y filtramos client-side en AplicarFiltro.
-            var res = await _recibos.GetPendientesAsync(new FiltroPendientes { ExcluirIncobrables = false });
-            _todosRecibos = res.Success && res.Data is not null
-                ? res.Data.Select(r => new ReciboItem(r)).ToList()
-                : [];
-            AplicarFiltro();
-        });
+        PaginaActual = Math.Max(1, pagina); // el repo recorta al rango real y devuelve la página efectiva
+        return CargarPaginaAsync();
     }
 
-    private void AplicarFiltro()
+    private async Task CargarPaginaAsync()
     {
-        var lista = (IEnumerable<ReciboItem>)_todosRecibos;
-        var texto = _textoBusqueda.Trim();
-        if (!string.IsNullOrEmpty(texto))
-            lista = lista.Where(r => Coincide(r, texto));
-
-        // "Pendientes de pago" (default): vista de cobranza modulada por los checkboxes.
-        // Un estado puntual o "Todos" ignoran los checkboxes.
-        lista = _filtroEstado switch
+        if (_cargando) { _recargaPendiente = true; return; }
+        _cargando = true;
+        try
         {
-            "Pendientes de pago" => lista.Where(r =>
-                (SoloVencidos ? r.Estado == "Vencido" : r.Estado is "Emitido" or "Vencido")
-                || (IncluirIncobrables && r.Estado == "Incobrable")),
-            "Todos" => lista,
-            _ => lista.Where(r => r.Estado == _filtroEstado),
+            do
+            {
+                _recargaPendiente = false;
+                await EjecutarOcupadoAsync("Actualizando", CargarInternoAsync);
+            } while (_recargaPendiente);
+        }
+        catch (Exception ex) { MostrarError($"No se pudieron cargar los datos: {ex.Message}"); }
+        finally { _cargando = false; }
+    }
+
+    private async Task CargarInternoAsync()
+    {
+        var filtro = new FiltroControlPagos
+        {
+            Estado             = MapEstado(_filtroEstado),
+            SoloVencidos       = _soloVencidos,
+            IncluirIncobrables = _incluirIncobrables,
+            Texto              = string.IsNullOrWhiteSpace(_textoBusqueda) ? null : _textoBusqueda.Trim(),
+            Pagina             = PaginaActual,
+            TamanioPagina      = TamanioPagina,
         };
+        var res = await _recibos.GetControlPaginadoAsync(filtro);
+        if (!res.Success || res.Data is not { } page)
+        {
+            MostrarError(res.ErrorMessage ?? "No se pudieron cargar los pagos.");
+            return;
+        }
 
-        Recibos = new ObservableCollection<ReciboItem>(lista);
+        Recibos = new ObservableCollection<ReciboItem>(page.Items.Select(r => new ReciboItem(r)));
         OnPropertyChanged(nameof(Recibos));
-        var vencidos = Recibos.Count(r => r.Estado == "Vencido");
-        Resumen = $"{Recibos.Count} recibo(s) · {vencidos} vencido(s)";
+        Seleccionados = [];
+        PaginaActual = page.Pagina;
+        TotalPaginas = page.TotalPaginas;
+        TotalRegistros = page.Total;
+        Resumen = $"{page.Total} recibo(s) · {page.Vencidos} vencido(s)";
+        CommandManager.InvalidateRequerySuggested();
     }
 
-    /// <summary>True si el texto matchea cualquier columna visible de la grilla.</summary>
-    private static bool Coincide(ReciboItem r, string texto)
+    private static FiltroEstadoControl MapEstado(string etiqueta) => etiqueta switch
     {
-        string[] campos =
-        [
-            r.Agencia, r.Comprobante, r.Periodo, r.Importe, r.FechaEmision,
-            r.FechaVencimiento, r.DiasAtraso.ToString(), r.Estado, r.EstadoEnvio,
-        ];
-        return campos.Any(c => c.Contains(texto, StringComparison.OrdinalIgnoreCase));
-    }
+        "Emitido"    => FiltroEstadoControl.Emitido,
+        "Vencido"    => FiltroEstadoControl.Vencido,
+        "Pagado"     => FiltroEstadoControl.Pagado,
+        "Incobrable" => FiltroEstadoControl.Incobrable,
+        "Anulado"    => FiltroEstadoControl.Anulado,
+        "Todos"      => FiltroEstadoControl.Todos,
+        _            => FiltroEstadoControl.PendientesDePago,
+    };
 
     private async Task MarcarPagadoAsync()
     {
@@ -137,7 +181,7 @@ public class ControlPagosViewModel : PageViewModel
         await EjecutarOcupadoAsync("Enviando", async () =>
         {
             var res = await _recibos.ReenviarMailAsync(sel.Id);
-            if (res.Success) { MostrarExito("Recibo reenviado."); await BuscarAsync(); }
+            if (res.Success) { MostrarExito("Recibo reenviado."); await CargarPaginaAsync(); }
             else MostrarError(res.ErrorMessage ?? "No se pudo reenviar.");
         });
     }
@@ -167,7 +211,7 @@ public class ControlPagosViewModel : PageViewModel
             "Baja por incobrable revertida.", "recibo(s) reactivados.");
     }
 
-    /// <summary>Aplica una acción a cada recibo (con progreso y cancelación), cuenta éxitos/fallos y refresca la lista.</summary>
+    /// <summary>Aplica una acción a cada recibo (con progreso y cancelación), cuenta éxitos/fallos y refresca la página.</summary>
     private async Task EjecutarEnLoteAsync(
         IReadOnlyList<ReciboItem> objetivos,
         Func<ReciboItem, Task<ServiceResult<bool>>> accion,
@@ -188,7 +232,7 @@ public class ControlPagosViewModel : PageViewModel
                 else ultimoError = res.ErrorMessage;
             }
         });
-        await BuscarAsync();
+        await CargarPaginaAsync();
         var fallos = objetivos.Count - ok;
         if (ok > 0)
             MostrarExito(ok == 1 && fallos == 0 ? mensajeUno : $"{ok} {mensajeVarios}"

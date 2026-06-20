@@ -6,35 +6,21 @@ real. Complementa [afip-configuracion.md](afip-configuracion.md) (certificado y 
 
 ---
 
-## 1. Qué conmuta el modo
+## 1. El ejecutable entregado ya es producción
 
-Cada aplicación lee al arrancar el archivo **`appsettings.json`** que está en la misma carpeta
-que el ejecutable:
+La aplicación que se distribuye es un **único `.exe`** (sin archivos de configuración al lado).
+Arranca directamente en modo producción: **AFIP real**, **mails reales por SMTP** y **base
+vacía** (no se siembran datos de ejemplo). No hay ningún flag que tocar.
 
-```json
-{
-  "PuertoBB": {
-    "ModoDemo": false,
-    "Afip": "Real"
-  }
-}
-```
-
-| Clave | Demo | Producción |
-|---|---|---|
-| `ModoDemo` | `true`: siembra datos de ejemplo y los mails se simulan (no se envía nada) | `false`: base vacía, mails reales por SMTP |
-| `Afip` | `"Mock"`: CAE simulado, no se contacta AFIP | `"Real"`: WSAA/WSFE reales según el punto de venta activo |
-
-**Cómo verificar en qué modo está:** el título de la ventana. En demo termina en
-**"— MODO DEMO"**; en producción muestra solo el nombre y la versión (ej. `· v1.0.0`).
-Además, en Configuración → AFIP/ARCA el punto de venta activo indica el ambiente
-(homologación o producción).
-
-> ⚠️ Cambiar `appsettings.json` requiere **cerrar y volver a abrir** la aplicación.
+**Cómo verificar que NO está en modo demo:** el título de la ventana muestra solo el nombre y
+la versión (ej. `· v1.0.0`). El rótulo **"— MODO DEMO"** solo aparece en los builds de
+desarrollo (cuando algún mock está activo), nunca en el `.exe` entregado. Además, en
+Configuración → AFIP/ARCA el punto de venta activo indica el ambiente (homologación o
+producción).
 
 ## 2. Primera corrida en producción (base vacía)
 
-Con `ModoDemo=false` la base de datos nace vacía (no se siembra nada). Configurar en este
+En producción la base de datos nace vacía (no se siembra nada). Configurar en este
 orden, todo desde la página **Configuración**:
 
 1. **Datos del emisor** (pestaña AFIP/ARCA, primera sección): razón social, CUIT,
@@ -92,8 +78,7 @@ línea") si el comprobante ya salió; si salió, contactar soporte antes de volv
 
 ## 5. Checklist final antes de operar
 
-- [ ] `appsettings.json` con `ModoDemo=false` y `Afip="Real"`.
-- [ ] El título de la ventana NO dice "MODO DEMO".
+- [ ] El título de la ventana NO dice "MODO DEMO" (muestra solo el nombre y `· v1.0.0`).
 - [ ] "Probar conexión" da OK contra el punto de venta activo.
 - [ ] Mail de prueba recibido correctamente.
 - [ ] Emisión de prueba en homologación revisada (PDF con CAE + QR + IIBB/Inicio de

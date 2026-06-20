@@ -29,6 +29,9 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
             .IsUnique()
             .HasFilter("\"NumeroComprobante\" > 0");
 
+        // Índice para la sección "Control" (orden por período del paginado server-side).
+        b.HasIndex(r => new { r.PeriodoAnio, r.PeriodoMes });
+
         b.HasOne(r => r.NotaDeCredito)
             .WithOne(n => n.ReciboOriginal)
             .HasForeignKey<NotaDeCredito>(n => n.ReciboOriginalId)

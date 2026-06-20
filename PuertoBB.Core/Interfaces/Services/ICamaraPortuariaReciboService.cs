@@ -73,4 +73,7 @@ public interface ICamaraPortuariaReciboService
 
     /// <summary>Recibos del dashboard de pendientes según filtro.</summary>
     Task<ServiceResult<IReadOnlyList<Recibo>>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
+
+    /// <summary>Una página de recibos para la sección "Control" (paginado server-side).</summary>
+    Task<ServiceResult<PaginaResultado<Recibo>>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default);
 }

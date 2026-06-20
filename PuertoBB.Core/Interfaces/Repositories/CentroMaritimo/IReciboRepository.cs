@@ -19,8 +19,10 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>True si ya existe un recibo consolidado de vouchers para (agencia, período).</summary>
     Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
 
-    /// <summary>Recibo consolidado del período, con Vouchers/Lineas/Agencia.Emails. Excluye Anulados.</summary>
-    Task<Recibo?> GetConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
+    /// <summary>Recibo consolidado <b>Pendiente</b> (sin CAE) del período, con Vouchers/Lineas/Agencia.Emails,
+    /// o null. Es el target de reintento: a lo sumo uno por (agencia, período) por el índice único.
+    /// Los consolidados ya emitidos (con CAE) no se devuelven; un voucher nuevo genera un complementario.</summary>
+    Task<Recibo?> GetConsolidadoPendienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
 
     /// <summary>Persiste el recibo y vincula los vouchers en UN solo SaveChanges (atómico).</summary>
     Task AddConVouchersAsync(Recibo recibo, IReadOnlyList<int> voucherIds, CancellationToken ct = default);
@@ -36,6 +38,11 @@ public interface IReciboRepository : IRepository<Recibo>
     Task EliminarPendienteAsync(int reciboId, CancellationToken ct = default);
 
     Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
+
+    /// <summary>Una página de recibos para la sección "Control": filtra por estado/texto en la base
+    /// (paginado server-side) y devuelve la página + total + contador de vencidos.</summary>
+    Task<PaginaResultado<Recibo>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default);
+
     Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default);
 
     /// <summary>Recibos de un grupo en un período (para la tabla de emisión masiva).</summary>

@@ -97,23 +97,40 @@ public class VoucherService : IVoucherService
             .GroupBy(v => v.AgenciaId)
             .Select(g =>
             {
-                var primero = g.First();
-                var nombre = primero.Agencia?.Nombre ?? $"#{g.Key}";
+                var nombre = g.First().Agencia?.Nombre ?? $"#{g.Key}";
 
-                // Si todos comparten un mismo Recibo consolidado, ese es el recibo de la agencia.
-                var recibos = g.Where(v => v.Recibo is not null && v.Recibo.EsConsolidadoVouchers)
+                // Consolidados (no anulados) de la agencia en el período: original + complementarios (0..n).
+                var recibos = g.Where(v => v.Recibo is { EsConsolidadoVouchers: true } r && r.EstadoFiscal != EstadoFiscal.Anulado)
                                .Select(v => v.Recibo!)
                                .DistinctBy(r => r.Id)
                                .ToList();
-                var reciboConsolidado = recibos.Count == 1 ? recibos[0] : null;
 
-                var estado = MapEstado(reciboConsolidado);
+                // Cantidad de vouchers por recibo, para el detalle.
+                var porRecibo = g.Where(v => v.ReciboId is not null)
+                                 .GroupBy(v => v.ReciboId!.Value)
+                                 .ToDictionary(x => x.Key, x => x.Count());
+
+                var consolidados = recibos
+                    .OrderBy(r => r.NumeroComprobante)
+                    .Select(r => new ConsolidadoCierreVm(
+                        r.Id, r.NumeroComprobante, r.Importe, porRecibo.GetValueOrDefault(r.Id), MapEstado(r)))
+                    .ToList();
+
+                // Pendiente si hay vouchers libres por consolidar (1ª emisión o complementario) o un consolidado sin CAE.
+                var hayLibres = g.Any(v => v.ReciboId is null);
+                var hayPendienteSinCae = consolidados.Any(c => c.Estado == EstadoCierreAgencia.Pendiente);
+                var estado =
+                      hayLibres || hayPendienteSinCae                                                   ? EstadoCierreAgencia.Pendiente
+                    : consolidados.Count > 0 && consolidados.All(c => c.Estado == EstadoCierreAgencia.Completo) ? EstadoCierreAgencia.Completo
+                    :                                                                                      EstadoCierreAgencia.Emitido;
 
                 var vouchers = g.OrderBy(v => v.Numero)
                                 .Select(v => new VoucherCierreVm(
                                     v.Id, v.Numero,
                                     v.Barco?.Nombre ?? $"#{v.BarcoId}",
-                                    v.Fecha, v.Importe))
+                                    v.Fecha, v.Importe,
+                                    Libre: v.ReciboId is null,
+                                    NumeroComprobante: v.Recibo is { NumeroComprobante: > 0 } ? v.Recibo.NumeroComprobante : null))
                                 .ToList();
 
                 return new AgenciaCierrePeriodoVm
@@ -123,8 +140,7 @@ public class VoucherService : IVoucherService
                     Vouchers = vouchers,
                     Total = vouchers.Sum(v => v.Importe),
                     Estado = estado,
-                    NumeroComprobante = reciboConsolidado?.NumeroComprobante,
-                    ReciboId = reciboConsolidado?.Id
+                    Consolidados = consolidados
                 };
             })
             .OrderBy(a => a.AgenciaNombre)
@@ -133,12 +149,10 @@ public class VoucherService : IVoucherService
         return ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>.Ok(agencias);
     }
 
-    // Resumen derivado del consolidado (no es un estado persistido paralelo): el eje fiscal + si ya
+    // Estado derivado de un recibo consolidado (no es un estado persistido paralelo): eje fiscal + si ya
     // se envió el mail o se cobró. "Completo" = enviado o pagado.
-    private static EstadoCierreAgencia MapEstado(Recibo? recibo) => recibo switch
+    private static EstadoCierreAgencia MapEstado(Recibo recibo) => recibo switch
     {
-        null                                      => EstadoCierreAgencia.Pendiente,
-        // Decisión: un consolidado Anulado vuelve a figurar como Pendiente para permitir reemitir el período.
         { EstadoFiscal: EstadoFiscal.Anulado }    => EstadoCierreAgencia.Pendiente,
         { EstadoFiscal: EstadoFiscal.Pendiente }  => EstadoCierreAgencia.Pendiente,
         { FechaEnvioMail: not null }              => EstadoCierreAgencia.Completo,

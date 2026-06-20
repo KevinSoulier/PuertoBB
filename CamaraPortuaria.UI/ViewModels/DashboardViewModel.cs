@@ -18,20 +18,18 @@ public class DashboardViewModel : PageViewModel
     private string _resumenRecibosPendientes = "–";
     public string ResumenRecibosPendientes { get => _resumenRecibosPendientes; set => SetField(ref _resumenRecibosPendientes, value); }
 
-    public ICommand IrAControlPagosCommand { get; }
+    public ICommand IrARecibosCommand { get; }
     public ICommand IrAEmisionMasivaCommand { get; }
-    public ICommand IrAEmpresasCommand { get; }
-    public ICommand IrAGruposCommand { get; }
+    public ICommand IrAControlPagosCommand { get; }
 
     public DashboardViewModel(ICamaraPortuariaReciboService recibos, INavigationService nav)
     {
         _recibos = recibos;
         _nav = nav;
 
-        IrAControlPagosCommand  = new RelayCommand(_ => _nav.Navigate(typeof(ControlPagosPage)));
+        IrARecibosCommand       = new RelayCommand(_ => _nav.Navigate(typeof(RecibosPage)));
         IrAEmisionMasivaCommand = new RelayCommand(_ => _nav.Navigate(typeof(EmisionMasivaPage)));
-        IrAEmpresasCommand      = new RelayCommand(_ => _nav.Navigate(typeof(EmpresasPage)));
-        IrAGruposCommand        = new RelayCommand(_ => _nav.Navigate(typeof(GruposPage)));
+        IrAControlPagosCommand  = new RelayCommand(_ => _nav.Navigate(typeof(ControlPagosPage)));
 
         CargarSeguro(CargarResumenAsync);
     }

@@ -23,11 +23,10 @@ public class DashboardViewModel : PageViewModel
     public string ResumenRecibosPendientes { get => _resumenRecibosPendientes; set => SetField(ref _resumenRecibosPendientes, value); }
 
     public ICommand IrAVouchersCommand { get; }
-    public ICommand IrAControlPagosCommand { get; }
+    public ICommand IrACierrePeriodoCommand { get; }
+    public ICommand IrARecibosCommand { get; }
     public ICommand IrAEmisionMasivaCommand { get; }
-    public ICommand IrAAgenciasCommand { get; }
-    public ICommand IrABarcosCommand { get; }
-    public ICommand IrAGruposCommand { get; }
+    public ICommand IrAControlPagosCommand { get; }
 
     public DashboardViewModel(ICentroMaritimoReciboService recibos, IVoucherService vouchers, INavigationService nav)
     {
@@ -35,12 +34,11 @@ public class DashboardViewModel : PageViewModel
         _vouchers = vouchers;
         _nav = nav;
 
-        IrAVouchersCommand     = new RelayCommand(_ => _nav.Navigate(typeof(VouchersPage)));
-        IrAControlPagosCommand = new RelayCommand(_ => _nav.Navigate(typeof(ControlPagosPage)));
+        IrAVouchersCommand      = new RelayCommand(_ => _nav.Navigate(typeof(VouchersPage)));
+        IrACierrePeriodoCommand = new RelayCommand(_ => _nav.Navigate(typeof(CierrePeriodoPage)));
+        IrARecibosCommand       = new RelayCommand(_ => _nav.Navigate(typeof(RecibosPage)));
         IrAEmisionMasivaCommand = new RelayCommand(_ => _nav.Navigate(typeof(EmisionMasivaPage)));
-        IrAAgenciasCommand     = new RelayCommand(_ => _nav.Navigate(typeof(AgenciasPage)));
-        IrABarcosCommand       = new RelayCommand(_ => _nav.Navigate(typeof(BarcosPage)));
-        IrAGruposCommand       = new RelayCommand(_ => _nav.Navigate(typeof(GruposPage)));
+        IrAControlPagosCommand  = new RelayCommand(_ => _nav.Navigate(typeof(ControlPagosPage)));
 
         CargarSeguro(CargarResumenAsync);
     }

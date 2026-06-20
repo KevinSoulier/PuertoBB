@@ -690,4 +690,7 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
 
     public async Task<ServiceResult<IReadOnlyList<Recibo>>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default)
         => ServiceResult<IReadOnlyList<Recibo>>.Ok(await _recibos.GetPendientesAsync(filtro, ct));
+
+    public async Task<ServiceResult<PaginaResultado<Recibo>>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default)
+        => ServiceResult<PaginaResultado<Recibo>>.Ok(await _recibos.GetControlPaginadoAsync(filtro, ct));
 }

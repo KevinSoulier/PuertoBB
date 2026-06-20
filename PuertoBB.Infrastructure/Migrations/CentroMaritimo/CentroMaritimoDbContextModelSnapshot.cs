@@ -56,8 +56,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Cuit");
-
                     b.ToTable("Agencias");
                 });
 
@@ -694,9 +692,11 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PeriodoAnio", "PeriodoMes");
+
                     b.HasIndex("AgenciaId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique()
-                        .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" <> 'Anulado'");
+                        .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
 
                     b.HasIndex("PuntoDeVenta", "NumeroComprobante", "CodigoAfip")
                         .IsUnique()

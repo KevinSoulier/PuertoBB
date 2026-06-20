@@ -71,13 +71,25 @@
                     </StackPanel>
                 </Button>
 
-                <Button Command="{Binding IrAControlPagosCommand}" Margin="0,0,8,8"
+                <Button Command="{Binding IrACierrePeriodoCommand}" Margin="0,0,8,8"
                         Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="MoneyHand24" FontSize="24" Margin="0,0,12,0" />
+                        <ui:SymbolIcon Symbol="CalendarCheckmark24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
-                            <TextBlock Text="Control de pagos" FontWeight="SemiBold" />
-                            <TextBlock Text="Recibos pendientes y vencidos" FontSize="11"
+                            <TextBlock Text="Cierre de período" FontWeight="SemiBold" />
+                            <TextBlock Text="Cerrar el período mensual" FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+
+                <Button Command="{Binding IrARecibosCommand}" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ReceiptMoney24" FontSize="24" Margin="0,0,12,0" />
+                        <StackPanel>
+                            <TextBlock Text="Recibos" FontWeight="SemiBold" />
+                            <TextBlock Text="Listado de recibos emitidos" FontSize="11"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </StackPanel>
@@ -95,37 +107,13 @@
                     </StackPanel>
                 </Button>
 
-                <Button Command="{Binding IrAAgenciasCommand}" Margin="0,0,8,8"
+                <Button Command="{Binding IrAControlPagosCommand}" Margin="0,0,8,8"
                         Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="BuildingShop24" FontSize="24" Margin="0,0,12,0" />
+                        <ui:SymbolIcon Symbol="MoneyHand24" FontSize="24" Margin="0,0,12,0" />
                         <StackPanel>
-                            <TextBlock Text="Agencias" FontWeight="SemiBold" />
-                            <TextBlock Text="Gestión de agencias marítimas" FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Button>
-
-                <Button Command="{Binding IrABarcosCommand}" Margin="0,0,8,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="VehicleShip24" FontSize="24" Margin="0,0,12,0" />
-                        <StackPanel>
-                            <TextBlock Text="Barcos" FontWeight="SemiBold" />
-                            <TextBlock Text="Listado de embarcaciones" FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Button>
-
-                <Button Command="{Binding IrAGruposCommand}" Margin="0,0,8,8"
-                        Style="{StaticResource SecondaryButton}" Height="72" Width="Auto" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="24" Margin="0,0,12,0" />
-                        <StackPanel>
-                            <TextBlock Text="Grupos" FontWeight="SemiBold" />
-                            <TextBlock Text="Grupos de facturación" FontSize="11"
+                            <TextBlock Text="Control" FontWeight="SemiBold" />
+                            <TextBlock Text="Buscar y gestionar recibos" FontSize="11"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </StackPanel>

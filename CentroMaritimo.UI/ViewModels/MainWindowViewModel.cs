@@ -18,7 +18,7 @@ public class MainWindowViewModel : BaseViewModel
         new NavigationViewItem("Cierre de período", SymbolRegular.CalendarCheckmark24, typeof(CierrePeriodoPage)),
         new NavigationViewItem("Recibos",           SymbolRegular.ReceiptMoney24,      typeof(RecibosPage)),
         new NavigationViewItem("Emisión masiva",    SymbolRegular.DocumentMultiple24,  typeof(EmisionMasivaPage)),
-        new NavigationViewItem("Control de pagos",  SymbolRegular.MoneyHand24,         typeof(ControlPagosPage)),
+        new NavigationViewItem("Control",           SymbolRegular.MoneyHand24,         typeof(ControlPagosPage)),
 
         new NavigationViewItemSeparator(),
 

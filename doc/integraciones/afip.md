@@ -14,7 +14,7 @@ Afip.Net  (librería neutra, namespace `Afip`, SIN dependencias de PuertoBB)
    ├─ Wsfe/   WSFE: solicitud de CAE, FEParamGet*, reconciliación anti-duplicado
    ├─ Padron/ constancia de inscripción (autocompletar razón social/condición IVA por CUIT)
    └─ Soap/   clientes SOAP generados + WsfeMapper (dominio ↔ XML)
-Afip.Net.Mock  ← implementación fake para ModoDemo / tests
+Afip.Net.Mock  ← implementación fake para AfipMockService / tests
 ```
 
 - **Multi-servicio:** la librería está pensada para sumar otros servicios de AFIP (p. ej. Remitos) sin reescribir WSAA.

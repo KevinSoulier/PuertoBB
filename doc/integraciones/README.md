@@ -21,13 +21,14 @@ decisiones y el "cómo reusarlo".
    `ServiceResult<T>` con `Success` / `Data` / `ErrorMessage`. Las excepciones quedan para lo inesperado
    (y se traducen a `ServiceResult.Fail` con un mensaje accionable). La UI siempre chequea `.Success`.
 
-4. **Fake vs real por DI según `ModoDemo`.** La misma interfaz tiene una implementación real y una *fake*; la
-   elección se hace en el arranque (`App.xaml.cs`) según `appsettings.json`. En demo nunca se golpea el servicio
-   real. Esto permite desarrollar, testear y hacer demos sin credenciales.
+4. **Fake vs real por DI según dos flags independientes.** La misma interfaz tiene una implementación real y una
+   *fake*; la elección se hace en el arranque (`App.xaml.cs`) según `appsettings.json`. Cada integración tiene su
+   propio flag bool (`MailMockService`, `AfipMockService`, ambos default `false` = real), así se puede mockear una
+   sin la otra. Esto permite desarrollar, testear y hacer demos sin credenciales.
    ```csharp
-   if (Afip == AfipModo.Real) services.AddPuertoBBAfip(ticketCacheDir: ...);
-   else                       services.AddPuertoBBAfipMock();
-   services.AddPuertoBBMail(usarFake: ModoDemo && !MailReal);
+   if (AfipMockService) services.AddPuertoBBAfipMock();
+   else                 services.AddPuertoBBAfip(ticketCacheDir: ...);
+   services.AddPuertoBBMail(usarFake: MailMockService);
    ```
 
 5. **Errores accionables.** Los errores del servicio externo se mapean a mensajes que le dicen al usuario

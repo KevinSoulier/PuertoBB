@@ -16,7 +16,7 @@ public class MainWindowViewModel : BaseViewModel
         // Comprobantes
         new NavigationViewItem("Recibos",          SymbolRegular.ReceiptMoney24,     typeof(RecibosPage)),
         new NavigationViewItem("Emisión masiva",   SymbolRegular.DocumentMultiple24, typeof(EmisionMasivaPage)),
-        new NavigationViewItem("Control de pagos", SymbolRegular.MoneyHand24,        typeof(ControlPagosPage)),
+        new NavigationViewItem("Control",          SymbolRegular.MoneyHand24,        typeof(ControlPagosPage)),
 
         new NavigationViewItemSeparator(),
 

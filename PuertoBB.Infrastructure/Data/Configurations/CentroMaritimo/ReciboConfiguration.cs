@@ -29,10 +29,15 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
             .IsUnique()
             .HasFilter("\"NumeroComprobante\" > 0");
 
-        // Un solo recibo consolidado de vouchers por (agencia, período) — índice único parcial (excluye anulados para permitir reemisión).
+        // Un solo consolidado SIN CAE (Pendiente) por (agencia, período) — índice único parcial: evita dos
+        // work-in-progress simultáneos, pero permite consolidados COMPLEMENTARIOS (cada uno con su CAE) cuando
+        // aparecen vouchers olvidados después de emitir.
         b.HasIndex(r => new { r.AgenciaId, r.PeriodoAnio, r.PeriodoMes })
             .IsUnique()
-            .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" <> 'Anulado'");
+            .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
+
+        // Índice para la sección "Control" (orden por período del paginado server-side).
+        b.HasIndex(r => new { r.PeriodoAnio, r.PeriodoMes });
 
         b.HasOne(r => r.NotaDeCredito)
             .WithOne(n => n.ReciboOriginal)

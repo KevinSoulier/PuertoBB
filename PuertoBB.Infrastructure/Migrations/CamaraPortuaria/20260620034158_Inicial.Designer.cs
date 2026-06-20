@@ -11,7 +11,7 @@ using PuertoBB.Infrastructure.Data;
 namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 {
     [DbContext(typeof(CamaraPortuariaDbContext))]
-    [Migration("20260613212329_Inicial")]
+    [Migration("20260620034158_Inicial")]
     partial class Inicial
     {
         /// <inheritdoc />
@@ -312,8 +312,6 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Cuit");
 
                     b.ToTable("Empresas");
                 });
@@ -638,6 +636,8 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
+
+                    b.HasIndex("PeriodoAnio", "PeriodoMes");
 
                     b.HasIndex("PuntoDeVenta", "NumeroComprobante", "CodigoAfip")
                         .IsUnique()

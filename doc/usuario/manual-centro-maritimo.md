@@ -55,6 +55,26 @@ consolidado **Pendiente** (reintentable; si entre medio cargaste vouchers nuevos
 período, el reintento los incorpora al mismo recibo); un fallo de mail deja **Emitido**
 (se reenvía después).
 
+## Me olvidé de cargar un voucher y ya cerré el período
+
+No pasa nada: no hace falta anular ni rehacer todo.
+
+1. Cargá el voucher olvidado como siempre (en **Vouchers**); queda **Libre** en su período.
+2. Andá a **Cierre de período**: la agencia vuelve a figurar **Pendiente** (porque tiene un
+   voucher libre). En el detalle, ese voucher aparece como **Libre**.
+3. Tocá **Emitir recibo** (o **Cerrar período**):
+   - Si el recibo anterior **todavía no tenía CAE**, el voucher se suma a ese mismo recibo.
+   - Si el recibo anterior **ya estaba emitido**, se genera un **recibo complementario**
+     (un comprobante adicional, con su propio número) solo por el voucher olvidado. **El
+     recibo anterior queda intacto** (no se emite Nota de Crédito). El sistema te avisa en
+     el cartel de confirmación que será complementario.
+
+En el detalle de la agencia vas a ver la lista de **Recibos emitidos** (el original y el
+complementario), cada uno con sus botones de previsualizar, descargar y enviar por mail.
+
+> Usá la anulación (abajo) solo si necesitás **corregir o eliminar** vouchers que ya estaban
+> en el recibo, no para agregar uno nuevo.
+
 ## Anular un consolidado y reemitir el período
 
 1. En **Recibos**, anular el consolidado → se emite la **nota de crédito** y los vouchers

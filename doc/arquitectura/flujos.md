@@ -24,15 +24,17 @@ ViewModel:
 Service (ICentroMaritimoReciboService.CerrarPeriodoAsync):
   Guard: si config.PuntoDeVentaActivo es null → error "Configure un punto de venta activo"
   Para cada Agencia con vouchers pendientes en (anio, mes):
-    Flujo Pendiente-first (idempotente):
-    a. GetConsolidadoAsync(agenciaId, anio, mes):
-       → si existe y EsCompleto → skip ("Ya existe recibo consolidado")
-       → si existe Pendiente → re-sincronizar (vincular nuevos vouchers, recalcular importe/líneas)
+    Flujo Pendiente-first (idempotente) — admite consolidado complementario:
+    a. GetConsolidadoPendienteAsync(agenciaId, anio, mes):  // SOLO el consolidado sin CAE (a lo sumo uno)
+       → si existe (Pendiente) → re-sincronizar (vincular nuevos vouchers, recalcular importe/líneas)
          → goto ProcesarReciboAsync(existente, ...)
        → si null → construir Recibo con Estado=Pendiente, EsConsolidadoVouchers=true
-         → poblar Lineas: una por voucher ("Voucher {n} — {barco} — {fecha}")
+         → poblar Lineas: una por voucher libre ("Voucher {n} — {barco} — {fecha}")
          → copiar snapshot Receptor* desde agencia
          → AddConVouchersAsync(recibo, voucherIds) [atómico: recibo + FK de vouchers]
+       // La rama "null" sirve para la 1ª emisión Y para un consolidado COMPLEMENTARIO: si la
+       // agencia ya tiene consolidados con CAE, los vouchers libres (ReciboId IS NULL) generan
+       // un comprobante adicional con su propio Nro/CAE, sin tocar el original (sin Nota de Crédito).
     b. ProcesarReciboAsync(recibo, agencia, config, enviarMail, ct):
        → si string.IsNullOrEmpty(recibo.CAE): IAfipService.ObtenerCAEAsync → recibo.CAE, FechaVencimientoCAE
        → generar PDF consolidado (recibo + vouchers)
@@ -42,9 +44,11 @@ Service (ICentroMaritimoReciboService.CerrarPeriodoAsync):
   Return ServiceResult<List<ResultadoCierrePorAgencia>>
 
 Infrastructure:
-  IReciboRepository.GetConsolidadoAsync(agenciaId, anio, mes) — excluye Anulados
-  IReciboRepository.AddConVouchersAsync(recibo, voucherIds)   — un único SaveChanges atómico
-  IReciboRepository.ExisteConsolidadoAsync                    — excluye Anulados (para index check)
+  IReciboRepository.GetConsolidadoPendienteAsync(agenciaId, anio, mes) — SOLO Pendiente (sin CAE); target de reintento
+  IReciboRepository.AddConVouchersAsync(recibo, voucherIds)            — un único SaveChanges atómico
+  IReciboRepository.ExisteConsolidadoAsync                             — ¿hay algún consolidado no anulado?
+  Índice único parcial Recibo (Agencia,Anio,Mes) WHERE EsConsolidadoVouchers=1 AND EstadoFiscal='Pendiente'
+    → 1 solo consolidado en curso (sin CAE) por período; varios con CAE (original + complementarios) permitidos
 
 Core (estado final):
   - Recibo: Estado=Enviado, EsConsolidadoVouchers=true, CAE asignado, Lineas pobladas

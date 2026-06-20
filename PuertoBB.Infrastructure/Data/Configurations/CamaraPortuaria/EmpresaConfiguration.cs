@@ -13,7 +13,8 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         b.Property(e => e.RazonSocial).IsRequired().HasMaxLength(200);
         b.Property(e => e.Cuit).IsRequired().HasMaxLength(13);
         b.Property(e => e.Domicilio).HasMaxLength(300);
-        b.HasIndex(e => e.Cuit);
+        // Sin índice por Cuit: la búsqueda y el chequeo de duplicado son en memoria (UI), y se permiten
+        // CUIT repetidos a propósito; ninguna consulta SQL filtra por Cuit.
 
         b.HasMany(e => e.Emails).WithOne(x => x.Empresa).HasForeignKey(x => x.EmpresaId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(e => e.Grupos).WithOne(x => x.Empresa).HasForeignKey(x => x.EmpresaId).OnDelete(DeleteBehavior.Cascade);

@@ -11,7 +11,7 @@ using PuertoBB.Infrastructure.Data;
 namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 {
     [DbContext(typeof(CentroMaritimoDbContext))]
-    [Migration("20260613212340_Inicial")]
+    [Migration("20260620034202_Inicial")]
     partial class Inicial
     {
         /// <inheritdoc />
@@ -58,8 +58,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Cuit");
 
                     b.ToTable("Agencias");
                 });
@@ -697,9 +695,11 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PeriodoAnio", "PeriodoMes");
+
                     b.HasIndex("AgenciaId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique()
-                        .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" <> 'Anulado'");
+                        .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
 
                     b.HasIndex("PuntoDeVenta", "NumeroComprobante", "CodigoAfip")
                         .IsUnique()
