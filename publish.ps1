@@ -28,10 +28,11 @@ $common = @(
   '-r', $rid,
   '--self-contained', 'false',
   '-p:PublishSingleFile=true',
-  '-p:IncludeAllContentForSelfExtract=true',      # mete TODO adentro del exe: nativas
+  '-p:IncludeAllContentForSelfExtract=true'       # mete TODO adentro del exe: nativas
                                                   # (e_sqlite3.dll, WebView2Loader.dll), la
-                                                  # fuente Lato de QuestPDF y los .xml de doc
-  '-p:DebugType=none', '-p:DebugSymbols=false'    # sin .pdb suelto -> un único archivo
+                                                  # fuente Lato de QuestPDF y los .xml de doc.
+                                                  # Los .pdb no aparecen porque Directory.Build.props
+                                                  # usa DebugType=embedded en Release.
 )
 
 $apps = @(

@@ -1,0 +1,15 @@
+<Project>
+
+  <!--
+    En Release los símbolos de depuración van EMBEBIDOS dentro de cada DLL (no se generan
+    archivos .pdb sueltos). Dos beneficios para la distribución:
+      1. El publish single-file queda en UN solo .exe (sin .pdb al lado).
+      2. Como los símbolos viajan dentro del exe, los stack traces de los logs de producción
+         (FileLoggerProvider) conservan números de línea.
+    En Debug se mantiene el comportamiento por defecto (.pdb portable) para no afectar el F5.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>
