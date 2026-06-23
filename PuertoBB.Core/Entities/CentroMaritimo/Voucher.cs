@@ -5,8 +5,8 @@ namespace PuertoBB.Core.Entities.CentroMaritimo;
 /// <summary>Voucher de ingreso de un barco. Índice único: (Numero).</summary>
 public class Voucher : BaseEntity
 {
-    public int     AgenciaId { get; set; }
-    public Agencia Agencia   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
 
     public int   BarcoId { get; set; }
     public Barco Barco   { get; set; } = null!;

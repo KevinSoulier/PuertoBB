@@ -12,14 +12,14 @@ public class VoucherService : IVoucherService
 {
     private readonly IVoucherRepository _vouchers;
     private readonly IContadorVoucherRepository _contador;
-    private readonly IAgenciaRepository _agencias;
+    private readonly IClienteRepository _agencias;
     private readonly IBarcoRepository _barcos;
     private readonly ILogger<VoucherService> _logger;
 
     public VoucherService(
         IVoucherRepository vouchers,
         IContadorVoucherRepository contador,
-        IAgenciaRepository agencias,
+        IClienteRepository agencias,
         IBarcoRepository barcos,
         ILogger<VoucherService> logger)
     {
@@ -42,7 +42,7 @@ public class VoucherService : IVoucherService
         var numero = await _contador.ObtenerSiguienteNumeroAsync(ct);
         var voucher = new Voucher
         {
-            AgenciaId = agenciaId,
+            ClienteId = agenciaId,
             BarcoId = barcoId,
             Numero = numero,
             Importe = importe,
@@ -52,7 +52,7 @@ public class VoucherService : IVoucherService
         };
 
         await _vouchers.AddAsync(voucher, ct);
-        _logger.LogInformation("Voucher creado: Nro={Numero} Agencia={AgenciaId} Importe={Importe}", numero, agenciaId, importe);
+        _logger.LogInformation("Voucher creado: Nro={Numero} Cliente={ClienteId} Importe={Importe}", numero, agenciaId, importe);
         return ServiceResult<Voucher>.Ok(voucher);
     }
 
@@ -69,7 +69,7 @@ public class VoucherService : IVoucherService
         if (existente is null) return ServiceResult<bool>.Fail("El voucher no existe.");
         if (existente.ReciboId is not null) return ServiceResult<bool>.Fail("El voucher ya fue consolidado y no puede editarse.");
 
-        if (voucher.AgenciaId > 0) existente.AgenciaId = voucher.AgenciaId;
+        if (voucher.ClienteId > 0) existente.ClienteId = voucher.ClienteId;
         existente.BarcoId = voucher.BarcoId;
         existente.Importe = voucher.Importe;
         existente.Fecha = voucher.Fecha;
@@ -89,15 +89,15 @@ public class VoucherService : IVoucherService
         return ServiceResult<bool>.Ok(true);
     }
 
-    public async Task<ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>> GetCierrePeriodoAsync(int anio, int mes, CancellationToken ct = default)
+    public async Task<ServiceResult<IReadOnlyList<ClienteCierrePeriodoVm>>> GetCierrePeriodoAsync(int anio, int mes, CancellationToken ct = default)
     {
         var todos = await _vouchers.GetTodosByPeriodoAsync(anio, mes, ct);
 
         var agencias = todos
-            .GroupBy(v => v.AgenciaId)
+            .GroupBy(v => v.ClienteId)
             .Select(g =>
             {
-                var nombre = g.First().Agencia?.Nombre ?? $"#{g.Key}";
+                var nombre = g.First().Cliente?.Nombre ?? $"#{g.Key}";
 
                 // Consolidados (no anulados) de la agencia en el período: original + complementarios (0..n).
                 var recibos = g.Where(v => v.Recibo is { EsConsolidadoVouchers: true } r && r.EstadoFiscal != EstadoFiscal.Anulado)
@@ -118,11 +118,11 @@ public class VoucherService : IVoucherService
 
                 // Pendiente si hay vouchers libres por consolidar (1ª emisión o complementario) o un consolidado sin CAE.
                 var hayLibres = g.Any(v => v.ReciboId is null);
-                var hayPendienteSinCae = consolidados.Any(c => c.Estado == EstadoCierreAgencia.Pendiente);
+                var hayPendienteSinCae = consolidados.Any(c => c.Estado == EstadoCierreCliente.Pendiente);
                 var estado =
-                      hayLibres || hayPendienteSinCae                                                   ? EstadoCierreAgencia.Pendiente
-                    : consolidados.Count > 0 && consolidados.All(c => c.Estado == EstadoCierreAgencia.Completo) ? EstadoCierreAgencia.Completo
-                    :                                                                                      EstadoCierreAgencia.Emitido;
+                      hayLibres || hayPendienteSinCae                                                   ? EstadoCierreCliente.Pendiente
+                    : consolidados.Count > 0 && consolidados.All(c => c.Estado == EstadoCierreCliente.Completo) ? EstadoCierreCliente.Completo
+                    :                                                                                      EstadoCierreCliente.Emitido;
 
                 var vouchers = g.OrderBy(v => v.Numero)
                                 .Select(v => new VoucherCierreVm(
@@ -133,30 +133,30 @@ public class VoucherService : IVoucherService
                                     NumeroComprobante: v.Recibo is { NumeroComprobante: > 0 } ? v.Recibo.NumeroComprobante : null))
                                 .ToList();
 
-                return new AgenciaCierrePeriodoVm
+                return new ClienteCierrePeriodoVm
                 {
-                    AgenciaId = g.Key,
-                    AgenciaNombre = nombre,
+                    ClienteId = g.Key,
+                    ClienteNombre = nombre,
                     Vouchers = vouchers,
                     Total = vouchers.Sum(v => v.Importe),
                     Estado = estado,
                     Consolidados = consolidados
                 };
             })
-            .OrderBy(a => a.AgenciaNombre)
+            .OrderBy(a => a.ClienteNombre)
             .ToList();
 
-        return ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>.Ok(agencias);
+        return ServiceResult<IReadOnlyList<ClienteCierrePeriodoVm>>.Ok(agencias);
     }
 
     // Estado derivado de un recibo consolidado (no es un estado persistido paralelo): eje fiscal + si ya
     // se envió el mail o se cobró. "Completo" = enviado o pagado.
-    private static EstadoCierreAgencia MapEstado(Recibo recibo) => recibo switch
+    private static EstadoCierreCliente MapEstado(Recibo recibo) => recibo switch
     {
-        { EstadoFiscal: EstadoFiscal.Anulado }    => EstadoCierreAgencia.Pendiente,
-        { EstadoFiscal: EstadoFiscal.Pendiente }  => EstadoCierreAgencia.Pendiente,
-        { FechaEnvioMail: not null }              => EstadoCierreAgencia.Completo,
-        { FechaPago: not null }                   => EstadoCierreAgencia.Completo,
-        _                                         => EstadoCierreAgencia.Emitido
+        { EstadoFiscal: EstadoFiscal.Anulado }    => EstadoCierreCliente.Pendiente,
+        { EstadoFiscal: EstadoFiscal.Pendiente }  => EstadoCierreCliente.Pendiente,
+        { FechaEnvioMail: not null }              => EstadoCierreCliente.Completo,
+        { FechaPago: not null }                   => EstadoCierreCliente.Completo,
+        _                                         => EstadoCierreCliente.Emitido
     };
 }

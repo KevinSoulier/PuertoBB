@@ -7,9 +7,9 @@ using PuertoBB.Tests.TestSupport;
 using Xunit;
 using CpRepos = PuertoBB.Infrastructure.Repositories.CamaraPortuaria;
 using CmRepos = PuertoBB.Infrastructure.Repositories.CentroMaritimo;
-using CmAgencia = PuertoBB.Core.Entities.CentroMaritimo.Agencia;
+using CmCliente = PuertoBB.Core.Entities.CentroMaritimo.Cliente;
 using CmRecibo = PuertoBB.Core.Entities.CentroMaritimo.Recibo;
-using CmEmail = PuertoBB.Core.Entities.CentroMaritimo.EmailAgencia;
+using CmEmail = PuertoBB.Core.Entities.CentroMaritimo.EmailCliente;
 
 namespace PuertoBB.Tests;
 
@@ -26,14 +26,14 @@ public class ControlPaginadoTests
     private static CpRepos.ReciboRepository RepoCamara(CamaraPortuariaDbContext db)
         => new(db, NullLogger<CpRepos.ReciboRepository>.Instance);
 
-    private static int SeedEmpresa(CamaraPortuariaDbContext db)
+    private static int SeedCliente(CamaraPortuariaDbContext db)
     {
-        var e = new Empresa
+        var e = new Cliente
         {
-            Nombre = "Empresa", RazonSocial = "Empresa SA", Cuit = "30711111111", CondicionIvaId = 1,
-            CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "e@x.com", CreatedAt = DateTime.Now }],
+            Nombre = "Cliente", RazonSocial = "Cliente SA", Cuit = "30711111111", CondicionIvaId = 1,
+            CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "e@x.com", CreatedAt = DateTime.Now }],
         };
-        db.Empresas.Add(e);
+        db.Clientes.Add(e);
         db.SaveChanges();
         return e.Id;
     }
@@ -44,7 +44,7 @@ public class ControlPaginadoTests
         DateTime? pago = null, DateTime? incobrable = null, int mes = 6, long numero = 0)
         => new()
         {
-            EmpresaId = empresaId,
+            ClienteId = empresaId,
             ReceptorNombre = nombre, ReceptorRazonSocial = nombre + " SA", ReceptorCuit = "30711111111",
             PeriodoAnio = 2026, PeriodoMes = mes, Importe = 1000m,
             EstadoFiscal = estado,
@@ -57,7 +57,7 @@ public class ControlPaginadoTests
     /// <summary>Siembra un recibo de cada estado relevante (números distintos). Devuelve el id de la empresa.</summary>
     private static int SeedTodosLosEstados(CamaraPortuariaDbContext db)
     {
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         db.Recibos.AddRange(
             NuevoRecibo(empresaId, "EmitidoVigente", EstadoFiscal.Emitido, Hoy.AddDays(10), numero: 1),
             NuevoRecibo(empresaId, "Vencido",        EstadoFiscal.Emitido, Hoy.AddDays(-10), numero: 2),
@@ -119,7 +119,7 @@ public class ControlPaginadoTests
     public async Task Paginado_RecortaPaginasSinSolapar()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         // 5 emitidos impagos en períodos distintos → orden determinístico (PeriodoMes desc).
         for (var mes = 1; mes <= 5; mes++)
             db.Recibos.Add(NuevoRecibo(empresaId, $"R{mes}", EstadoFiscal.Emitido, Hoy.AddDays(10), mes: mes, numero: mes));
@@ -162,17 +162,17 @@ public class ControlPaginadoTests
     public async Task CentroMaritimo_PendientesDePago_FiltraSoloEmitido()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia
+        var ag = new CmCliente
         {
             Nombre = "Naviera Sur", RazonSocial = "Naviera Sur SA", Cuit = "30700000001", CondicionIvaId = 1,
             CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }],
         };
-        db.Agencias.Add(ag);
+        db.Clientes.Add(ag);
         db.SaveChanges();
 
         CmRecibo Nuevo(string nombre, EstadoFiscal estado, DateTime venc, DateTime? pago, long numero) => new()
         {
-            AgenciaId = ag.Id,
+            ClienteId = ag.Id,
             ReceptorNombre = nombre, ReceptorRazonSocial = nombre + " SA", ReceptorCuit = "30700000001",
             PeriodoAnio = 2026, PeriodoMes = 6, Importe = 1000m, EstadoFiscal = estado,
             PuntoDeVenta = 1, NumeroComprobante = numero, CAE = $"CAE{numero:D8}",

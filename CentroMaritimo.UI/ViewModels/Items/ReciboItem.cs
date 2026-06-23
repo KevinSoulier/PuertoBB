@@ -9,8 +9,8 @@ namespace CentroMaritimo.UI.ViewModels.Items;
 public class ReciboItem
 {
     public int Id { get; }
-    public int AgenciaId { get; }
-    public string Agencia { get; }
+    public int ClienteId { get; }
+    public string Cliente { get; }
     public string Periodo { get; }
     public string Importe { get; }
     public string Comprobante { get; }
@@ -52,9 +52,9 @@ public class ReciboItem
         var hoy = DateTime.Today;
         var acc = AccionesRecibo.De(r);
         Id = r.Id;
-        AgenciaId = r.AgenciaId;
+        ClienteId = r.ClienteId;
         // Nombre desde el snapshot fiscal (inmutable); fallback a la navegación para recibos legacy.
-        Agencia = r.ReceptorNombre is { Length: > 0 } nombre ? nombre : r.Agencia?.Nombre ?? $"#{r.AgenciaId}";
+        Cliente = r.ReceptorNombre is { Length: > 0 } nombre ? nombre : r.Cliente?.Nombre ?? $"#{r.ClienteId}";
         Periodo = Formato.Periodo(r.PeriodoAnio, r.PeriodoMes);
         Importe = Formato.Moneda(r.Importe);
         CaeOk = !string.IsNullOrEmpty(r.CAE);

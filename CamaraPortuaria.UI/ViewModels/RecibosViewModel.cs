@@ -17,7 +17,7 @@ public class RecibosViewModel : PageViewModel
 {
     private readonly ICamaraPortuariaReciboService _service;
     private readonly IReciboRepository _recibosRepo;
-    private readonly IEmpresaRepository _empresasRepo;
+    private readonly IClienteRepository _empresasRepo;
     private readonly IConceptoReciboRepository _conceptosRepo;
     private readonly IDialogService _dialog;
     private readonly ICamaraPortuariaPdfService _pdf;
@@ -27,7 +27,7 @@ public class RecibosViewModel : PageViewModel
     private static readonly CultureInfo _es = new("es-AR");
 
     public ObservableCollection<ReciboItem> Recibos { get; private set; } = [];
-    public ObservableCollection<Empresa> Empresas { get; } = [];
+    public ObservableCollection<Cliente> Clientes { get; } = [];
     public IReadOnlyList<string> MesesNombres { get; } =
         Enumerable.Range(1, 12)
             .Select(m => _es.DateTimeFormat.GetMonthName(m))
@@ -78,7 +78,7 @@ public class RecibosViewModel : PageViewModel
     public RecibosViewModel(
         ICamaraPortuariaReciboService service,
         IReciboRepository recibosRepo,
-        IEmpresaRepository empresasRepo,
+        IClienteRepository empresasRepo,
         IConceptoReciboRepository conceptosRepo,
         IDialogService dialog,
         ICamaraPortuariaPdfService pdf)
@@ -108,7 +108,7 @@ public class RecibosViewModel : PageViewModel
     private async Task InicializarAsync()
     {
         foreach (var e in await _empresasRepo.GetActivasAsync())
-            Empresas.Add(e);
+            Clientes.Add(e);
         await RecargarConceptosAsync();
         await BuscarAsync();
     }
@@ -136,7 +136,7 @@ public class RecibosViewModel : PageViewModel
         var lista = string.IsNullOrEmpty(texto)
             ? _todosRecibos
             : _todosRecibos.Where(r =>
-                r.Empresa.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                r.Cliente.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 r.Comprobante.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 r.Periodo.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 r.Importe.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
@@ -156,12 +156,12 @@ public class RecibosViewModel : PageViewModel
 
     private async Task AbrirEmisionIndividualAsync()
     {
-        var entidades = Empresas.Select(e => new EntidadEmisionItem(e.Id, e.Nombre)).ToList();
+        var entidades = Clientes.Select(e => new ClienteEmisionItem(e.Id, e.Nombre)).ToList();
         var conceptos = _todosConceptos.Select(c => c.Nombre).ToList();
 
         if (await _dialog.ShowEmisionIndividualAsync("Empresa", entidades, conceptos) is not { } result) return;
 
-        if (Empresas.FirstOrDefault(e => e.Id == result.EntidadId) is not { } empresa)
+        if (Clientes.FirstOrDefault(e => e.Id == result.ClienteId) is not { } empresa)
         {
             MostrarError("No se encontró la empresa seleccionada."); return;
         }
@@ -257,7 +257,7 @@ public class RecibosViewModel : PageViewModel
     {
         if (Seleccionado is not { } sel) return;
         if (!await _dialog.ShowConfirmAsync("Eliminar recibo",
-                $"¿Eliminar el recibo Pendiente de {sel.Empresa} ({sel.Periodo})? No tiene CAE y esta acción no se puede deshacer.",
+                $"¿Eliminar el recibo Pendiente de {sel.Cliente} ({sel.Periodo})? No tiene CAE y esta acción no se puede deshacer.",
                 "Eliminar", "Cancelar")) return;
 
         await EjecutarOcupadoAsync("Eliminando recibo", async () =>
@@ -278,7 +278,7 @@ public class RecibosViewModel : PageViewModel
             ? "Se generará una nota de crédito y se enviará por mail."
             : "Se generará una nota de crédito. No se enviará por mail.";
         if (!await _dialog.ShowConfirmAsync("Anular recibo",
-                $"¿Anular el recibo {sel.Comprobante} de {sel.Empresa}? {detalleMail}",
+                $"¿Anular el recibo {sel.Comprobante} de {sel.Cliente}? {detalleMail}",
                 "Anular", "Cancelar")) return;
 
         await EjecutarOcupadoAsync(enviarMail ? "Anulando y enviando" : "Anulando", async () =>
@@ -357,7 +357,7 @@ public class RecibosViewModel : PageViewModel
             catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
         });
         if (bytes is null) return;
-        await _dialog.ShowPdfAsync(bytes, $"Recibo {sel.Comprobante}", $"Recibo_{sel.Empresa}_{sel.Comprobante}");
+        await _dialog.ShowPdfAsync(bytes, $"Recibo {sel.Comprobante}", $"Recibo_{sel.Cliente}_{sel.Comprobante}");
     }
 
     private async Task PrevisualizarNotaCreditoAsync()
@@ -380,6 +380,6 @@ public class RecibosViewModel : PageViewModel
             catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
         });
         if (bytes is null) return;
-        await _dialog.ShowPdfAsync(bytes, $"Nota de crédito {comp}", $"NotaCredito_{sel.Empresa}_{comp}");
+        await _dialog.ShowPdfAsync(bytes, $"Nota de crédito {comp}", $"NotaCredito_{sel.Cliente}_{comp}");
     }
 }

@@ -46,11 +46,11 @@ public class DialogService : IDialogService
     }
 
     public Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
-        string labelEntidad,
-        IReadOnlyList<EntidadEmisionItem> entidades,
+        string labelCliente,
+        IReadOnlyList<ClienteEmisionItem> entidades,
         IReadOnlyList<string> conceptos)
     {
-        var dialog = new EmisionIndividualDialog(labelEntidad, entidades, conceptos);
+        var dialog = new EmisionIndividualDialog(labelCliente, entidades, conceptos);
         return ShowAsync(dialog, dialog.Result);
     }
 

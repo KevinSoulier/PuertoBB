@@ -11,8 +11,8 @@ namespace CamaraPortuaria.UI.ViewModels.Items;
 /// </summary>
 public class EmisionMasivaItem
 {
-    public int EntidadId { get; }
-    public string Empresa { get; }
+    public int ClienteId { get; }
+    public string Cliente { get; }
     public int? ReciboId { get; }
     public bool TieneRecibo { get; }
     public string Comprobante { get; }
@@ -35,8 +35,8 @@ public class EmisionMasivaItem
 
     public EmisionMasivaItem(int entidadId, string empresa, Recibo? r, decimal importeEsperado)
     {
-        EntidadId = entidadId;
-        Empresa = empresa;
+        ClienteId = entidadId;
+        Cliente = empresa;
 
         if (r is null)
         {

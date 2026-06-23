@@ -364,7 +364,7 @@ normativos recientes afectan a `Afip.Net`.
   por clase de comprobante se consulta con `FEParamGetCondicionIvaReceptor` (ya disponible en el
   código generado, sin envolver).
 - **Implementación sugerida:** campo `CondicionIvaReceptorId` en `AfipComprobanteRequest`/`WsfeCaeRequest`
-  → mapper → dato por receptor (Empresa/Agencia, con default configurable; el snapshot
+  → mapper → dato por receptor (Cliente, con default configurable; el snapshot
   `Recibo.ReceptorCondicionIva` ya existe como texto para el PDF, falta el **código numérico**).
 
 ### v4.4 (vigencia 01/08/2026) — no nos afecta
@@ -413,7 +413,7 @@ Las mejoras 1–3 de la investigación quedaron implementadas (159 tests verdes)
 
 - **Catálogo**: `PuertoBB.Core/Afip/CatalogoCondicionesIvaReceptor.cs` (códigos 1, 4, 5, 6, 7, 8, 9,
   10, 13, 15, 16) — única fuente; la UI no hardcodea textos.
-- **Entidades**: `Empresa`/`Agencia` pasaron de `CondicionIva` (string libre) a **`CondicionIvaId (int?)`**;
+- **Entidades**: `Cliente` (Empresa en CP / Agencia en CM) pasó de `CondicionIva` (string libre) a **`CondicionIvaId (int?)`**;
   el ABM usa un ComboBox del catálogo. `Recibo` suma el snapshot **`ReceptorCondicionIvaId`** (el texto
   `ReceptorCondicionIva` ahora se deriva del catálogo al emitir; el PDF no cambió).
 - **Cadena de emisión**: `required int CondicionIvaReceptorId` en `ComprobanteAfipRequest` →

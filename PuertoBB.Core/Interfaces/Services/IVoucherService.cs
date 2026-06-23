@@ -29,5 +29,5 @@ public interface IVoucherService
     /// Devuelve el shape de la pantalla de Cierre de Período: una fila por agencia que tuvo vouchers
     /// en el período, con sus vouchers, total y estado del recibo consolidado (si existe).
     /// </summary>
-    Task<ServiceResult<IReadOnlyList<AgenciaCierrePeriodoVm>>> GetCierrePeriodoAsync(int anio, int mes, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ClienteCierrePeriodoVm>>> GetCierrePeriodoAsync(int anio, int mes, CancellationToken ct = default);
 }

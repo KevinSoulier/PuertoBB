@@ -23,7 +23,7 @@ public class CierrePeriodoViewModel : PageViewModel
 
     private static readonly CultureInfo _es = new("es-AR");
 
-    public ObservableCollection<AgenciaCierrePeriodoVm> Agencias { get; } = [];
+    public ObservableCollection<ClienteCierrePeriodoVm> Clientes { get; } = [];
 
     public IReadOnlyList<string> MesesNombres { get; } =
         Enumerable.Range(1, 12)
@@ -51,7 +51,7 @@ public class CierrePeriodoViewModel : PageViewModel
     public string TotalPeriodoTexto => Formato.Moneda(_totalPeriodo);
 
     public ICommand CargarCommand { get; }
-    public ICommand EmitirReciboAgenciaCommand { get; }
+    public ICommand EmitirReciboClienteCommand { get; }
     public ICommand PrevisualizarLibresCommand { get; }
     public ICommand DescargarLibresCommand { get; }
     public ICommand PrevisualizarReciboCommand { get; }
@@ -78,35 +78,35 @@ public class CierrePeriodoViewModel : PageViewModel
 
         CargarCommand = new AsyncRelayCommand(CargarAsync);
         // Acción por agencia sobre los vouchers libres: 1ª emisión o consolidado complementario.
-        EmitirReciboAgenciaCommand = new AsyncRelayCommand(
-            p => EmitirReciboAgenciaAsync(p as AgenciaCierrePeriodoVm),
-            p => (p as AgenciaCierrePeriodoVm)?.Estado == EstadoCierreAgencia.Pendiente);
+        EmitirReciboClienteCommand = new AsyncRelayCommand(
+            p => EmitirReciboClienteAsync(p as ClienteCierrePeriodoVm),
+            p => (p as ClienteCierrePeriodoVm)?.Estado == EstadoCierreCliente.Pendiente);
         PrevisualizarLibresCommand = new AsyncRelayCommand(
-            p => PrevisualizarLibresAsync(p as AgenciaCierrePeriodoVm),
-            p => (p as AgenciaCierrePeriodoVm)?.VouchersLibres > 0);
+            p => PrevisualizarLibresAsync(p as ClienteCierrePeriodoVm),
+            p => (p as ClienteCierrePeriodoVm)?.VouchersLibres > 0);
         DescargarLibresCommand = new AsyncRelayCommand(
-            p => DescargarLibresAsync(p as AgenciaCierrePeriodoVm),
-            p => (p as AgenciaCierrePeriodoVm)?.VouchersLibres > 0);
+            p => DescargarLibresAsync(p as ClienteCierrePeriodoVm),
+            p => (p as ClienteCierrePeriodoVm)?.VouchersLibres > 0);
         // Acciones por recibo consolidado (original o complementario).
         PrevisualizarReciboCommand = new AsyncRelayCommand(p => PrevisualizarReciboAsync(p as ConsolidadoCierreVm));
         DescargarReciboCommand = new AsyncRelayCommand(p => DescargarReciboAsync(p as ConsolidadoCierreVm));
         EnviarMailReciboCommand = new AsyncRelayCommand(p => EnviarMailReciboAsync(p as ConsolidadoCierreVm));
         EmitirRecibosCommand = new AsyncRelayCommand(
             EmitirRecibosPeriodoAsync,
-            () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Pendiente));
+            () => Clientes.Any(a => a.Estado == EstadoCierreCliente.Pendiente));
         // Reenvía a todas las agencias con algún consolidado (incluye las ya enviadas).
         EnviarMailsCommand = new AsyncRelayCommand(
             EnviarMailsPeriodoAsync,
-            () => Agencias.Any(a => a.TieneConsolidados));
+            () => Clientes.Any(a => a.TieneConsolidados));
         // Genera+envía los pendientes; si ya está todo generado, reenvía los mails.
         CerrarCommand = new AsyncRelayCommand(
             CerrarPeriodoAsync,
-            () => Agencias.Any(a => a.Estado == EstadoCierreAgencia.Pendiente || a.TieneConsolidados));
+            () => Clientes.Any(a => a.Estado == EstadoCierreCliente.Pendiente || a.TieneConsolidados));
 
         CargarSeguro(CargarAsync);
     }
 
-    private async Task EmitirReciboAgenciaAsync(AgenciaCierrePeriodoVm? agencia)
+    private async Task EmitirReciboClienteAsync(ClienteCierrePeriodoVm? agencia)
     {
         if (agencia is not { } ag) return;
 
@@ -115,27 +115,27 @@ public class CierrePeriodoViewModel : PageViewModel
         {
             { VouchersLibres: 0 } =>
                 ("Reintentar emisión",
-                 $"Se reintentará la emisión del recibo consolidado pendiente de {ag.AgenciaNombre}. El mail NO se enviará aún. ¿Continuar?"),
+                 $"Se reintentará la emisión del recibo consolidado pendiente de {ag.ClienteNombre}. El mail NO se enviará aún. ¿Continuar?"),
             { TieneConsolidados: true } =>
                 ("Generar recibo complementario",
-                 $"{ag.AgenciaNombre} ya tiene un consolidado emitido en el período. Se generará un recibo " +
+                 $"{ag.ClienteNombre} ya tiene un consolidado emitido en el período. Se generará un recibo " +
                  $"COMPLEMENTARIO (adicional) por {ag.VouchersLibres} voucher(s) libre(s) ({Formato.Moneda(ag.TotalLibre)}); " +
                  "el recibo anterior queda intacto. El mail NO se enviará aún. ¿Continuar?"),
             _ =>
                 ("Generar recibo",
-                 $"Se generará el recibo AFIP de {ag.AgenciaNombre} ({ag.VouchersLibres} voucher(s), {Formato.Moneda(ag.TotalLibre)}). " +
+                 $"Se generará el recibo AFIP de {ag.ClienteNombre} ({ag.VouchersLibres} voucher(s), {Formato.Moneda(ag.TotalLibre)}). " +
                  "El mail NO se enviará aún. ¿Continuar?")
         };
         if (!await _dialog.ShowConfirmAsync(titulo, mensaje)) return;
 
         await EjecutarOcupadoAsync("Emitiendo recibo", async () =>
         {
-            var res = await _reciboService.EmitirReciboAgenciaAsync(ag.AgenciaId, Anio, _mes);
+            var res = await _reciboService.EmitirReciboClienteAsync(ag.ClienteId, Anio, _mes);
             if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo generar el recibo."); return; }
 
             var r = res.Data;
             if (!r.Exito) MostrarError(r.ErrorEmision ?? "No se pudo generar el recibo.");
-            else MostrarExito($"Recibo de {r.AgenciaNombre} emitido en AFIP (Nro. {r.NumeroComprobante}). Pendiente de envío.");
+            else MostrarExito($"Recibo de {r.ClienteNombre} emitido en AFIP (Nro. {r.NumeroComprobante}). Pendiente de envío.");
         });
 
         await CargarAsync();
@@ -159,7 +159,7 @@ public class CierrePeriodoViewModel : PageViewModel
 
     private async Task EmitirRecibosPeriodoAsync()
     {
-        var pendientes = Agencias.Count(a => a.Estado == EstadoCierreAgencia.Pendiente);
+        var pendientes = Clientes.Count(a => a.Estado == EstadoCierreCliente.Pendiente);
         if (pendientes == 0) { MostrarError("No hay agencias pendientes en el período."); return; }
 
         if (!await _dialog.ShowConfirmAsync("Emitir recibos",
@@ -180,7 +180,7 @@ public class CierrePeriodoViewModel : PageViewModel
     /// Resume una operación masiva por agencia: error si todas fallaron, advertencia si fue parcial
     /// o hubo fallos de mail, éxito solo cuando todo salió bien.
     /// </summary>
-    private void MostrarResultadoMasivo(IReadOnlyList<ResultadoCierrePorAgencia> datos, string accion, string detalleExito)
+    private void MostrarResultadoMasivo(IReadOnlyList<ResultadoCierrePorCliente> datos, string accion, string detalleExito)
     {
         if (datos.Count == 0) { MostrarError("No había nada para procesar en el período."); return; }
 
@@ -213,7 +213,7 @@ public class CierrePeriodoViewModel : PageViewModel
 
     /// <summary>Todos los recibos consolidados del período (original + complementarios), con el nombre de su agencia.</summary>
     private IReadOnlyList<(string Nombre, int ReciboId)> RecibosDelPeriodo()
-        => Agencias.SelectMany(a => a.Consolidados.Select(c => (a.AgenciaNombre, c.ReciboId))).ToList();
+        => Clientes.SelectMany(a => a.Consolidados.Select(c => (a.ClienteNombre, c.ReciboId))).ToList();
 
     /// <summary>Reenvía el mail de cada recibo (siempre, sin importar si ya fue enviado) y resume el resultado.</summary>
     private Task ReenviarMailsAsync(IReadOnlyList<(string Nombre, int ReciboId)> recibos)
@@ -239,7 +239,7 @@ public class CierrePeriodoViewModel : PageViewModel
 
     private async Task CerrarPeriodoAsync()
     {
-        var pendientes = Agencias.Count(a => a.Estado == EstadoCierreAgencia.Pendiente);
+        var pendientes = Clientes.Count(a => a.Estado == EstadoCierreCliente.Pendiente);
 
         // Con agencias pendientes: generar+enviar solo esas (no reenvía las ya enviadas).
         if (pendientes > 0)
@@ -276,7 +276,7 @@ public class CierrePeriodoViewModel : PageViewModel
         await EjecutarOcupadoAsync("Cargando", async () =>
         {
             var res = await _voucherService.GetCierrePeriodoAsync(Anio, _mes);
-            Agencias.Clear();
+            Clientes.Clear();
             if (!res.Success || res.Data is null)
             {
                 MostrarError(res.ErrorMessage ?? "No se pudo consultar.");
@@ -285,31 +285,31 @@ public class CierrePeriodoViewModel : PageViewModel
                 return;
             }
 
-            foreach (var a in res.Data) Agencias.Add(a);
-            TotalPeriodo = Agencias.Sum(a => a.Total);
-            Resumen = ArmarResumen(Agencias);
+            foreach (var a in res.Data) Clientes.Add(a);
+            TotalPeriodo = Clientes.Sum(a => a.Total);
+            Resumen = ArmarResumen(Clientes);
         });
     }
 
-    private static string ArmarResumen(IEnumerable<AgenciaCierrePeriodoVm> agencias)
+    private static string ArmarResumen(IEnumerable<ClienteCierrePeriodoVm> agencias)
     {
         var lista = agencias.ToList();
         if (lista.Count == 0) return "Sin vouchers en el período.";
-        var pendientes = lista.Count(a => a.Estado == EstadoCierreAgencia.Pendiente);
-        var emitidos   = lista.Count(a => a.Estado == EstadoCierreAgencia.Emitido);
-        var completos  = lista.Count(a => a.Estado == EstadoCierreAgencia.Completo);
+        var pendientes = lista.Count(a => a.Estado == EstadoCierreCliente.Pendiente);
+        var emitidos   = lista.Count(a => a.Estado == EstadoCierreCliente.Emitido);
+        var completos  = lista.Count(a => a.Estado == EstadoCierreCliente.Completo);
         var totalV     = lista.Sum(a => a.Vouchers.Count);
         return $"{lista.Count} agencia(s) · {totalV} voucher(s) · {pendientes} pendiente(s), {emitidos} emitido(s), {completos} completo(s)";
     }
 
     // ── PDF: vouchers libres (lo que se va a emitir) ─────────────────────────────────────────────
-    private async Task DescargarLibresAsync(AgenciaCierrePeriodoVm? agencia)
+    private async Task DescargarLibresAsync(ClienteCierrePeriodoVm? agencia)
     {
         if (agencia is not { } ag) return;
         var dlg = new SaveFileDialog
         {
             Filter = "PDF (*.pdf)|*.pdf",
-            FileName = $"{NombreArchivoAgencia(ag)} - vouchers libres.pdf"
+            FileName = $"{NombreArchivoCliente(ag)} - vouchers libres.pdf"
         };
         if (dlg.ShowDialog() != true) return;
 
@@ -317,7 +317,7 @@ public class CierrePeriodoViewModel : PageViewModel
         {
             try
             {
-                var bytes = await GenerarPdfLibresAsync(ag.AgenciaId);
+                var bytes = await GenerarPdfLibresAsync(ag.ClienteId);
                 if (bytes is null) return;
                 await File.WriteAllBytesAsync(dlg.FileName, bytes);
                 MostrarExito($"PDF generado: {Path.GetFileName(dlg.FileName)}");
@@ -326,24 +326,24 @@ public class CierrePeriodoViewModel : PageViewModel
         });
     }
 
-    private async Task PrevisualizarLibresAsync(AgenciaCierrePeriodoVm? agencia)
+    private async Task PrevisualizarLibresAsync(ClienteCierrePeriodoVm? agencia)
     {
         if (agencia is not { } ag) return;
         byte[]? bytes = null;
         await EjecutarOcupadoAsync("Generando PDF", async () =>
         {
-            try { bytes = await GenerarPdfLibresAsync(ag.AgenciaId); }
+            try { bytes = await GenerarPdfLibresAsync(ag.ClienteId); }
             catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
         });
         if (bytes is null) return;
-        await _dialog.ShowPdfAsync(bytes, $"Vouchers libres — {ag.AgenciaNombre}", $"{NombreArchivoAgencia(ag)} - vouchers libres");
+        await _dialog.ShowPdfAsync(bytes, $"Vouchers libres — {ag.ClienteNombre}", $"{NombreArchivoCliente(ag)} - vouchers libres");
     }
 
     // ── PDF: recibo consolidado (original o complementario) ──────────────────────────────────────
     private async Task DescargarReciboAsync(ConsolidadoCierreVm? consolidado)
     {
         if (consolidado is not { } c) return;
-        var ag = AgenciaDe(c);
+        var ag = ClienteDe(c);
         var dlg = new SaveFileDialog
         {
             Filter = "PDF (*.pdf)|*.pdf",
@@ -367,7 +367,7 @@ public class CierrePeriodoViewModel : PageViewModel
     private async Task PrevisualizarReciboAsync(ConsolidadoCierreVm? consolidado)
     {
         if (consolidado is not { } c) return;
-        var ag = AgenciaDe(c);
+        var ag = ClienteDe(c);
         byte[]? bytes = null;
         await EjecutarOcupadoAsync("Generando PDF", async () =>
         {
@@ -378,14 +378,14 @@ public class CierrePeriodoViewModel : PageViewModel
         await _dialog.ShowPdfAsync(bytes, $"Recibo consolidado N° {c.NumeroComprobante}", NombreArchivoRecibo(ag, c));
     }
 
-    private AgenciaCierrePeriodoVm? AgenciaDe(ConsolidadoCierreVm consolidado)
-        => Agencias.FirstOrDefault(a => a.Consolidados.Contains(consolidado));
+    private ClienteCierrePeriodoVm? ClienteDe(ConsolidadoCierreVm consolidado)
+        => Clientes.FirstOrDefault(a => a.Consolidados.Contains(consolidado));
 
-    private string NombreArchivoAgencia(AgenciaCierrePeriodoVm agencia)
-        => Formato.NombreArchivoSeguro($"{Anio}-{_mes:00} - {agencia.AgenciaNombre}");
+    private string NombreArchivoCliente(ClienteCierrePeriodoVm agencia)
+        => Formato.NombreArchivoSeguro($"{Anio}-{_mes:00} - {agencia.ClienteNombre}");
 
-    private string NombreArchivoRecibo(AgenciaCierrePeriodoVm? agencia, ConsolidadoCierreVm consolidado)
-        => Formato.NombreArchivoSeguro($"{Anio}-{_mes:00} - {agencia?.AgenciaNombre ?? "Recibo"} - N {consolidado.NumeroComprobante}");
+    private string NombreArchivoRecibo(ClienteCierrePeriodoVm? agencia, ConsolidadoCierreVm consolidado)
+        => Formato.NombreArchivoSeguro($"{Anio}-{_mes:00} - {agencia?.ClienteNombre ?? "Recibo"} - N {consolidado.NumeroComprobante}");
 
     private async Task<byte[]?> GenerarPdfReciboAsync(int reciboId)
     {
@@ -403,7 +403,7 @@ public class CierrePeriodoViewModel : PageViewModel
 
     private async Task<IReadOnlyList<Voucher>> CargarVouchersLibresAsync(int agenciaId)
     {
-        var todos = await _voucherRepo.GetPorAgenciaAsync(agenciaId, Anio, _mes);
+        var todos = await _voucherRepo.GetPorClienteAsync(agenciaId, Anio, _mes);
         return todos.Where(v => v.ReciboId is null).ToList();
     }
 }

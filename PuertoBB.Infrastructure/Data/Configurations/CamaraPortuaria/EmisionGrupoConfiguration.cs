@@ -12,7 +12,7 @@ public class EmisionGrupoConfiguration : IEntityTypeConfiguration<EmisionGrupo>
         b.HasKey(e => e.Id);
 
         // Bloqueo de duplicados de emisión: una empresa no puede tener dos recibos del mismo grupo/período.
-        b.HasIndex(e => new { e.GrupoFacturacionId, e.EmpresaId, e.PeriodoAnio, e.PeriodoMes }).IsUnique();
+        b.HasIndex(e => new { e.GrupoFacturacionId, e.ClienteId, e.PeriodoAnio, e.PeriodoMes }).IsUnique();
 
         // Un recibo pertenece a lo sumo a una emisión de grupo (relación 1:0..1 desde Recibo).
         b.HasIndex(e => e.ReciboId).IsUnique();

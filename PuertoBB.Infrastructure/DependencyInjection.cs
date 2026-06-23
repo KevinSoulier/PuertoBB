@@ -20,7 +20,7 @@ public static class DependencyInjection
                 sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)),
             ServiceLifetime.Transient);
 
-        services.AddTransient<CpIntf.IEmpresaRepository, CpRepos.EmpresaRepository>();
+        services.AddTransient<CpIntf.IClienteRepository, CpRepos.ClienteRepository>();
         services.AddTransient<CpIntf.IGrupoFacturacionRepository, CpRepos.GrupoFacturacionRepository>();
         services.AddTransient<CpIntf.IReciboRepository, CpRepos.ReciboRepository>();
         services.AddTransient<CpIntf.IConceptoReciboRepository, CpRepos.ConceptoReciboRepository>();
@@ -37,7 +37,7 @@ public static class DependencyInjection
                 sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)),
             ServiceLifetime.Transient);
 
-        services.AddTransient<CmIntf.IAgenciaRepository, CmRepos.AgenciaRepository>();
+        services.AddTransient<CmIntf.IClienteRepository, CmRepos.ClienteRepository>();
         services.AddTransient<CmIntf.IGrupoFacturacionRepository, CmRepos.GrupoFacturacionRepository>();
         services.AddTransient<CmIntf.IBarcoRepository, CmRepos.BarcoRepository>();
         services.AddTransient<CmIntf.IVoucherRepository, CmRepos.VoucherRepository>();

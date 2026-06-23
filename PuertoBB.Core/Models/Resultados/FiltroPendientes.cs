@@ -8,7 +8,7 @@ public record FiltroPendientes
     public int?          PeriodoAnio        { get; init; }
     public int?          PeriodoMes         { get; init; }
     public int?          GrupoFacturacionId { get; init; }
-    public int?          EntidadId          { get; init; }
+    public int?          ClienteId          { get; init; }
     public EstadoFiscal? Estado             { get; init; }
     public bool          SoloVencidos       { get; init; }
     public bool          ExcluirIncobrables { get; init; } = true;

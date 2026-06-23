@@ -12,7 +12,7 @@ public class GrupoFacturacion : BaseEntity
 
     /// <summary>Ítems a facturar a cada miembro del grupo.</summary>
     public ICollection<GrupoFacturacionLinea> Lineas   { get; set; } = [];
-    public ICollection<EmpresaGrupo>          Empresas { get; set; } = [];
+    public ICollection<ClienteGrupo>          Clientes { get; set; } = [];
     /// <summary>Emisiones realizadas con este grupo (relación grupo + período + recibo).</summary>
     public ICollection<EmisionGrupo>          Emisiones { get; set; } = [];
 }

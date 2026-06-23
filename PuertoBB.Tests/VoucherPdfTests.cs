@@ -16,7 +16,7 @@ public class VoucherPdfTests
         Numero = 18265,
         Importe = 45000m,
         Fecha = new DateTime(2026, 6, 5),
-        AgenciaId = 1,
+        ClienteId = 1,
         BarcoId = 1,
         Barco = new Barco { Nombre = "Walsh B" }
     };

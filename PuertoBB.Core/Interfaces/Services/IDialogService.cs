@@ -26,8 +26,8 @@ public interface IDialogService
 
     /// <summary>Formulario de emisión individual. Devuelve null si el usuario canceló.</summary>
     Task<EmisionIndividualResult?> ShowEmisionIndividualAsync(
-        string labelEntidad,
-        IReadOnlyList<EntidadEmisionItem> entidades,
+        string labelCliente,
+        IReadOnlyList<ClienteEmisionItem> entidades,
         IReadOnlyList<string> conceptos);
 
     /// <summary>Editor de ítems de un recibo Pendiente (sin CAE). Devuelve las líneas nuevas, o null si se canceló.</summary>

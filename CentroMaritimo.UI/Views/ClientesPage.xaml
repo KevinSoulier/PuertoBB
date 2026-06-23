@@ -1,8 +1,8 @@
-<Page x:Class="CamaraPortuaria.UI.Views.EmpresasPage"
+<Page x:Class="CentroMaritimo.UI.Views.ClientesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      Title="Empresas">
+      Title="Agencias">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -11,7 +11,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Empresas" Style="{StaticResource PageTitle}" />
+        <TextBlock Grid.Row="0" Text="Agencias" Style="{StaticResource PageTitle}" />
 
         <!-- Buscador -->
         <ui:TextBox Grid.Row="2" Margin="0,0,0,12"
@@ -25,7 +25,7 @@
                 <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <DataGrid Grid.Column="0" ItemsSource="{Binding EmpresasFiltradas}" SelectedItem="{Binding Seleccionada}"
+            <DataGrid Grid.Column="0" ItemsSource="{Binding ClientesFiltradas}" SelectedItem="{Binding Seleccionada}"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
                       GridLinesVisibility="Horizontal" CanUserAddRows="False" Margin="0,0,16,0"
                       SelectionMode="Single" IsEnabled="{Binding NoEnEdicion}">
@@ -40,7 +40,7 @@
             <Border Grid.Column="1" Padding="16" CornerRadius="8"
                     Background="{DynamicResource LayerFillColorDefaultBrush}">
                 <StackPanel>
-                    <TextBlock Text="Ficha de empresa" FontWeight="SemiBold" Margin="0,0,0,12" />
+                    <TextBlock Text="Ficha de agencia" FontWeight="SemiBold" Margin="0,0,0,12" />
                     <StackPanel IsEnabled="{Binding EnEdicion}">
                         <TextBlock Text="Nombre" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding NombreEdit, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
@@ -75,24 +75,24 @@
                         <WrapPanel Margin="0,0,0,8">
                             <ui:Button Content="Nuevo" Command="{Binding NuevoCommand}"
                                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
-                                       ToolTip="Crear una nueva empresa">
+                                       ToolTip="Crear una nueva agencia">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Editar" Command="{Binding EditarCommand}"
                                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
-                                       ToolTip="Editar la empresa seleccionada">
+                                       ToolTip="Editar la agencia seleccionada">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Eliminar" Command="{Binding EliminarCommand}"
                                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
-                                       ToolTip="Eliminar la empresa seleccionada">
+                                       ToolTip="Eliminar la agencia seleccionada">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
                             </ui:Button>
                         </WrapPanel>
                         <WrapPanel>
                             <ui:Button Content="Aceptar" Command="{Binding AceptarCommand}"
                                        Style="{StaticResource AccionIconButton}" Appearance="Primary" Margin="0,0,8,8"
-                                       ToolTip="Guardar los cambios de la empresa">
+                                       ToolTip="Guardar los cambios de la agencia">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
                             </ui:Button>
                             <ui:Button Content="Cancelar" Command="{Binding CancelarCommand}"

@@ -16,7 +16,7 @@ public abstract class PageViewModel : BaseViewModel
     public string BusyTitulo { get => _busyTitulo; set => SetField(ref _busyTitulo, value); }
 
     private string _busyDetalle = string.Empty;
-    /// <summary>Entidad que se está procesando ahora (ej. "Acme S.A.").</summary>
+    /// <summary>Cliente que se está procesando ahora (ej. "Acme S.A.").</summary>
     public string BusyDetalle { get => _busyDetalle; set => SetField(ref _busyDetalle, value); }
 
     private int _busyActual;
@@ -77,7 +77,7 @@ public abstract class PageViewModel : BaseViewModel
         {
             BusyTotal = p.Total;
             BusyActual = p.Actual;
-            BusyDetalle = p.Entidad;
+            BusyDetalle = p.Cliente;
         });
         try { await operacion(progreso, cts.Token); }
         catch (OperationCanceledException) { MostrarAdvertencia("Operación cancelada."); }

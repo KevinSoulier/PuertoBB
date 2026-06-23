@@ -13,7 +13,7 @@ public class GrupoFacturacionConfiguration : IEntityTypeConfiguration<GrupoFactu
         b.Property(g => g.Descripcion).HasMaxLength(500);
         b.Property(g => g.Importe).HasColumnType("TEXT");
 
-        b.HasMany(g => g.Agencias).WithOne(x => x.Grupo).HasForeignKey(x => x.GrupoFacturacionId).OnDelete(DeleteBehavior.Cascade);
+        b.HasMany(g => g.Clientes).WithOne(x => x.Grupo).HasForeignKey(x => x.GrupoFacturacionId).OnDelete(DeleteBehavior.Cascade);
         // La relación con las emisiones (grupo + período + recibo) se configura en EmisionGrupoConfiguration.
     }
 }

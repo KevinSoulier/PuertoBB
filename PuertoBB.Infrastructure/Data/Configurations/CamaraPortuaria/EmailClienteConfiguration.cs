@@ -4,9 +4,9 @@ using PuertoBB.Core.Entities.CamaraPortuaria;
 
 namespace PuertoBB.Infrastructure.Data.Configurations.CamaraPortuaria;
 
-public class EmailEmpresaConfiguration : IEntityTypeConfiguration<EmailEmpresa>
+public class EmailClienteConfiguration : IEntityTypeConfiguration<EmailCliente>
 {
-    public void Configure(EntityTypeBuilder<EmailEmpresa> b)
+    public void Configure(EntityTypeBuilder<EmailCliente> b)
     {
         b.HasKey(e => e.Id);
         b.Property(e => e.Email).IsRequired().HasMaxLength(200);

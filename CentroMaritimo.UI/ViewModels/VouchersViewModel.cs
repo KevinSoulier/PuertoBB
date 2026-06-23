@@ -20,7 +20,7 @@ public class VouchersViewModel : PageViewModel
 
     private readonly IVoucherService _service;
     private readonly IVoucherRepository _repo;
-    private readonly IAgenciaRepository _agenciasRepo;
+    private readonly IClienteRepository _agenciasRepo;
     private readonly IBarcoRepository _barcosRepo;
     private readonly IConfiguracionRepository _configRepo;
     private readonly IDialogService _dialog;
@@ -29,11 +29,11 @@ public class VouchersViewModel : PageViewModel
 
     // Listas fuentes (no filtradas)
     private List<Barco> _todosBarcos = [];
-    private List<Agencia> _todasAgencias = [];
+    private List<Cliente> _todasClientes = [];
 
     public ObservableCollection<VoucherItem> Vouchers { get; private set; } = [];
     public ObservableCollection<Barco> BarcosFiltrados { get; } = [];
-    public ObservableCollection<Agencia> AgenciasFiltradas { get; } = [];
+    public ObservableCollection<Cliente> ClientesFiltradas { get; } = [];
 
     // Período de búsqueda
     public IReadOnlyList<string> MesesNombres { get; } =
@@ -69,7 +69,7 @@ public class VouchersViewModel : PageViewModel
 
     // Autocomplete agencia
     private string _agenciaTexto = string.Empty;
-    public string AgenciaTexto
+    public string ClienteTexto
     {
         get => _agenciaTexto;
         set
@@ -77,13 +77,13 @@ public class VouchersViewModel : PageViewModel
             if (SetField(ref _agenciaTexto, value))
             {
                 if (_agenciaSeleccionada?.Nombre != value) _agenciaSeleccionada = null;
-                FiltrarAgencias();
+                FiltrarClientes();
             }
         }
     }
 
-    private Agencia? _agenciaSeleccionada;
-    public Agencia? AgenciaSeleccionada
+    private Cliente? _agenciaSeleccionada;
+    public Cliente? ClienteSeleccionada
     {
         get => _agenciaSeleccionada;
         set
@@ -91,7 +91,7 @@ public class VouchersViewModel : PageViewModel
             if (SetField(ref _agenciaSeleccionada, value) && value is not null)
             {
                 _agenciaTexto = value.Nombre;
-                OnPropertyChanged(nameof(AgenciaTexto));
+                OnPropertyChanged(nameof(ClienteTexto));
             }
         }
     }
@@ -144,14 +144,14 @@ public class VouchersViewModel : PageViewModel
     public ICommand EliminarCommand { get; }
     public ICommand EditarCommand { get; }
     public ICommand CancelarEdicionCommand { get; }
-    public ICommand IrAAgenciasCommand { get; }
+    public ICommand IrAClientesCommand { get; }
     public ICommand DescargarVoucherCommand { get; }
     public ICommand PrevisualizarVoucherCommand { get; }
 
     public VouchersViewModel(
         IVoucherService service,
         IVoucherRepository repo,
-        IAgenciaRepository agenciasRepo,
+        IClienteRepository agenciasRepo,
         IBarcoRepository barcosRepo,
         IConfiguracionRepository configRepo,
         IDialogService dialog,
@@ -172,7 +172,7 @@ public class VouchersViewModel : PageViewModel
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is { Consolidado: false });
         EditarCommand = new AsyncRelayCommand(CargarEdicionAsync, () => Seleccionado is { Consolidado: false });
         CancelarEdicionCommand = new RelayCommand(_ => CancelarEdicion());
-        IrAAgenciasCommand = new RelayCommand(_ => _nav.Navigate(typeof(AgenciasPage)));
+        IrAClientesCommand = new RelayCommand(_ => _nav.Navigate(typeof(ClientesPage)));
         DescargarVoucherCommand    = new AsyncRelayCommand(DescargarVoucherAsync,    () => Seleccionado is not null);
         PrevisualizarVoucherCommand = new AsyncRelayCommand(PrevisualizarVoucherAsync, () => Seleccionado is not null);
 
@@ -216,15 +216,15 @@ public class VouchersViewModel : PageViewModel
         catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
     }
 
-    // Nombre de archivo consistente para descarga y guardado desde el visor: "Nro - Agencia - Barco".
+    // Nombre de archivo consistente para descarga y guardado desde el visor: "Nro - Cliente - Barco".
     private static string NombreArchivoVoucher(Voucher voucher)
-        => Formato.NombreArchivoSeguro($"{voucher.Numero} - {voucher.Agencia?.Nombre} - {voucher.Barco?.Nombre}");
+        => Formato.NombreArchivoSeguro($"{voucher.Numero} - {voucher.Cliente?.Nombre} - {voucher.Barco?.Nombre}");
 
     private async Task InicializarAsync()
     {
-        _todasAgencias = (await _agenciasRepo.GetTodasConEmailsAsync()).OrderBy(a => a.Nombre).ToList();
+        _todasClientes = (await _agenciasRepo.GetTodasConEmailsAsync()).OrderBy(a => a.Nombre).ToList();
         _todosBarcos = (await _barcosRepo.GetAllAsync()).OrderBy(b => b.Nombre).ToList();
-        FiltrarAgencias();
+        FiltrarClientes();
         FiltrarBarcos();
 
         var config = await _configRepo.GetAsync();
@@ -234,14 +234,14 @@ public class VouchersViewModel : PageViewModel
         await BuscarAsync();
     }
 
-    private void FiltrarAgencias()
+    private void FiltrarClientes()
     {
-        AgenciasFiltradas.Clear();
+        ClientesFiltradas.Clear();
         var texto = _agenciaTexto.Trim();
         var lista = string.IsNullOrEmpty(texto)
-            ? _todasAgencias
-            : _todasAgencias.Where(a => a.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase));
-        foreach (var a in lista) AgenciasFiltradas.Add(a);
+            ? _todasClientes
+            : _todasClientes.Where(a => a.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        foreach (var a in lista) ClientesFiltradas.Add(a);
     }
 
     private void FiltrarBarcos()
@@ -274,7 +274,7 @@ public class VouchersViewModel : PageViewModel
             ? _todosVouchers
             : _todosVouchers.Where(v =>
                 v.Numero.ToString().Contains(texto, StringComparison.OrdinalIgnoreCase) ||
-                v.Agencia.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                v.Cliente.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 v.Barco.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 v.Fecha.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
                 v.Importe.Contains(texto, StringComparison.OrdinalIgnoreCase));
@@ -306,7 +306,7 @@ public class VouchersViewModel : PageViewModel
         // Resolver agencia
         if (_agenciaSeleccionada is null)
         {
-            var agenciaEncontrada = _todasAgencias.FirstOrDefault(a =>
+            var agenciaEncontrada = _todasClientes.FirstOrDefault(a =>
                 a.Nombre.Equals(_agenciaTexto.Trim(), StringComparison.OrdinalIgnoreCase));
             if (agenciaEncontrada is null) { MostrarError("La agencia no existe. Creela en la sección Agencias."); return; }
             _agenciaSeleccionada = agenciaEncontrada;
@@ -352,7 +352,7 @@ public class VouchersViewModel : PageViewModel
         // Resolver agencia por texto si no quedó seleccionada en el combo
         if (_agenciaSeleccionada is null)
         {
-            var agenciaEncontrada = _todasAgencias.FirstOrDefault(a =>
+            var agenciaEncontrada = _todasClientes.FirstOrDefault(a =>
                 a.Nombre.Equals(_agenciaTexto.Trim(), StringComparison.OrdinalIgnoreCase));
             if (agenciaEncontrada is null) { MostrarError("La agencia no existe. Creela en la sección Agencias."); return; }
             _agenciaSeleccionada = agenciaEncontrada;
@@ -373,7 +373,7 @@ public class VouchersViewModel : PageViewModel
             BarcoId = barcoId,
             Importe = ImporteNuevo,
             Fecha = FechaNueva,
-            AgenciaId = _agenciaSeleccionada.Id
+            ClienteId = _agenciaSeleccionada.Id
         };
         var res = await _service.ActualizarVoucherAsync(voucher);
         if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo actualizar."); return; }
@@ -390,9 +390,9 @@ public class VouchersViewModel : PageViewModel
         if (v is null) return;
 
         _editandoId = v.Id;
-        AgenciaSeleccionada = _todasAgencias.FirstOrDefault(a => a.Id == v.AgenciaId);
+        ClienteSeleccionada = _todasClientes.FirstOrDefault(a => a.Id == v.ClienteId);
         BarcoSeleccionado = _todosBarcos.FirstOrDefault(b => b.Id == v.BarcoId);
-        if (AgenciaSeleccionada is null) { AgenciaTexto = v.Agencia?.Nombre ?? string.Empty; }
+        if (ClienteSeleccionada is null) { ClienteTexto = v.Cliente?.Nombre ?? string.Empty; }
         if (BarcoSeleccionado is null) { BarcoTexto = v.Barco?.Nombre ?? string.Empty; }
         FechaNueva = v.Fecha;
         ImporteNuevo = v.Importe;
@@ -408,9 +408,9 @@ public class VouchersViewModel : PageViewModel
 
     private void LimpiarFormulario()
     {
-        AgenciaTexto = string.Empty;
+        ClienteTexto = string.Empty;
         _agenciaSeleccionada = null;
-        OnPropertyChanged(nameof(AgenciaSeleccionada));
+        OnPropertyChanged(nameof(ClienteSeleccionada));
         BarcoTexto = string.Empty;
         _barcoSeleccionado = null;
         OnPropertyChanged(nameof(BarcoSeleccionado));

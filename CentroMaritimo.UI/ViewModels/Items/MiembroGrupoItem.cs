@@ -3,19 +3,19 @@ using PuertoBB.Core.Entities.CentroMaritimo;
 
 namespace CentroMaritimo.UI.ViewModels.Items;
 
-/// <summary>Agencia con un flag de pertenencia al grupo en edición.</summary>
+/// <summary>Cliente con un flag de pertenencia al grupo en edición.</summary>
 public class MiembroGrupoItem : BaseViewModel
 {
-    public Agencia Agencia { get; }
-    public int AgenciaId => Agencia.Id;
-    public string Nombre => Agencia.Nombre;
+    public Cliente Cliente { get; }
+    public int ClienteId => Cliente.Id;
+    public string Nombre => Cliente.Nombre;
 
     private bool _esMiembro;
     public bool EsMiembro { get => _esMiembro; set => SetField(ref _esMiembro, value); }
 
-    public MiembroGrupoItem(Agencia agencia, bool esMiembro)
+    public MiembroGrupoItem(Cliente agencia, bool esMiembro)
     {
-        Agencia = agencia;
+        Cliente = agencia;
         _esMiembro = esMiembro;
     }
 }

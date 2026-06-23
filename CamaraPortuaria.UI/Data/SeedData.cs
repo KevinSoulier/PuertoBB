@@ -19,7 +19,7 @@ public static class SeedData
 
     public static async Task EnsureSeededAsync(CamaraPortuariaDbContext db)
     {
-        if (await db.Empresas.AnyAsync()) return;
+        if (await db.Clientes.AnyAsync()) return;
 
         var grupoSocial = new GrupoFacturacion
         {
@@ -73,24 +73,24 @@ public static class SeedData
             /*25 */ Crear("Transportes Crexell",      "Transportes Crexell S.A.",                                "30684503797", "proveedores@crexellsa.com.ar"),
             /*26 */ Crear("United Seas",              "United Seas S.R.L.",                                      "30647178908", "leticia.alza@moggia.com.ar", "sandra.mishevitch@unitedseas.com.ar"),
         };
-        db.Empresas.AddRange(empresas);
+        db.Clientes.AddRange(empresas);
         await db.SaveChangesAsync();
 
         foreach (var e in empresas)
-            db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = e.Id, GrupoFacturacionId = grupoSocial.Id, CreatedAt = DateTime.Now });
+            db.ClientesGrupos.Add(new ClienteGrupo { ClienteId = e.Id, GrupoFacturacionId = grupoSocial.Id, CreatedAt = DateTime.Now });
 
         // Cuota Extraordinaria Fija: ADM Agro, Bunge, Cargill, LDC, Terminal Bahía Blanca
         foreach (var idx in new[] { 0, 7, 8, 16, 23 })
-            db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = empresas[idx].Id, GrupoFacturacionId = grupoExtra.Id, CreatedAt = DateTime.Now });
+            db.ClientesGrupos.Add(new ClienteGrupo { ClienteId = empresas[idx].Id, GrupoFacturacionId = grupoExtra.Id, CreatedAt = DateTime.Now });
 
         // Papelería: Martin, Walsh, Graneles, Murchison, Sea White, United Seas
         foreach (var idx in new[] { 1, 2, 15, 17, 20, 26 })
-            db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = empresas[idx].Id, GrupoFacturacionId = grupoPapeleria.Id, CreatedAt = DateTime.Now });
+            db.ClientesGrupos.Add(new ClienteGrupo { ClienteId = empresas[idx].Id, GrupoFacturacionId = grupoPapeleria.Id, CreatedAt = DateTime.Now });
 
         await db.SaveChangesAsync();
     }
 
-    private static Empresa Crear(string nombre, string razon, string cuit, params string[] emails)
+    private static Cliente Crear(string nombre, string razon, string cuit, params string[] emails)
     {
         var email = EmailPruebas;
         var destino = email is null ? emails : new[] { email };
@@ -101,7 +101,7 @@ public static class SeedData
             Cuit = cuit,
             CondicionIvaId = 1, // IVA Responsable Inscripto (dato demo; verificar con "Validar CUIT en ARCA")
             CreatedAt = DateTime.Now,
-            Emails = destino.Select(e => new EmailEmpresa { Email = e, CreatedAt = DateTime.Now }).ToList()
+            Emails = destino.Select(e => new EmailCliente { Email = e, CreatedAt = DateTime.Now }).ToList()
         };
     }
 

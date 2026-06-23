@@ -3,9 +3,9 @@ using CamaraPortuaria.UI.ViewModels;
 
 namespace CamaraPortuaria.UI.Views;
 
-public partial class EmpresasPage : Page
+public partial class ClientesPage : Page
 {
-    public EmpresasPage(EmpresasViewModel vm)
+    public ClientesPage(ClientesViewModel vm)
     {
         InitializeComponent();
         DataContext = vm;

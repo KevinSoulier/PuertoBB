@@ -12,14 +12,14 @@ namespace CentroMaritimo.UI.ViewModels;
 public class GruposViewModel : PageViewModel
 {
     private readonly IGrupoFacturacionRepository _repo;
-    private readonly IAgenciaRepository _agenciasRepo;
+    private readonly IClienteRepository _agenciasRepo;
     private readonly IDialogService _dialog;
     private int _editId;
     private List<MiembroGrupoItem> _todosMiembros = [];
 
     public ObservableCollection<GrupoFacturacion> Grupos { get; } = [];
     public ObservableCollection<MiembroGrupoItem> MiembrosDelGrupo { get; } = [];
-    public ObservableCollection<MiembroGrupoItem> AgenciasDisponibles { get; } = [];
+    public ObservableCollection<MiembroGrupoItem> ClientesDisponibles { get; } = [];
 
     /// <summary>Ítems a facturar a cada miembro del grupo (multi-ítem).</summary>
     public ObservableCollection<LineaEmisionItem> LineasEdit { get; } = [];
@@ -62,7 +62,7 @@ public class GruposViewModel : PageViewModel
     }
 
     private MiembroGrupoItem? _agenciaSeleccionada;
-    public MiembroGrupoItem? AgenciaSeleccionada
+    public MiembroGrupoItem? ClienteSeleccionada
     {
         get => _agenciaSeleccionada;
         set { if (SetField(ref _agenciaSeleccionada, value)) CommandManager.InvalidateRequerySuggested(); }
@@ -78,7 +78,7 @@ public class GruposViewModel : PageViewModel
     public ICommand AgregarMiembroCommand { get; }
     public ICommand QuitarMiembroCommand { get; }
 
-    public GruposViewModel(IGrupoFacturacionRepository repo, IAgenciaRepository agenciasRepo, IDialogService dialog)
+    public GruposViewModel(IGrupoFacturacionRepository repo, IClienteRepository agenciasRepo, IDialogService dialog)
     {
         _repo = repo;
         _agenciasRepo = agenciasRepo;
@@ -91,7 +91,7 @@ public class GruposViewModel : PageViewModel
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is not null && !EnEdicion);
         AgregarLineaCommand = new RelayCommand(_ => AgregarLinea(), _ => EnEdicion);
         QuitarLineaCommand = new RelayCommand(param => { if (param is LineaEmisionItem l) { LineasEdit.Remove(l); RefrescarTotal(); } });
-        AgregarMiembroCommand = new RelayCommand(_ => AgregarMiembro(), _ => AgenciaSeleccionada != null && EnEdicion);
+        AgregarMiembroCommand = new RelayCommand(_ => AgregarMiembro(), _ => ClienteSeleccionada != null && EnEdicion);
         QuitarMiembroCommand = new RelayCommand(param => { if (param is MiembroGrupoItem m) QuitarMiembro(m); });
         CargarSeguro(CargarListaAsync);
     }
@@ -159,7 +159,7 @@ public class GruposViewModel : PageViewModel
         LimpiarCargaLinea();
         RefrescarTotal();
         FiltroMiembros = string.Empty;
-        await CargarMiembrosAsync(g.Agencias.Select(a => a.AgenciaId).ToHashSet());
+        await CargarMiembrosAsync(g.Clientes.Select(a => a.ClienteId).ToHashSet());
         EnEdicion = enEdicion;
         Notificar();
     }
@@ -202,8 +202,8 @@ public class GruposViewModel : PageViewModel
     private void RefrescarMiembros()
     {
         // El ComboBox de miembros es editable: al seleccionar un ítem, además de fijar
-        // SelectedItem (AgenciaSeleccionada) WPF copia su Text → FiltroMiembros. Si reconstruimos
-        // la lista en ese momento, el Clear() saca de AgenciasDisponibles al ítem seleccionado y
+        // SelectedItem (ClienteSeleccionada) WPF copia su Text → FiltroMiembros. Si reconstruimos
+        // la lista en ese momento, el Clear() saca de ClientesDisponibles al ítem seleccionado y
         // el ComboBox pone SelectedItem=null, perdiendo la selección (el botón Agregar nunca se
         // habilita). Si el filtro coincide exactamente con el Nombre del ítem ya seleccionado,
         // el cambio viene de la selección (no de tipear): no reconstruimos, para preservarla.
@@ -211,29 +211,29 @@ public class GruposViewModel : PageViewModel
             return;
 
         MiembrosDelGrupo.Clear();
-        AgenciasDisponibles.Clear();
+        ClientesDisponibles.Clear();
         var filtro = _filtroMiembros.Trim();
         foreach (var m in _todosMiembros)
         {
             if (m.EsMiembro)
                 MiembrosDelGrupo.Add(m);
             else if (string.IsNullOrEmpty(filtro) || m.Nombre.Contains(filtro, StringComparison.OrdinalIgnoreCase))
-                AgenciasDisponibles.Add(m);
+                ClientesDisponibles.Add(m);
         }
     }
 
     private void LimpiarMiembros()
     {
         MiembrosDelGrupo.Clear();
-        AgenciasDisponibles.Clear();
-        AgenciaSeleccionada = null;
+        ClientesDisponibles.Clear();
+        ClienteSeleccionada = null;
     }
 
     private void AgregarMiembro()
     {
-        if (AgenciaSeleccionada == null) return;
-        AgenciaSeleccionada.EsMiembro = true;
-        AgenciaSeleccionada = null;
+        if (ClienteSeleccionada == null) return;
+        ClienteSeleccionada.EsMiembro = true;
+        ClienteSeleccionada = null;
         FiltroMiembros = string.Empty;
         RefrescarMiembros();
     }
@@ -249,7 +249,7 @@ public class GruposViewModel : PageViewModel
         if (string.IsNullOrWhiteSpace(NombreEdit)) { MostrarError("El nombre es obligatorio."); return; }
         if (LineasEdit.Count == 0) { MostrarError("Agregue al menos un ítem al grupo."); return; }
 
-        var seleccionados = _todosMiembros.Where(m => m.EsMiembro).Select(m => m.AgenciaId).ToHashSet();
+        var seleccionados = _todosMiembros.Where(m => m.EsMiembro).Select(m => m.ClienteId).ToHashSet();
         var total = TotalEdit;
         try
         {
@@ -262,7 +262,7 @@ public class GruposViewModel : PageViewModel
                     Importe = total,
                     Activo = true,
                     Lineas = ConstruirLineas(),
-                    Agencias = seleccionados.Select(id => new AgenciaGrupo { AgenciaId = id }).ToList()
+                    Clientes = seleccionados.Select(id => new ClienteGrupo { ClienteId = id }).ToList()
                 };
                 await _repo.AddAsync(nuevo);
                 _editId = nuevo.Id;
@@ -278,11 +278,11 @@ public class GruposViewModel : PageViewModel
                 existente.Activo = true;
                 existente.Lineas.Clear();
                 foreach (var l in ConstruirLineas()) existente.Lineas.Add(l);
-                existente.Agencias.Where(ag => !seleccionados.Contains(ag.AgenciaId)).ToList()
-                    .ForEach(ag => existente.Agencias.Remove(ag));
-                var actuales = existente.Agencias.Select(ag => ag.AgenciaId).ToHashSet();
+                existente.Clientes.Where(ag => !seleccionados.Contains(ag.ClienteId)).ToList()
+                    .ForEach(ag => existente.Clientes.Remove(ag));
+                var actuales = existente.Clientes.Select(ag => ag.ClienteId).ToHashSet();
                 foreach (var id in seleccionados.Where(id => !actuales.Contains(id)))
-                    existente.Agencias.Add(new AgenciaGrupo { AgenciaId = id, GrupoFacturacionId = existente.Id });
+                    existente.Clientes.Add(new ClienteGrupo { ClienteId = id, GrupoFacturacionId = existente.Id });
                 await _repo.UpdateAsync(existente);
                 MostrarExito("Grupo actualizado.");
             }

@@ -126,8 +126,8 @@
                             </ui:Button>
                             <ComboBox IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
                                       Text="{Binding FiltroMiembros, UpdateSourceTrigger=PropertyChanged}"
-                                      ItemsSource="{Binding EmpresasDisponibles}"
-                                      SelectedItem="{Binding EmpresaSeleccionada}"
+                                      ItemsSource="{Binding ClientesDisponibles}"
+                                      SelectedItem="{Binding ClienteSeleccionada}"
                                       DisplayMemberPath="Nombre" />
                         </DockPanel>
                     </StackPanel>

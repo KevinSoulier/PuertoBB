@@ -17,6 +17,76 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
 
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CondicionIvaId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Cuit")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Domicilio")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RazonSocial")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Clientes");
+                });
+
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ClienteGrupo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GrupoFacturacionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GrupoFacturacionId");
+
+                    b.HasIndex("ClienteId", "GrupoFacturacionId")
+                        .IsUnique();
+
+                    b.ToTable("ClientesGrupos");
+                });
+
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ConceptoRecibo", b =>
                 {
                     b.Property<int>("Id")
@@ -203,13 +273,16 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         });
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmailEmpresa", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmailCliente", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("Activo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -220,17 +293,14 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("EmpresaId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EmpresaId");
+                    b.HasIndex("ClienteId");
 
-                    b.ToTable("EmailsEmpresa");
+                    b.ToTable("EmailsCliente");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmisionGrupo", b =>
@@ -239,11 +309,11 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("EmpresaId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("GrupoFacturacionId")
                         .HasColumnType("INTEGER");
@@ -265,80 +335,10 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.HasIndex("ReciboId")
                         .IsUnique();
 
-                    b.HasIndex("GrupoFacturacionId", "EmpresaId", "PeriodoAnio", "PeriodoMes")
+                    b.HasIndex("GrupoFacturacionId", "ClienteId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique();
 
                     b.ToTable("EmisionesGrupo", (string)null);
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("Activa")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("CondicionIvaId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Cuit")
-                        .IsRequired()
-                        .HasMaxLength(13)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Domicilio")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RazonSocial")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Empresas");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmpresaGrupo", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("EmpresaId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("GrupoFacturacionId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GrupoFacturacionId");
-
-                    b.HasIndex("EmpresaId", "GrupoFacturacionId")
-                        .IsUnique();
-
-                    b.ToTable("EmpresasGrupos");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", b =>
@@ -534,6 +534,9 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("CodigoAfip")
                         .HasColumnType("INTEGER");
 
@@ -544,9 +547,6 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("EmpresaId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("EstadoFiscal")
                         .IsRequired()
@@ -632,7 +632,7 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EmpresaId");
+                    b.HasIndex("ClienteId");
 
                     b.HasIndex("PeriodoAnio", "PeriodoMes");
 
@@ -682,6 +682,25 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.ToTable("RecibosLineas");
                 });
 
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ClienteGrupo", b =>
+                {
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", "Cliente")
+                        .WithMany("Grupos")
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", "Grupo")
+                        .WithMany("Clientes")
+                        .HasForeignKey("GrupoFacturacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
+
+                    b.Navigation("Grupo");
+                });
+
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.CuentaCorreo", b =>
                 {
                     b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", null)
@@ -691,15 +710,15 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmailEmpresa", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmailCliente", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", "Empresa")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", "Cliente")
                         .WithMany("Emails")
-                        .HasForeignKey("EmpresaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Empresa");
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmisionGrupo", b =>
@@ -719,25 +738,6 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Navigation("Grupo");
 
                     b.Navigation("Recibo");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmpresaGrupo", b =>
-                {
-                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", "Empresa")
-                        .WithMany("Grupos")
-                        .HasForeignKey("EmpresaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", "Grupo")
-                        .WithMany("Empresas")
-                        .HasForeignKey("GrupoFacturacionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Empresa");
-
-                    b.Navigation("Grupo");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea", b =>
@@ -773,13 +773,13 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", "Empresa")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", "Cliente")
                         .WithMany("Recibos")
-                        .HasForeignKey("EmpresaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Empresa");
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ReciboLinea", b =>
@@ -793,14 +793,7 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Navigation("Recibo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
-                {
-                    b.Navigation("CuentasCorreo");
-
-                    b.Navigation("PuntosDeVenta");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Empresa", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", b =>
                 {
                     b.Navigation("Emails");
 
@@ -809,11 +802,18 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                     b.Navigation("Recibos");
                 });
 
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
+                {
+                    b.Navigation("CuentasCorreo");
+
+                    b.Navigation("PuntosDeVenta");
+                });
+
             modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", b =>
                 {
-                    b.Navigation("Emisiones");
+                    b.Navigation("Clientes");
 
-                    b.Navigation("Empresas");
+                    b.Navigation("Emisiones");
 
                     b.Navigation("Lineas");
                 });

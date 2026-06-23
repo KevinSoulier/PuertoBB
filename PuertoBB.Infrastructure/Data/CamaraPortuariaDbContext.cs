@@ -7,11 +7,11 @@ public class CamaraPortuariaDbContext : DbContext
 {
     public CamaraPortuariaDbContext(DbContextOptions<CamaraPortuariaDbContext> options) : base(options) { }
 
-    public DbSet<Empresa>          Empresas        => Set<Empresa>();
-    public DbSet<EmailEmpresa>     EmailsEmpresa   => Set<EmailEmpresa>();
+    public DbSet<Cliente>          Clientes        => Set<Cliente>();
+    public DbSet<EmailCliente>     EmailsCliente   => Set<EmailCliente>();
     public DbSet<GrupoFacturacion>      Grupos          => Set<GrupoFacturacion>();
     public DbSet<GrupoFacturacionLinea> GruposLineas    => Set<GrupoFacturacionLinea>();
-    public DbSet<EmpresaGrupo>          EmpresasGrupos  => Set<EmpresaGrupo>();
+    public DbSet<ClienteGrupo>          ClientesGrupos  => Set<ClienteGrupo>();
     public DbSet<EmisionGrupo>          EmisionesGrupo  => Set<EmisionGrupo>();
     public DbSet<Recibo>           Recibos         => Set<Recibo>();
     public DbSet<ReciboLinea>      RecibosLineas   => Set<ReciboLinea>();

@@ -18,9 +18,14 @@ using QuestPDF.Infrastructure;
 using Xunit;
 using CpRepos = PuertoBB.Infrastructure.Repositories.CamaraPortuaria;
 using CmRepos = PuertoBB.Infrastructure.Repositories.CentroMaritimo;
-using CmAgencia = PuertoBB.Core.Entities.CentroMaritimo.Agencia;
+using CmCliente = PuertoBB.Core.Entities.CentroMaritimo.Cliente;
 using CmRecibo = PuertoBB.Core.Entities.CentroMaritimo.Recibo;
 using CpGrupo = PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion;
+using Cliente = PuertoBB.Core.Entities.CamaraPortuaria.Cliente;
+using EmailCliente = PuertoBB.Core.Entities.CamaraPortuaria.EmailCliente;
+using ClienteGrupo = PuertoBB.Core.Entities.CamaraPortuaria.ClienteGrupo;
+using CmEmail = PuertoBB.Core.Entities.CentroMaritimo.EmailCliente;
+using CmClienteGrupo = PuertoBB.Core.Entities.CentroMaritimo.ClienteGrupo;
 
 namespace PuertoBB.Tests;
 
@@ -54,7 +59,7 @@ public class CamaraEmisionTests
         => new(
             new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance),
             new CpRepos.GrupoFacturacionRepository(db, NullLogger<CpRepos.GrupoFacturacionRepository>.Instance),
-            new CpRepos.EmpresaRepository(db, NullLogger<CpRepos.EmpresaRepository>.Instance),
+            new CpRepos.ClienteRepository(db, NullLogger<CpRepos.ClienteRepository>.Instance),
             new CpRepos.NotaDeCreditoRepository(db, NullLogger<CpRepos.NotaDeCreditoRepository>.Instance),
             new CpRepos.ConfiguracionRepository(db),
             afip ?? AfipOk(),
@@ -89,25 +94,25 @@ public class CamaraEmisionTests
         return mail;
     }
 
-    private static int SeedEmpresa(CamaraPortuariaDbContext db)
+    private static int SeedCliente(CamaraPortuariaDbContext db)
     {
-        var e = new Empresa { Nombre = "X", RazonSocial = "X SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "x@x.com", CreatedAt = DateTime.Now }] };
-        db.Empresas.Add(e);
+        var e = new Cliente { Nombre = "X", RazonSocial = "X SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "x@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(e);
         db.SaveChanges();
         return e.Id;
     }
 
-    private static int SeedGrupoConEmpresas(CamaraPortuariaDbContext db)
+    private static int SeedGrupoConClientes(CamaraPortuariaDbContext db)
     {
         var grupo = new CpGrupo { Nombre = "Cuota", Importe = 5000m, CreatedAt = DateTime.Now };
         db.Grupos.Add(grupo);
-        var e1 = new Empresa { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "u@x.com", CreatedAt = DateTime.Now }] };
-        var e2 = new Empresa { Nombre = "Dos", RazonSocial = "Dos SA", Cuit = "30722222222", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "d@x.com", CreatedAt = DateTime.Now }] };
-        db.Empresas.AddRange(e1, e2);
+        var e1 = new Cliente { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "u@x.com", CreatedAt = DateTime.Now }] };
+        var e2 = new Cliente { Nombre = "Dos", RazonSocial = "Dos SA", Cuit = "30722222222", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "d@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.AddRange(e1, e2);
         db.SaveChanges();
-        db.EmpresasGrupos.AddRange(
-            new EmpresaGrupo { EmpresaId = e1.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now },
-            new EmpresaGrupo { EmpresaId = e2.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
+        db.ClientesGrupos.AddRange(
+            new ClienteGrupo { ClienteId = e1.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now },
+            new ClienteGrupo { ClienteId = e2.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
         db.SaveChanges();
         return grupo.Id;
     }
@@ -115,11 +120,11 @@ public class CamaraEmisionTests
     // ---- RG 5616: condición frente al IVA del receptor ----
 
     [Fact]
-    public async Task EmitirIndividual_EmpresaSinCondicionIva_FallaSinLlamarAfip()
+    public async Task EmitirIndividual_ClienteSinCondicionIva_FallaSinLlamarAfip()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var e = new Empresa { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "s@x.com", CreatedAt = DateTime.Now }] };
-        db.Empresas.Add(e);
+        var e = new Cliente { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "s@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(e);
         db.SaveChanges();
         var afip = AfipOk();
         var service = BuildService(db, MailOk(), afip);
@@ -136,10 +141,10 @@ public class CamaraEmisionTests
     public async Task Reintentar_TrasCorregirCondicionIva_ReSincronizaSnapshot_YEmite()
     {
         // C3: un recibo trabado en Pendiente por falta de condición IVA (RG 5616) debe destrabarse al
-        // corregir el dato en Empresas y reintentar — el snapshot se re-sincroniza desde el maestro.
+        // corregir el dato en Clientes y reintentar — el snapshot se re-sincroniza desde el maestro.
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var e = new Empresa { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "s@x.com", CreatedAt = DateTime.Now }] };
-        db.Empresas.Add(e);
+        var e = new Cliente { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "s@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(e);
         db.SaveChanges();
         var service = BuildService(db, MailOk());
 
@@ -167,7 +172,7 @@ public class CamaraEmisionTests
     public async Task EmitirIndividual_CopiaSnapshotDeCondicionIva()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);   // CondicionIvaId = 1
+        var empresaId = SeedCliente(db);   // CondicionIvaId = 1
         var service = BuildService(db, MailOk());
 
         var res = await service.EmitirIndividualAsync(empresaId, 1000m, "Cuota", DateTime.Today, 2026, 6, enviarMail: false);
@@ -182,7 +187,7 @@ public class CamaraEmisionTests
     public async Task Anular_PasaCondicionIvaDelSnapshotALaNotaDeCredito()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var afip = AfipOk();
         var service = BuildService(db, MailOk(), afip);
         Assert.True((await service.EmitirIndividualAsync(empresaId, 1000m, "Cuota", DateTime.Today, 2026, 6, enviarMail: false)).Data!.Exito);
@@ -203,7 +208,7 @@ public class CamaraEmisionTests
         // B: tras un intento previo fallido, el CAE pudo haberse autorizado sin registrarse.
         // El reintento debe RECUPERARLO de AFIP, no re-emitir (evita duplicar).
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
 
         var afip = Substitute.For<IAfipService>();
         afip.ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>())
@@ -235,10 +240,10 @@ public class CamaraEmisionTests
     }
 
     [Fact]
-    public async Task EmitirMasivo_GeneraReciboPorEmpresa_ConCaeYEstadoEnviado()
+    public async Task EmitirMasivo_GeneraReciboPorCliente_ConCaeYEstadoEnviado()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var service = BuildService(db, MailOk());
 
         var res = await service.EmitirMasivoAsync(grupoId, 2026, 6);
@@ -261,7 +266,7 @@ public class CamaraEmisionTests
     public async Task EmitirMasivo_CopiaSnapshotReceptor_YCreaEmisionGrupo()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var service = BuildService(db, MailOk());
 
         await service.EmitirMasivoAsync(grupoId, 2026, 6);
@@ -278,14 +283,14 @@ public class CamaraEmisionTests
         Assert.Equal(2, emisiones.Count);
         Assert.All(emisiones, e => Assert.Equal(grupoId, e.GrupoFacturacionId));
         Assert.All(recibos, r => Assert.Contains(emisiones,
-            e => e.ReciboId == r.Id && e.EmpresaId == r.EmpresaId && e.PeriodoAnio == r.PeriodoAnio && e.PeriodoMes == r.PeriodoMes));
+            e => e.ReciboId == r.Id && e.ClienteId == r.ClienteId && e.PeriodoAnio == r.PeriodoAnio && e.PeriodoMes == r.PeriodoMes));
     }
 
     [Fact]
     public async Task EmitirMasivo_PersisteLineasSnapshot_ConTotalIgualSuma()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var service = BuildService(db, MailOk());
 
         await service.EmitirMasivoAsync(grupoId, 2026, 6);
@@ -314,10 +319,10 @@ public class CamaraEmisionTests
             ]
         };
         db.Grupos.Add(grupo);
-        var emp = new Empresa { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "u@x.com", CreatedAt = DateTime.Now }] };
-        db.Empresas.Add(emp);
+        var emp = new Cliente { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "u@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(emp);
         db.SaveChanges();
-        db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = emp.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
+        db.ClientesGrupos.Add(new ClienteGrupo { ClienteId = emp.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
         db.SaveChanges();
         var service = BuildService(db, MailOk());
 
@@ -336,7 +341,7 @@ public class CamaraEmisionTests
     public async Task EmitirMasivo_SegundaVez_OmiteCompletos_SinFallarNiDuplicar()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var service = BuildService(db, MailOk());
 
         await service.EmitirMasivoAsync(grupoId, 2026, 6);                 // emite + envía
@@ -351,7 +356,7 @@ public class CamaraEmisionTests
     public async Task EmitirMasivo_ReenviarYaEnviados_ReenviaLosCompletos()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
 
@@ -370,7 +375,7 @@ public class CamaraEmisionTests
     public async Task GetEstadoMasivo_DevuelveImporteEsperadoDelGrupo()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);   // grupo.Importe = 5000
+        var grupoId = SeedGrupoConClientes(db);   // grupo.Importe = 5000
         var service = BuildService(db, MailOk());
 
         var estado = await service.GetEstadoMasivoAsync(grupoId, 2026, 6);
@@ -383,12 +388,12 @@ public class CamaraEmisionTests
     public async Task EmitirDeGrupo_TrasFalloCae_ReSincronizaImporteDelGrupoCorregido()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);   // Importe 5000
+        var grupoId = SeedGrupoConClientes(db);   // Importe 5000
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
 
         await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);   // 1er CAE falla → un Pendiente
         var pendiente = db.Recibos.Single(r => r.EstadoFiscal == EstadoFiscal.Pendiente);
-        var empresaPendienteId = pendiente.EmpresaId;
+        var empresaPendienteId = pendiente.ClienteId;
 
         // Corregir el importe del grupo y re-emitir POR FILA (antes el bug reintentaba con el importe viejo).
         db.Grupos.Single().Importe = 8000m;
@@ -397,7 +402,7 @@ public class CamaraEmisionTests
         var res = await service.EmitirDeGrupoAsync(grupoId, empresaPendienteId, 2026, 6, enviarMail: false);
 
         Assert.True(res.Data!.Exito);
-        var recargado = db.Recibos.Single(r => r.EmpresaId == empresaPendienteId);
+        var recargado = db.Recibos.Single(r => r.ClienteId == empresaPendienteId);
         Assert.Equal(EstadoFiscal.Emitido, recargado.EstadoFiscal);
         Assert.Equal(8000m, recargado.Importe);   // re-sincronizó al valor corregido del grupo
     }
@@ -406,7 +411,7 @@ public class CamaraEmisionTests
     public async Task EditarReciboPendiente_ActualizaLineasEImporte_YRechazaConCae()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
 
         // Pendiente (AFIP falla la 1ª vez): se puede editar.
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
@@ -430,7 +435,7 @@ public class CamaraEmisionTests
     public async Task EliminarReciboPendiente_BorraSinCae_YRechazaConCae()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
 
         // Pendiente: se elimina.
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
@@ -457,7 +462,7 @@ public class CamaraEmisionTests
     public async Task EmitirMasivo_MailFalla_ReciboQuedaEmitido_ConErrorMail()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var mail = Substitute.For<IMailService>();
         mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Fail("SMTP caído"));
@@ -474,7 +479,7 @@ public class CamaraEmisionTests
     public async Task EmitirIndividual_AnularGeneraNotaDeCredito()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        db.Empresas.Add(new Empresa { Id = 1, Nombre = "X", RazonSocial = "X", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "x@x.com", CreatedAt = DateTime.Now }] });
+        db.Clientes.Add(new Cliente { Id = 1, Nombre = "X", RazonSocial = "X", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "x@x.com", CreatedAt = DateTime.Now }] });
         db.SaveChanges();
         var service = BuildService(db, MailOk());
 
@@ -493,7 +498,7 @@ public class CamaraEmisionTests
     public async Task EmitirIndividual_SinMail_QuedaEmitidoYNoIntentaMail()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
 
@@ -511,7 +516,7 @@ public class CamaraEmisionTests
     public async Task EmitirIndividual_FallaCae_QuedaPendiente_YReintentoLoCompleta()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
 
         var primera = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: true);
@@ -534,7 +539,7 @@ public class CamaraEmisionTests
     public async Task Anular_ReciboSinCae_Falla()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
 
         // El CAE falla → el recibo queda Pendiente sin CAE.
@@ -553,7 +558,7 @@ public class CamaraEmisionTests
     public async Task MarcarPagado_ReciboAnulado_Falla()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk(), AfipOk());
 
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -580,7 +585,7 @@ public class CamaraEmisionTests
     public async Task ReenviarMail_ReciboEmitido_EnviaYPasaAEnviado()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk());
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
@@ -596,7 +601,7 @@ public class CamaraEmisionTests
     public async Task MarcarPagado_ReciboEnviado_QuedaPagadoConFecha()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk());
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: true);
         var reciboId = db.Recibos.Single().Id;
@@ -613,7 +618,7 @@ public class CamaraEmisionTests
     public async Task MarcarPagado_ReciboPendiente_Falla()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         await BuildService(db, MailOk(), AfipFalla()).EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
 
@@ -627,7 +632,7 @@ public class CamaraEmisionTests
     public async Task Anular_FalloAfipEnNc_NoDejaEstadoInconsistente()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         await BuildService(db, MailOk()).EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
 
@@ -642,7 +647,7 @@ public class CamaraEmisionTests
     public async Task Anular_SinMail_NoEnviaMail()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -661,7 +666,7 @@ public class CamaraEmisionTests
     public async Task Anular_ConMail_EnviaNotaCredito()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -682,7 +687,7 @@ public class CamaraEmisionTests
     public async Task Anular_MailFalla_DevuelveExitoConErrorMail()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var mail = Substitute.For<IMailService>();
         mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Fail("SMTP caído"));
@@ -702,7 +707,7 @@ public class CamaraEmisionTests
     public async Task ReenviarMail_ReciboAnulado_EnviaNotaCredito_SinCambiarEstado()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -721,7 +726,7 @@ public class CamaraEmisionTests
     public async Task Reintentar_TrasFalloMail_EnviaSinPedirNuevoCae()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var afip = AfipOk();
         var service = BuildService(db, MailFallaUnaVez(), afip);
 
@@ -747,7 +752,7 @@ public class CamaraEmisionTests
     {
         // P1-4: N recibos individuales por período están permitidos (cobros extraordinarios).
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var afip = AfipOk();
         var service = BuildService(db, MailOk(), afip);
 
@@ -764,7 +769,7 @@ public class CamaraEmisionTests
     public async Task EmitirMasivo_SinMail_QuedaEmitidoYNoEnviaMail()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
 
@@ -779,7 +784,7 @@ public class CamaraEmisionTests
     public async Task GetEstadoMasivo_AntesYDespuesDeEmitir_ReflejaRecibos()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var service = BuildService(db, MailOk());
 
         var antes = await service.GetEstadoMasivoAsync(grupoId, 2026, 6);
@@ -798,7 +803,7 @@ public class CamaraEmisionTests
     public async Task EnviarMasivo_TrasEmitirSinMail_EnviaYDejaEnviado()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var grupoId = SeedGrupoConEmpresas(db);
+        var grupoId = SeedGrupoConClientes(db);
         var service = BuildService(db, MailOk());
 
         await service.EmitirMasivoAsync(grupoId, 2026, 6, enviarMail: false);
@@ -826,7 +831,7 @@ public class CamaraEmisionTests
         => new(
             new CpRepos.ReciboRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.ReciboRepository>.Instance),
             new CpRepos.GrupoFacturacionRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.GrupoFacturacionRepository>.Instance),
-            new CpRepos.EmpresaRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.EmpresaRepository>.Instance),
+            new CpRepos.ClienteRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.ClienteRepository>.Instance),
             new CpRepos.NotaDeCreditoRepository(NuevoContextoCp(fixture), NullLogger<CpRepos.NotaDeCreditoRepository>.Instance),
             new CpRepos.ConfiguracionRepository(NuevoContextoCp(fixture)),
             afip ?? AfipOk(),
@@ -835,12 +840,12 @@ public class CamaraEmisionTests
             NullLogger<CamaraPortuariaReciboService>.Instance);
 
     [Fact]
-    public async Task EmitirMasivo_ConContextosSeparados_EmiteSinReinsertarEmpresa()
+    public async Task EmitirMasivo_ConContextosSeparados_EmiteSinReinsertarCliente()
     {
         // Replica el escenario real de la app: cada repositorio usa su propio DbContext (Transient).
         // Antes del fix CP, esto falla porque EF re-inserta la empresa al guardar el recibo.
         using var fx = SqliteTestDb.CreateCamara(out var seedDb);
-        var grupoId = SeedGrupoConEmpresas(seedDb);
+        var grupoId = SeedGrupoConClientes(seedDb);
 
         var service = BuildServiceContextosSeparados(fx, MailOk());
 
@@ -852,7 +857,7 @@ public class CamaraEmisionTests
 
         // Verificar con un contexto de lectura independiente que no se duplicó la empresa.
         using var verDb = NuevoContextoCp(fx);
-        Assert.Equal(2, verDb.Empresas.Count());
+        Assert.Equal(2, verDb.Clientes.Count());
         Assert.Equal(2, verDb.Recibos.Count());
     }
 
@@ -861,12 +866,12 @@ public class CamaraEmisionTests
     {
         // CM no tiene el bug P0-1; este test debe pasar siempre (gemelo de referencia).
         using var fx = SqliteTestDb.CreateCentro(out var seedDb);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
         var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
-        seedDb.Agencias.Add(ag);
+        seedDb.Clientes.Add(ag);
         seedDb.Barcos.Add(barco);
         seedDb.SaveChanges();
-        seedDb.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 10), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        seedDb.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 10), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         seedDb.SaveChanges();
 
         CentroMaritimoDbContext NuevoContextoCm()
@@ -880,7 +885,7 @@ public class CamaraEmisionTests
         var service = new CentroMaritimoReciboService(
             new CmRepos.ReciboRepository(NuevoContextoCm(), NullLogger<CmRepos.ReciboRepository>.Instance),
             new CmRepos.GrupoFacturacionRepository(NuevoContextoCm(), NullLogger<CmRepos.GrupoFacturacionRepository>.Instance),
-            new CmRepos.AgenciaRepository(NuevoContextoCm(), NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(NuevoContextoCm(), NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.VoucherRepository(NuevoContextoCm(), NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.NotaDeCreditoRepository(NuevoContextoCm(), NullLogger<CmRepos.NotaDeCreditoRepository>.Instance),
             new CmRepos.ConfiguracionRepository(NuevoContextoCm()),
@@ -896,7 +901,7 @@ public class CamaraEmisionTests
         Assert.True(res.Data![0].Exito);
 
         using var verDb = NuevoContextoCm();
-        Assert.Equal(1, verDb.Agencias.Count()); // no se reinsertó
+        Assert.Equal(1, verDb.Clientes.Count()); // no se reinsertó
         Assert.Equal(1, verDb.Recibos.Count());
     }
 
@@ -906,7 +911,7 @@ public class CamaraEmisionTests
     public async Task EmitirIndividual_DosVecesMismoPeriodo_CreaDosRecibos()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk());
 
         var r1 = await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro 1", DateTime.Today, 2026, 6, enviarMail: false);
@@ -923,7 +928,7 @@ public class CamaraEmisionTests
     public async Task EmitirIndividual_ConPendientePrevio_RetomaSinDuplicar()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var afip = AfipFallaUnaVez();
         var service = BuildService(db, MailOk(), afip);
 
@@ -944,7 +949,7 @@ public class CamaraEmisionTests
         // N-1: un Pendiente con contenido DISTINTO no es un reintento — es otro cobro.
         // El segundo pedido NO debe pisar el snapshot del primero.
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
 
         // Primera emisión falla en CAE → "Papelería" queda Pendiente
@@ -979,10 +984,10 @@ public class CamaraEmisionTests
             ]
         };
         db.Grupos.Add(grupo);
-        var emp = new Empresa { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailEmpresa { Email = "u@x.com", CreatedAt = DateTime.Now }] };
-        db.Empresas.Add(emp);
+        var emp = new Cliente { Nombre = "Uno", RazonSocial = "Uno SA", Cuit = "30711111111", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailCliente { Email = "u@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(emp);
         db.SaveChanges();
-        db.EmpresasGrupos.Add(new EmpresaGrupo { EmpresaId = emp.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
+        db.ClientesGrupos.Add(new ClienteGrupo { ClienteId = emp.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
         db.SaveChanges();
         var service = BuildService(db, MailOk(), AfipFallaUnaVez());
 
@@ -1005,7 +1010,7 @@ public class CamaraEmisionTests
     public async Task MarcarIncobrable_ReciboEmitido_LoDaDeBaja_YQuitarLoRevierte()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         var service = BuildService(db, MailOk());
         await service.EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
@@ -1031,7 +1036,7 @@ public class CamaraEmisionTests
     public async Task MarcarIncobrable_ReciboPendiente_Falla()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
+        var empresaId = SeedCliente(db);
         await BuildService(db, MailOk(), AfipFalla()).EmitirIndividualAsync(empresaId, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
         var reciboId = db.Recibos.Single().Id;
 
@@ -1071,7 +1076,7 @@ public class CentroCierreTests
         => new(
             new CmRepos.ReciboRepository(db, NullLogger<CmRepos.ReciboRepository>.Instance),
             new CmRepos.GrupoFacturacionRepository(db, NullLogger<CmRepos.GrupoFacturacionRepository>.Instance),
-            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(db, NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.NotaDeCreditoRepository(db, NullLogger<CmRepos.NotaDeCreditoRepository>.Instance),
             new CmRepos.ConfiguracionRepository(db),
@@ -1081,11 +1086,11 @@ public class CentroCierreTests
             NullLogger<CentroMaritimoReciboService>.Instance);
 
     [Fact]
-    public async Task EmitirIndividual_AgenciaSinCondicionIva_FallaSinLlamarAfip_CM()
+    public async Task EmitirIndividual_ClienteSinCondicionIva_FallaSinLlamarAfip_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "s@x.com", CreatedAt = DateTime.Now }] };
-        db.Agencias.Add(ag);
+        var ag = new CmCliente { Nombre = "SinCond", RazonSocial = "SinCond SA", Cuit = "30733333334", CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "s@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(ag);
         db.SaveChanges();
         var afip = AfipOk();
         var service = BuildService(db, MailOk(), afip);
@@ -1098,17 +1103,17 @@ public class CentroCierreTests
     }
 
     [Fact]
-    public async Task CerrarPeriodo_ConsolidaVouchers_EnUnReciboPorAgencia()
+    public async Task CerrarPeriodo_ConsolidaVouchers_EnUnReciboPorCliente()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
         var barco = new Barco { Nombre = "Barco", CreatedAt = DateTime.Now };
-        db.Agencias.Add(ag);
+        db.Clientes.Add(ag);
         db.Barcos.Add(barco);
         db.SaveChanges();
         db.Vouchers.AddRange(
-            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 10), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
-            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2500m, Fecha = new DateTime(2026, 6, 12), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 10), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2500m, Fecha = new DateTime(2026, 6, 12), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
         var service = BuildService(db, MailOk());
@@ -1158,15 +1163,15 @@ public class CentroCierreTests
         return afip;
     }
 
-    private static (CmAgencia agencia, Barco barco) SeedAgenciaConVouchers(CentroMaritimoDbContext db, int cantVouchers)
+    private static (CmCliente agencia, Barco barco) SeedClienteConVouchers(CentroMaritimoDbContext db, int cantVouchers)
     {
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
         var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
-        db.Agencias.Add(ag);
+        db.Clientes.Add(ag);
         db.Barcos.Add(barco);
         db.SaveChanges();
         for (int i = 1; i <= cantVouchers; i++)
-            db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = i, Importe = 1000m, Fecha = new DateTime(2026, 6, i), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+            db.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = i, Importe = 1000m, Fecha = new DateTime(2026, 6, i), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
         return (ag, barco);
     }
@@ -1175,7 +1180,7 @@ public class CentroCierreTests
     public async Task CerrarPeriodo_FallaCae_PersisteReciboPendienteYVouchersVinculados()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        SeedClienteConVouchers(db, cantVouchers: 2);
         var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
 
         var res = await service.CerrarPeriodoAsync(2026, 6);
@@ -1194,7 +1199,7 @@ public class CentroCierreTests
     public async Task CerrarPeriodo_ReintentoTrasFalloCae_CompletaSinDuplicar()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        SeedClienteConVouchers(db, cantVouchers: 2);
         var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
 
         await service.CerrarPeriodoAsync(2026, 6);  // primer intento: CAE falla
@@ -1228,7 +1233,7 @@ public class CentroCierreTests
         => new(
             new CmRepos.ReciboRepository(NuevoContextoCm(fx), NullLogger<CmRepos.ReciboRepository>.Instance),
             new CmRepos.GrupoFacturacionRepository(NuevoContextoCm(fx), NullLogger<CmRepos.GrupoFacturacionRepository>.Instance),
-            new CmRepos.AgenciaRepository(NuevoContextoCm(fx), NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(NuevoContextoCm(fx), NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.VoucherRepository(NuevoContextoCm(fx), NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.NotaDeCreditoRepository(NuevoContextoCm(fx), NullLogger<CmRepos.NotaDeCreditoRepository>.Instance),
             new CmRepos.ConfiguracionRepository(NuevoContextoCm(fx)),
@@ -1243,7 +1248,7 @@ public class CentroCierreTests
         // N-3: los vouchers nuevos se vinculan en OTRO DbContext (Transient); el mail y el count
         // del resultado deben verlos igual. Con contexto compartido este test pasaría siempre.
         using var fx = SqliteTestDb.CreateCentro(out var seedDb);
-        var (ag, barco) = SeedAgenciaConVouchers(seedDb, cantVouchers: 1);   // V1 = $1000
+        var (ag, barco) = SeedClienteConVouchers(seedDb, cantVouchers: 1);   // V1 = $1000
 
         // 1er cierre: CAE falla → consolidado Pendiente con V1
         var service1 = BuildServiceContextosSeparados(fx, MailOk(), AfipFallaUnaVezCm());
@@ -1251,7 +1256,7 @@ public class CentroCierreTests
         Assert.False(primera.Data![0].Exito);
 
         // Aparece un voucher nuevo del mismo período
-        seedDb.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        seedDb.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         seedDb.SaveChanges();
 
         // 2do cierre: AFIP OK; el PDF fake captura qué vouchers viajan en el mail
@@ -1280,7 +1285,7 @@ public class CentroCierreTests
     public async Task EmitirRecibosPeriodo_ReintentoTrasFalloCae_ProcesaConsolidadoPendiente()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        SeedClienteConVouchers(db, cantVouchers: 2);
         var mail = MailOk();
         var service = BuildService(db, mail, AfipFallaUnaVezCm());
 
@@ -1302,17 +1307,17 @@ public class CentroCierreTests
     }
 
     [Fact]
-    public async Task EmitirReciboAgencia_ReintentoTrasFalloCae_SinVouchersLibres_Emite()
+    public async Task EmitirReciboCliente_ReintentoTrasFalloCae_SinVouchersLibres_Emite()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var (ag, _) = SeedClienteConVouchers(db, cantVouchers: 2);
         var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
 
-        var primera = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        var primera = await service.EmitirReciboClienteAsync(ag.Id, 2026, 6);
         Assert.False(primera.Success);                           // CAE falló → error con motivo
         Assert.Equal(EstadoFiscal.Pendiente, db.Recibos.Single().EstadoFiscal);
 
-        var segunda = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        var segunda = await service.EmitirReciboClienteAsync(ag.Id, 2026, 6);
         Assert.True(segunda.Success);                            // reintento sobre el consolidado Pendiente
         Assert.True(segunda.Data!.Exito);
         Assert.Equal(1, db.Recibos.Count());
@@ -1320,16 +1325,16 @@ public class CentroCierreTests
     }
 
     [Fact]
-    public async Task EmitirReciboAgencia_SinVouchersNiConsolidadoPendiente_Falla()
+    public async Task EmitirReciboCliente_SinVouchersNiConsolidadoPendiente_Falla()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var (ag, _) = SeedClienteConVouchers(db, cantVouchers: 1);
         var service = BuildService(db, MailOk());
 
-        var emision = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        var emision = await service.EmitirReciboClienteAsync(ag.Id, 2026, 6);
         Assert.True(emision.Success);                            // emite OK (queda Emitido, con CAE)
 
-        var repetida = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
+        var repetida = await service.EmitirReciboClienteAsync(ag.Id, 2026, 6);
         Assert.False(repetida.Success);                          // ya no hay nada para emitir
         Assert.Contains("no tiene vouchers pendientes", repetida.ErrorMessage);
         Assert.Equal(1, db.Recibos.Count());
@@ -1339,7 +1344,7 @@ public class CentroCierreTests
     public async Task EmitirRecibos_SinPuntoDeVentaActivo_FallaConMensajeClaro()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var (ag, _) = SeedClienteConVouchers(db, cantVouchers: 1);
         db.PuntosDeVenta.Single().Activo = false;                // sin punto de venta activo
         db.SaveChanges();
         var service = BuildService(db, MailOk());
@@ -1348,9 +1353,9 @@ public class CentroCierreTests
         Assert.False(masivo.Success);
         Assert.Contains("punto de venta", masivo.ErrorMessage);
 
-        var porAgencia = await service.EmitirReciboAgenciaAsync(ag.Id, 2026, 6);
-        Assert.False(porAgencia.Success);
-        Assert.Contains("punto de venta", porAgencia.ErrorMessage);
+        var porCliente = await service.EmitirReciboClienteAsync(ag.Id, 2026, 6);
+        Assert.False(porCliente.Success);
+        Assert.Contains("punto de venta", porCliente.ErrorMessage);
 
         Assert.Empty(db.Recibos);                                // no se persistió nada a medias
     }
@@ -1361,7 +1366,7 @@ public class CentroCierreTests
     public async Task Anular_PersisteReciboYNotaJuntos_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var (ag, _) = SeedClienteConVouchers(db, cantVouchers: 1);
         var service = BuildService(db, MailOk());
 
         await service.CerrarPeriodoAsync(2026, 6);
@@ -1373,10 +1378,10 @@ public class CentroCierreTests
         Assert.Equal(1, db.NotasDeCredito.Count());
     }
 
-    private static CmAgencia SeedAgenciaSola(CentroMaritimoDbContext db)
+    private static CmCliente SeedClienteSola(CentroMaritimoDbContext db)
     {
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
-        db.Agencias.Add(ag);
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(ag);
         db.SaveChanges();
         return ag;
     }
@@ -1385,7 +1390,7 @@ public class CentroCierreTests
     public async Task Anular_SinMail_NoEnviaMail_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = SeedAgenciaSola(db);
+        var ag = SeedClienteSola(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(ag.Id, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -1404,7 +1409,7 @@ public class CentroCierreTests
     public async Task Anular_ConMail_EnviaNotaCredito_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = SeedAgenciaSola(db);
+        var ag = SeedClienteSola(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(ag.Id, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -1425,7 +1430,7 @@ public class CentroCierreTests
     public async Task Anular_MailFalla_DevuelveExitoConErrorMail_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = SeedAgenciaSola(db);
+        var ag = SeedClienteSola(db);
         var mail = Substitute.For<IMailService>();
         mail.EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(ServiceResult<bool>.Fail("SMTP caído"));
@@ -1445,7 +1450,7 @@ public class CentroCierreTests
     public async Task ReenviarMail_ReciboAnulado_EnviaNotaCredito_SinCambiarEstado_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = SeedAgenciaSola(db);
+        var ag = SeedClienteSola(db);
         var mail = MailOk();
         var service = BuildService(db, mail);
         await service.EmitirIndividualAsync(ag.Id, 1000m, "Cobro", DateTime.Today, 2026, 6, enviarMail: false);
@@ -1466,7 +1471,7 @@ public class CentroCierreTests
     public async Task AnularConsolidado_PermiteReemitirElPeriodo()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, barco) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var (ag, barco) = SeedClienteConVouchers(db, cantVouchers: 2);
         var service = BuildService(db, MailOk());
 
         // Cerrar período → consolidado emitido
@@ -1480,7 +1485,7 @@ public class CentroCierreTests
         Assert.All(db.Vouchers.ToList(), v => Assert.Null(v.ReciboId)); // P1-3: vouchers liberados
 
         // Agregar un voucher nuevo y volver a cerrar el mismo período
-        db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 15), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 15), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
         var cierre2 = await service.CerrarPeriodoAsync(2026, 6);
@@ -1496,7 +1501,7 @@ public class CentroCierreTests
     public async Task EmitirRecibos_VoucherOlvidadoTrasConsolidadoConCae_CreaComplementario()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, barco) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var (ag, barco) = SeedClienteConVouchers(db, cantVouchers: 2);
         var service = BuildService(db, MailOk());
 
         // Cierre del período → consolidado original con CAE (Nro. 1).
@@ -1506,7 +1511,7 @@ public class CentroCierreTests
         Assert.False(string.IsNullOrEmpty(original.CAE));
 
         // Voucher olvidado: se carga libre en el MISMO período ya emitido.
-        db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
         // Volver a emitir → consolidado COMPLEMENTARIO por el voucher libre, sin tocar el original.
@@ -1530,23 +1535,23 @@ public class CentroCierreTests
     public async Task GetCierrePeriodo_ConsolidadoEmitidoMasVoucherLibre_QuedaPendiente()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, barco) = SeedAgenciaConVouchers(db, cantVouchers: 2);
+        var (ag, barco) = SeedClienteConVouchers(db, cantVouchers: 2);
         var service = BuildService(db, MailOk());
 
         await service.CerrarPeriodoAsync(2026, 6);   // consolidado emitido
-        db.Vouchers.Add(new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+        db.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 20), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
         var voucherService = new VoucherService(
             new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.ContadorVoucherRepository(db),
-            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(db, NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
             NullLogger<VoucherService>.Instance);
 
         var res = await voucherService.GetCierrePeriodoAsync(2026, 6);
         var a = Assert.Single(res.Data!);
-        Assert.Equal(EstadoCierreAgencia.Pendiente, a.Estado);  // hay un voucher libre → vuelve a Pendiente
+        Assert.Equal(EstadoCierreCliente.Pendiente, a.Estado);  // hay un voucher libre → vuelve a Pendiente
         Assert.Equal(1, a.VouchersLibres);
         Assert.Single(a.Consolidados);                          // el consolidado original sigue listado
     }
@@ -1557,8 +1562,8 @@ public class CentroCierreTests
     public async Task EmitirIndividual_DosVecesMismoPeriodo_CreaDosRecibos_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
-        db.Agencias.Add(ag);
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(ag);
         db.SaveChanges();
         var service = BuildService(db, MailOk());
 
@@ -1577,8 +1582,8 @@ public class CentroCierreTests
     {
         // N-1 (gemelo CM): el Pendiente con contenido distinto no se pisa.
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
-        db.Agencias.Add(ag);
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        db.Clientes.Add(ag);
         db.SaveChanges();
         var service = BuildService(db, MailOk(), AfipFallaUnaVezCm());
 
@@ -1611,7 +1616,7 @@ public class CentroCierreTests
     public async Task ReenviarMail_Consolidado_UsaPdfDescargaConTodosLosVouchers()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        SeedClienteConVouchers(db, cantVouchers: 2);
         await BuildService(db, MailOk()).EmitirRecibosPeriodoAsync(2026, 6);   // Emitido, sin mail
         var reciboId = db.Recibos.Single().Id;
 
@@ -1632,7 +1637,7 @@ public class CentroCierreTests
     public async Task MarcarPagado_ReciboPendiente_Falla_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        SeedAgenciaConVouchers(db, cantVouchers: 1);
+        SeedClienteConVouchers(db, cantVouchers: 1);
         await BuildService(db, MailOk(), AfipFallaCm()).CerrarPeriodoAsync(2026, 6);  // queda Pendiente
         var reciboId = db.Recibos.Single().Id;
 
@@ -1643,15 +1648,15 @@ public class CentroCierreTests
     }
 
     [Fact]
-    public async Task EmitirDeGrupo_AgenciaDelGrupo_EmiteConLineasDelGrupo()
+    public async Task EmitirDeGrupo_ClienteDelGrupo_EmiteConLineasDelGrupo()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
         var grupo = new PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion { Nombre = "Cuota social", Importe = 4000m, CreatedAt = DateTime.Now };
-        db.Agencias.Add(ag);
+        db.Clientes.Add(ag);
         db.Grupos.Add(grupo);
         db.SaveChanges();
-        db.AgenciasGrupos.Add(new AgenciaGrupo { AgenciaId = ag.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
+        db.ClientesGrupos.Add(new CmClienteGrupo { ClienteId = ag.Id, GrupoFacturacionId = grupo.Id, CreatedAt = DateTime.Now });
         db.SaveChanges();
         var service = BuildService(db, MailOk());
 
@@ -1669,7 +1674,7 @@ public class CentroCierreTests
     public async Task Anular_FalloAfipEnNc_NoDejaEstadoInconsistente_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        SeedAgenciaConVouchers(db, cantVouchers: 2);
+        SeedClienteConVouchers(db, cantVouchers: 2);
         await BuildService(db, MailOk()).CerrarPeriodoAsync(2026, 6);   // consolidado emitido
         var reciboId = db.Recibos.Single().Id;
 
@@ -1686,7 +1691,7 @@ public class CentroCierreTests
     public async Task AnularConsolidado_ConContextosSeparados_DesvinculaVouchers()
     {
         using var fx = SqliteTestDb.CreateCentro(out var seedDb);
-        SeedAgenciaConVouchers(seedDb, cantVouchers: 2);
+        SeedClienteConVouchers(seedDb, cantVouchers: 2);
         var service = BuildServiceContextosSeparados(fx, MailOk());
 
         await service.CerrarPeriodoAsync(2026, 6);
@@ -1707,8 +1712,8 @@ public class CentroCierreTests
     public async Task EmitirIndividual_ConContextosSeparados_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var seedDb);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new EmailAgencia { Email = "a@x.com", CreatedAt = DateTime.Now }] };
-        seedDb.Agencias.Add(ag);
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
+        seedDb.Clientes.Add(ag);
         seedDb.SaveChanges();
         var service = BuildServiceContextosSeparados(fx, MailOk());
 
@@ -1716,7 +1721,7 @@ public class CentroCierreTests
 
         Assert.True(res.Data!.Exito);
         using var verDb = NuevoContextoCm(fx);
-        Assert.Equal(1, verDb.Agencias.Count());                        // no se reinsertó la agencia
+        Assert.Equal(1, verDb.Clientes.Count());                        // no se reinsertó la agencia
         var recibo = verDb.Recibos.Single();
         Assert.NotNull(recibo.FechaEnvioMail);
         Assert.False(string.IsNullOrEmpty(recibo.CAE));
@@ -1726,7 +1731,7 @@ public class CentroCierreTests
     public async Task EmitirIndividual_EnPeriodoConsolidado_NoChocaConElConsolidado_CM()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var (ag, _) = SeedAgenciaConVouchers(db, cantVouchers: 1);
+        var (ag, _) = SeedClienteConVouchers(db, cantVouchers: 1);
         var service = BuildService(db, MailOk());
 
         await service.CerrarPeriodoAsync(2026, 6);  // consolidado emitido
@@ -1743,16 +1748,16 @@ public class VoucherServiceTests
     public async Task CrearVoucher_AsignaNumeroYDerivaPeriodo()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now };
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now };
         var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
-        db.Agencias.Add(ag);
+        db.Clientes.Add(ag);
         db.Barcos.Add(barco);
         db.SaveChanges();
 
         var service = new VoucherService(
             new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.ContadorVoucherRepository(db),
-            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(db, NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
             NullLogger<VoucherService>.Instance);
 
@@ -1767,21 +1772,21 @@ public class VoucherServiceTests
     }
 
     [Fact]
-    public async Task GetCierrePeriodo_AgrupaPorAgencia_MapeaEstadoSegunRecibo()
+    public async Task GetCierrePeriodo_AgrupaPorCliente_MapeaEstadoSegunRecibo()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag1 = new CmAgencia { Nombre = "Norte",  RazonSocial = "N",  Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now };
-        var ag2 = new CmAgencia { Nombre = "Centro", RazonSocial = "C",  Cuit = "30700000002", CondicionIvaId = 1, CreatedAt = DateTime.Now };
-        var ag3 = new CmAgencia { Nombre = "Sur",    RazonSocial = "S",  Cuit = "30700000003", CondicionIvaId = 1, CreatedAt = DateTime.Now };
+        var ag1 = new CmCliente { Nombre = "Norte",  RazonSocial = "N",  Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now };
+        var ag2 = new CmCliente { Nombre = "Centro", RazonSocial = "C",  Cuit = "30700000002", CondicionIvaId = 1, CreatedAt = DateTime.Now };
+        var ag3 = new CmCliente { Nombre = "Sur",    RazonSocial = "S",  Cuit = "30700000003", CondicionIvaId = 1, CreatedAt = DateTime.Now };
         var barco = new Barco { Nombre = "Don Pedro", CreatedAt = DateTime.Now };
-        db.Agencias.AddRange(ag1, ag2, ag3);
+        db.Clientes.AddRange(ag1, ag2, ag3);
         db.Barcos.Add(barco);
         db.SaveChanges();
 
         // ag1: Emitido (recibo persistido, mail no enviado)
         var reciboEmitido = new CmRecibo
         {
-            AgenciaId = ag1.Id, PeriodoAnio = 2026, PeriodoMes = 6,
+            ClienteId = ag1.Id, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 3000m, Detalle = "Vouchers Nros: 1, 2",
             EsConsolidadoVouchers = true,
             PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
@@ -1793,7 +1798,7 @@ public class VoucherServiceTests
         // ag2: Completo (recibo enviado)
         var reciboCompleto = new CmRecibo
         {
-            AgenciaId = ag2.Id, PeriodoAnio = 2026, PeriodoMes = 6,
+            ClienteId = ag2.Id, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 1500m, Detalle = "Vouchers Nros: 3",
             EsConsolidadoVouchers = true,
             PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
@@ -1807,19 +1812,19 @@ public class VoucherServiceTests
 
         db.Vouchers.AddRange(
             // ag1 → recibo Emitido
-            new Voucher { AgenciaId = ag1.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
-            new Voucher { AgenciaId = ag1.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag1.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag1.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
             // ag2 → recibo Completo
-            new Voucher { AgenciaId = ag2.Id, BarcoId = barco.Id, Numero = 3, Importe = 1500m, Fecha = new DateTime(2026, 6, 9),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboCompleto.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag2.Id, BarcoId = barco.Id, Numero = 3, Importe = 1500m, Fecha = new DateTime(2026, 6, 9),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboCompleto.Id, CreatedAt = DateTime.Now },
             // ag3 → pendiente (sin recibo)
-            new Voucher { AgenciaId = ag3.Id, BarcoId = barco.Id, Numero = 4, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
-            new Voucher { AgenciaId = ag3.Id, BarcoId = barco.Id, Numero = 5, Importe = 700m,  Fecha = new DateTime(2026, 6, 14), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+            new Voucher { ClienteId = ag3.Id, BarcoId = barco.Id, Numero = 4, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag3.Id, BarcoId = barco.Id, Numero = 5, Importe = 700m,  Fecha = new DateTime(2026, 6, 14), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
         var service = new VoucherService(
             new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.ContadorVoucherRepository(db),
-            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(db, NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
             NullLogger<VoucherService>.Instance);
 
@@ -1829,13 +1834,13 @@ public class VoucherServiceTests
         var lista = res.Data!.ToList();
         Assert.Equal(3, lista.Count);
 
-        var rNorte  = lista.Single(a => a.AgenciaNombre == "Norte");
-        var rCentro = lista.Single(a => a.AgenciaNombre == "Centro");
-        var rSur    = lista.Single(a => a.AgenciaNombre == "Sur");
+        var rNorte  = lista.Single(a => a.ClienteNombre == "Norte");
+        var rCentro = lista.Single(a => a.ClienteNombre == "Centro");
+        var rSur    = lista.Single(a => a.ClienteNombre == "Sur");
 
-        Assert.Equal(EstadoCierreAgencia.Emitido,   rNorte.Estado);
-        Assert.Equal(EstadoCierreAgencia.Completo,  rCentro.Estado);
-        Assert.Equal(EstadoCierreAgencia.Pendiente, rSur.Estado);
+        Assert.Equal(EstadoCierreCliente.Emitido,   rNorte.Estado);
+        Assert.Equal(EstadoCierreCliente.Completo,  rCentro.Estado);
+        Assert.Equal(EstadoCierreCliente.Pendiente, rSur.Estado);
 
         Assert.Equal(2, rNorte.Vouchers.Count);
         Assert.Equal(3000m, rNorte.Total);
@@ -1854,15 +1859,15 @@ public class VoucherServiceTests
     public async Task GetDelPeriodo_DevuelveConsolidadosYPendientes_ConRecibo()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        var ag = new CmAgencia { Nombre = "Ag", RazonSocial = "Ag", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now };
+        var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now };
         var barco = new Barco { Nombre = "B", CreatedAt = DateTime.Now };
-        db.Agencias.Add(ag);
+        db.Clientes.Add(ag);
         db.Barcos.Add(barco);
         db.SaveChanges();
 
         var reciboEmitido = new CmRecibo
         {
-            AgenciaId = ag.Id, PeriodoAnio = 2026, PeriodoMes = 6,
+            ClienteId = ag.Id, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 3000m, EsConsolidadoVouchers = true,
             PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
             NumeroComprobante = 101, CAE = "12345678901234",
@@ -1874,15 +1879,15 @@ public class VoucherServiceTests
         db.SaveChanges();
 
         db.Vouchers.AddRange(
-            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
-            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
-            new Voucher { AgenciaId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
         var service = new VoucherService(
             new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
             new CmRepos.ContadorVoucherRepository(db),
-            new CmRepos.AgenciaRepository(db, NullLogger<CmRepos.AgenciaRepository>.Instance),
+            new CmRepos.ClienteRepository(db, NullLogger<CmRepos.ClienteRepository>.Instance),
             new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
             NullLogger<VoucherService>.Instance);
 

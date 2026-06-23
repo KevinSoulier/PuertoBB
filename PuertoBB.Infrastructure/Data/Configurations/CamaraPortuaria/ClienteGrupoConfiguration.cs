@@ -4,11 +4,11 @@ using PuertoBB.Core.Entities.CamaraPortuaria;
 
 namespace PuertoBB.Infrastructure.Data.Configurations.CamaraPortuaria;
 
-public class EmpresaGrupoConfiguration : IEntityTypeConfiguration<EmpresaGrupo>
+public class ClienteGrupoConfiguration : IEntityTypeConfiguration<ClienteGrupo>
 {
-    public void Configure(EntityTypeBuilder<EmpresaGrupo> b)
+    public void Configure(EntityTypeBuilder<ClienteGrupo> b)
     {
         b.HasKey(eg => eg.Id);
-        b.HasIndex(eg => new { eg.EmpresaId, eg.GrupoFacturacionId }).IsUnique();
+        b.HasIndex(eg => new { eg.ClienteId, eg.GrupoFacturacionId }).IsUnique();
     }
 }

@@ -11,8 +11,8 @@ namespace CentroMaritimo.UI.ViewModels.Items;
 /// </summary>
 public class EmisionMasivaItem
 {
-    public int EntidadId { get; }
-    public string Agencia { get; }
+    public int ClienteId { get; }
+    public string Cliente { get; }
     public int? ReciboId { get; }
     public bool TieneRecibo { get; }
     public string Comprobante { get; }
@@ -35,8 +35,8 @@ public class EmisionMasivaItem
 
     public EmisionMasivaItem(int entidadId, string agencia, Recibo? r, decimal importeEsperado)
     {
-        EntidadId = entidadId;
-        Agencia = agencia;
+        ClienteId = entidadId;
+        Cliente = agencia;
 
         if (r is null)
         {

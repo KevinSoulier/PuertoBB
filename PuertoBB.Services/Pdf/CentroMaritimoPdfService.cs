@@ -126,7 +126,7 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
         var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.ReceptorCuit);
         var receptorNombre = recibo.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
-            : recibo.ReceptorNombre is { Length: > 0 } n ? n : $"#{recibo.AgenciaId}";
+            : recibo.ReceptorNombre is { Length: > 0 } n ? n : $"#{recibo.ClienteId}";
 
         // El detalle sale SIEMPRE del snapshot de líneas persistido en el recibo (no se deriva de los
         // vouchers al mostrar), para que el comprobante se vea idéntico desde cualquier pantalla/PDF/mail.

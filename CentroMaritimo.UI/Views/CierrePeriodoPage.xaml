@@ -57,14 +57,14 @@
 
         <!-- Grilla por agencia con sublista de vouchers y recibos -->
         <Grid Grid.Row="3">
-            <DataGrid ItemsSource="{Binding Agencias}" AutoGenerateColumns="False" IsReadOnly="True"
+            <DataGrid ItemsSource="{Binding Clientes}" AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
                       RowDetailsVisibilityMode="VisibleWhenSelected"
                       SelectionMode="Single" SelectionUnit="FullRow"
                       ScrollViewer.CanContentScroll="False"
                       RowHeight="40" MinColumnWidth="60">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Agencia" Binding="{Binding AgenciaNombre}" Width="*" />
+                    <DataGridTextColumn Header="Agencia" Binding="{Binding ClienteNombre}" Width="*" />
                     <DataGridTextColumn Header="Vouchers" Binding="{Binding Vouchers.Count}" Width="80" />
                     <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C2}" Width="120" />
                     <DataGridTextColumn Header="Recibos" Binding="{Binding Consolidados.Count}" Width="80" />
@@ -96,7 +96,7 @@
                                                ToolTip="Descargar PDF de los vouchers libres">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Command="{Binding DataContext.EmitirReciboAgenciaCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                    <ui:Button Command="{Binding DataContext.EmitirReciboClienteCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}" Appearance="Primary" Margin="0,0,6,6"
                                                ToolTip="Generar recibo en AFIP por los vouchers libres (complementario si ya hay uno)">

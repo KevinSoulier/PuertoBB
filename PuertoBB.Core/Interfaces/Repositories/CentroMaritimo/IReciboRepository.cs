@@ -13,13 +13,13 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>True si ya hay un recibo local con ese (punto de venta, código AFIP, número). Para no adoptar dos veces un mismo comprobante al recuperar.</summary>
     Task<bool> ExisteComprobanteAsync(int puntoVenta, int codigoAfip, long numero, CancellationToken ct = default);
 
-    /// <summary>Recibo rastreado (con Agencia+Emails y Vouchers) para (agencia, grupo, período), o null. Para crear-o-resumir.</summary>
+    /// <summary>Recibo rastreado (con Cliente+Emails y Vouchers) para (agencia, grupo, período), o null. Para crear-o-resumir.</summary>
     Task<Recibo?> GetPorClaveAsync(int agenciaId, int? grupoId, int anio, int mes, CancellationToken ct = default);
 
     /// <summary>True si ya existe un recibo consolidado de vouchers para (agencia, período).</summary>
     Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
 
-    /// <summary>Recibo consolidado <b>Pendiente</b> (sin CAE) del período, con Vouchers/Lineas/Agencia.Emails,
+    /// <summary>Recibo consolidado <b>Pendiente</b> (sin CAE) del período, con Vouchers/Lineas/Cliente.Emails,
     /// o null. Es el target de reintento: a lo sumo uno por (agencia, período) por el índice único.
     /// Los consolidados ya emitidos (con CAE) no se devuelven; un voucher nuevo genera un complementario.</summary>
     Task<Recibo?> GetConsolidadoPendienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
@@ -28,7 +28,7 @@ public interface IReciboRepository : IRepository<Recibo>
     Task AddConVouchersAsync(Recibo recibo, IReadOnlyList<int> voucherIds, CancellationToken ct = default);
 
     /// <summary>IDs de agencias que tienen un recibo consolidado en estado Pendiente (sin CAE) para el período, para reintentar.</summary>
-    Task<IReadOnlyList<int>> GetAgenciasConConsolidadoPendienteAsync(int anio, int mes, CancellationToken ct = default);
+    Task<IReadOnlyList<int>> GetClientesConConsolidadoPendienteAsync(int anio, int mes, CancellationToken ct = default);
 
     /// <summary>Marca el recibo Anulado, desvincula vouchers de consolidados y persiste la NC en UN solo SaveChanges.</summary>
     Task AnularConNotaAsync(Recibo recibo, Core.Entities.CentroMaritimo.NotaDeCredito nota, CancellationToken ct = default);
@@ -45,7 +45,7 @@ public interface IReciboRepository : IRepository<Recibo>
     Task<PaginaResultado<Recibo>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default);
 
     /// <summary>Todos los recibos que matchean el estado del filtro (ordenados como el paginado,
-    /// con Agencia cargada), sin filtro de texto ni paginado. Base para la búsqueda en memoria.</summary>
+    /// con Cliente cargada), sin filtro de texto ni paginado. Base para la búsqueda en memoria.</summary>
     Task<IReadOnlyList<Recibo>> GetControlCandidatosAsync(FiltroControlPagos filtro, CancellationToken ct = default);
 
     Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default);

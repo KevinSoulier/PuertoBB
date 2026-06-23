@@ -1,27 +1,27 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
-using CentroMaritimo.UI.ViewModels.Base;
+using CamaraPortuaria.UI.ViewModels.Base;
 using PuertoBB.Core.Afip;
 using PuertoBB.Core.Common;
-using PuertoBB.Core.Entities.CentroMaritimo;
-using PuertoBB.Core.Interfaces.Repositories.CentroMaritimo;
+using PuertoBB.Core.Entities.CamaraPortuaria;
+using PuertoBB.Core.Interfaces.Repositories.CamaraPortuaria;
 using PuertoBB.Core.Interfaces.Services;
 
-namespace CentroMaritimo.UI.ViewModels;
+namespace CamaraPortuaria.UI.ViewModels;
 
-public class AgenciasViewModel : PageViewModel
+public class ClientesViewModel : PageViewModel
 {
-    private readonly IAgenciaRepository _repo;
+    private readonly IClienteRepository _repo;
     private readonly IDialogService _dialog;
     private readonly IAfipPadronService _padron;
     private int _editId;
-    private List<Agencia> _todasLasAgencias = [];
+    private List<Cliente> _todasLasClientes = [];
 
     private string _snapNombre = string.Empty, _snapRazonSocial = string.Empty, _snapCuit = string.Empty;
     private string _snapDomicilio = string.Empty, _snapEmails = string.Empty;
     private int? _snapCondicionIvaId;
 
-    public ObservableCollection<Agencia> AgenciasFiltradas { get; } = [];
+    public ObservableCollection<Cliente> ClientesFiltradas { get; } = [];
 
     private string _filtro = string.Empty;
     public string Filtro
@@ -30,8 +30,8 @@ public class AgenciasViewModel : PageViewModel
         set { if (SetField(ref _filtro, value)) AplicarFiltro(); }
     }
 
-    private Agencia? _seleccionada;
-    public Agencia? Seleccionada
+    private Cliente? _seleccionada;
+    public Cliente? Seleccionada
     {
         get => _seleccionada;
         set { if (SetField(ref _seleccionada, value) && value is not null) CargarSeguro(() => MostrarAsync(value.Id)); }
@@ -62,7 +62,7 @@ public class AgenciasViewModel : PageViewModel
     public ICommand EliminarCommand { get; }
     public ICommand ValidarCuitCommand { get; }
 
-    public AgenciasViewModel(IAgenciaRepository repo, IDialogService dialog, IAfipPadronService padron)
+    public ClientesViewModel(IClienteRepository repo, IDialogService dialog, IAfipPadronService padron)
     {
         _repo = repo;
         _dialog = dialog;
@@ -103,21 +103,21 @@ public class AgenciasViewModel : PageViewModel
 
     private async Task CargarListaAsync()
     {
-        _todasLasAgencias = (await _repo.GetTodasConEmailsAsync()).ToList();
+        _todasLasClientes = (await _repo.GetTodasConEmailsAsync()).ToList();
         AplicarFiltro();
     }
 
     private void AplicarFiltro()
     {
-        AgenciasFiltradas.Clear();
+        ClientesFiltradas.Clear();
         var texto = _filtro.Trim();
         var lista = string.IsNullOrEmpty(texto)
-            ? _todasLasAgencias
-            : _todasLasAgencias.Where(a =>
-                a.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
-                a.RazonSocial.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
-                a.Cuit.Contains(texto, StringComparison.OrdinalIgnoreCase));
-        foreach (var a in lista) AgenciasFiltradas.Add(a);
+            ? _todasLasClientes
+            : _todasLasClientes.Where(e =>
+                e.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                e.RazonSocial.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                e.Cuit.Contains(texto, StringComparison.OrdinalIgnoreCase));
+        foreach (var e in lista) ClientesFiltradas.Add(e);
     }
 
     private void Nuevo()
@@ -174,15 +174,15 @@ public class AgenciasViewModel : PageViewModel
 
     private async Task MostrarAsync(int id)
     {
-        var a = await _repo.GetConDetalleAsync(id);
-        if (a is null) return;
-        _editId = a.Id;
-        NombreEdit = a.Nombre;
-        RazonSocialEdit = a.RazonSocial;
-        CuitEdit = a.Cuit;
-        DomicilioEdit = a.Domicilio ?? string.Empty;
-        CondicionIvaIdEdit = a.CondicionIvaId;
-        EmailsEdit = string.Join(Environment.NewLine, a.Emails.Select(x => x.Email));
+        var e = await _repo.GetConDetalleAsync(id);
+        if (e is null) return;
+        _editId = e.Id;
+        NombreEdit = e.Nombre;
+        RazonSocialEdit = e.RazonSocial;
+        CuitEdit = e.Cuit;
+        DomicilioEdit = e.Domicilio ?? string.Empty;
+        CondicionIvaIdEdit = e.CondicionIvaId;
+        EmailsEdit = string.Join(Environment.NewLine, e.Emails.Select(x => x.Email));
         NotificarEdicion();
     }
 
@@ -194,8 +194,8 @@ public class AgenciasViewModel : PageViewModel
 
         // El CUIT no debería repetirse, pero se permiten excepciones: avisar y dejar continuar.
         var cuitDigitos = new string(CuitEdit.Where(char.IsDigit).ToArray());
-        var duplicada = _todasLasAgencias.FirstOrDefault(a => a.Id != _editId
-            && new string(a.Cuit.Where(char.IsDigit).ToArray()) == cuitDigitos);
+        var duplicada = _todasLasClientes.FirstOrDefault(e => e.Id != _editId
+            && new string(e.Cuit.Where(char.IsDigit).ToArray()) == cuitDigitos);
         if (duplicada is not null && !await _dialog.ShowConfirmAsync("CUIT duplicado",
                 $"Ya existe «{duplicada.Nombre}» con el CUIT {CuitEdit.Trim()}. ¿Guardar de todos modos?", "Guardar igual", "Cancelar"))
             return;
@@ -205,7 +205,7 @@ public class AgenciasViewModel : PageViewModel
         {
             if (_editId == 0)
             {
-                var nueva = new Agencia
+                var nueva = new Cliente
                 {
                     Nombre = NombreEdit.Trim(),
                     RazonSocial = RazonSocialEdit.Trim(),
@@ -213,16 +213,16 @@ public class AgenciasViewModel : PageViewModel
                     Domicilio = string.IsNullOrWhiteSpace(DomicilioEdit) ? null : DomicilioEdit.Trim(),
                     CondicionIvaId = CondicionIvaIdEdit,
                     Activa = true,
-                    Emails = emails.Select(em => new EmailAgencia { Email = em }).ToList()
+                    Emails = emails.Select(em => new EmailCliente { Email = em }).ToList()
                 };
                 await _repo.AddAsync(nueva);
                 _editId = nueva.Id;
-                MostrarExito("Agencia creada.");
+                MostrarExito("Empresa creada.");
             }
             else
             {
                 var existente = await _repo.GetConDetalleAsync(_editId);
-                if (existente is null) { MostrarError("La agencia ya no existe."); return; }
+                if (existente is null) { MostrarError("La empresa ya no existe."); return; }
                 existente.Nombre = NombreEdit.Trim();
                 existente.RazonSocial = RazonSocialEdit.Trim();
                 existente.Cuit = CuitEdit.Trim();
@@ -230,14 +230,14 @@ public class AgenciasViewModel : PageViewModel
                 existente.CondicionIvaId = CondicionIvaIdEdit;
                 existente.Activa = true;
                 existente.Emails.Clear();
-                foreach (var em in emails) existente.Emails.Add(new EmailAgencia { Email = em, AgenciaId = existente.Id });
+                foreach (var em in emails) existente.Emails.Add(new EmailCliente { Email = em, ClienteId = existente.Id });
                 await _repo.UpdateAsync(existente);
-                MostrarExito("Agencia actualizada.");
+                MostrarExito("Empresa actualizada.");
             }
             var idGuardado = _editId;
             await CargarListaAsync();
-            var guardada = AgenciasFiltradas.FirstOrDefault(a => a.Id == idGuardado)
-                           ?? _todasLasAgencias.FirstOrDefault(a => a.Id == idGuardado);
+            var guardada = ClientesFiltradas.FirstOrDefault(e => e.Id == idGuardado)
+                           ?? _todasLasClientes.FirstOrDefault(e => e.Id == idGuardado);
             if (guardada is not null) { _seleccionada = guardada; OnPropertyChanged(nameof(Seleccionada)); }
             EnEdicion = false;
         }
@@ -250,12 +250,12 @@ public class AgenciasViewModel : PageViewModel
     private async Task EliminarAsync()
     {
         if (Seleccionada is null) return;
-        if (!await _dialog.ShowConfirmAsync("Eliminar agencia",
+        if (!await _dialog.ShowConfirmAsync("Eliminar empresa",
                 $"¿Eliminar a {Seleccionada.Nombre}?", "Eliminar", "Cancelar")) return;
         try
         {
             await _repo.DeleteAsync(Seleccionada.Id);
-            MostrarExito("Agencia eliminada.");
+            MostrarExito("Empresa eliminada.");
             _editId = 0;
             NombreEdit = RazonSocialEdit = CuitEdit = DomicilioEdit = EmailsEdit = string.Empty;
             CondicionIvaIdEdit = null;
@@ -265,7 +265,10 @@ public class AgenciasViewModel : PageViewModel
             EnEdicion = false;
             await CargarListaAsync();
         }
-        catch (Exception ex) { MostrarError($"No se pudo eliminar (¿tiene recibos/vouchers?): {ex.Message}"); }
+        catch (Exception ex)
+        {
+            MostrarError($"No se pudo eliminar (¿tiene recibos asociados?): {ex.Message}");
+        }
     }
 
     private List<string> ParsearEmails()

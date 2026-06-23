@@ -58,8 +58,8 @@ public class BackupTests
     [Fact]
     public async Task TablaCentinela_DistingueLaApp()
     {
-        // El backup del Centro tiene "Barcos" pero no "Empresas"; el de la Cámara, al revés.
-        // Es la validación que evita restaurar el backup de una app en la otra.
+        // Cámara y Centro comparten la tabla "Clientes"; lo que distingue un backup del Centro es
+        // "Barcos", que la Cámara no tiene. Es la validación que evita restaurar el backup de una app en la otra.
         var centro = TempDbPath();
         var camara = TempDbPath();
         try
@@ -70,9 +70,9 @@ public class BackupTests
                 await VacuumIntoAsync(dbCamara, camara);
 
             Assert.True(TablaExiste(centro, "Barcos"));
-            Assert.False(TablaExiste(centro, "Empresas"));
-            Assert.True(TablaExiste(camara, "Empresas"));
             Assert.False(TablaExiste(camara, "Barcos"));
+            Assert.True(TablaExiste(camara, "Clientes"));
+            Assert.True(TablaExiste(centro, "Clientes"));
         }
         finally { LimpiarTemp(centro); LimpiarTemp(camara); }
     }

@@ -4,13 +4,13 @@ namespace PuertoBB.Core.Models.Resultados;
 /// Vista de una agencia en la pantalla de Cierre de Período: sus vouchers del período + total +
 /// estado, y los consolidados ya emitidos (0..n: el original más eventuales complementarios).
 /// </summary>
-public record AgenciaCierrePeriodoVm
+public record ClienteCierrePeriodoVm
 {
-    public required int    AgenciaId     { get; init; }
-    public required string AgenciaNombre { get; init; }
+    public required int    ClienteId     { get; init; }
+    public required string ClienteNombre { get; init; }
     public required IReadOnlyList<VoucherCierreVm> Vouchers { get; init; }
     public required decimal Total { get; init; }
-    public required EstadoCierreAgencia Estado { get; init; }
+    public required EstadoCierreCliente Estado { get; init; }
 
     /// <summary>Consolidados de la agencia en el período (original + complementarios), sin los anulados.</summary>
     public required IReadOnlyList<ConsolidadoCierreVm> Consolidados { get; init; }
@@ -26,7 +26,7 @@ public record AgenciaCierrePeriodoVm
 }
 
 /// <summary>Un recibo consolidado de la agencia en el período (con su número y estado), para listar/operar por recibo.</summary>
-public record ConsolidadoCierreVm(int ReciboId, long NumeroComprobante, decimal Importe, int CantVouchers, EstadoCierreAgencia Estado);
+public record ConsolidadoCierreVm(int ReciboId, long NumeroComprobante, decimal Importe, int CantVouchers, EstadoCierreCliente Estado);
 
 public record VoucherCierreVm(int Id, int Numero, string Barco, DateTime Fecha, decimal Importe, bool Libre, long? NumeroComprobante)
 {
@@ -34,7 +34,7 @@ public record VoucherCierreVm(int Id, int Numero, string Barco, DateTime Fecha, 
     public string ComprobanteTexto => Libre ? "Libre" : NumeroComprobante is > 0 ? $"N° {NumeroComprobante}" : "Pendiente";
 }
 
-public enum EstadoCierreAgencia
+public enum EstadoCierreCliente
 {
     /// <summary>Hay vouchers libres (o un consolidado sin CAE) por emitir.</summary>
     Pendiente,

@@ -19,10 +19,10 @@
                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,10" />
                     <WrapPanel Orientation="Horizontal">
                         <StackPanel Margin="0,0,12,8">
-                            <TextBlock x:Name="LabelEntidad" Text="Empresa"
+                            <TextBlock x:Name="LabelCliente" Text="Empresa"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="11" Margin="0,0,0,2" />
-                            <ComboBox x:Name="EntidadCombo" DisplayMemberPath="Nombre" Width="220" />
+                            <ComboBox x:Name="ClienteCombo" DisplayMemberPath="Nombre" Width="220" />
                         </StackPanel>
                         <StackPanel Margin="0,0,0,8">
                             <TextBlock Text="Fecha de emisión"

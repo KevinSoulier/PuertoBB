@@ -17,8 +17,11 @@ public class BackupService : IBackupService
     /// <summary>Cantidad de backups automáticos que se conservan (los más viejos se borran por rotación).</summary>
     private const int MaxBackupsAutomaticos = 10;
 
-    /// <summary>Tabla propia de la Cámara (no existe en el Centro Marítimo): valida que un backup sea de esta app.</summary>
-    private const string TablaCentinela = "Empresas";
+    /// <summary>Cámara y Centro Marítimo comparten el esquema base (ambas tienen "Clientes"); lo que
+    /// distingue un backup del Centro es la tabla "Barcos", que la Cámara no tiene. Validamos que el
+    /// backup tenga la requerida y NO la de la otra app.</summary>
+    private const string TablaRequerida = "Clientes";
+    private const string TablaOtraApp   = "Barcos";
 
     private readonly CamaraPortuariaDbContext _db;
     private readonly ILogger<BackupService> _logger;
@@ -211,10 +214,14 @@ public class BackupService : IBackupService
 
             if (validarEsDeEstaApp)
             {
-                using var check = conn.CreateCommand();
-                check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$t";
-                check.Parameters.AddWithValue("$t", TablaCentinela);
-                var esDeEstaApp = Convert.ToInt64(await check.ExecuteScalarAsync(ct)) > 0;
+                async Task<bool> TieneTablaAsync(string t)
+                {
+                    using var c = conn.CreateCommand();
+                    c.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$t";
+                    c.Parameters.AddWithValue("$t", t);
+                    return Convert.ToInt64(await c.ExecuteScalarAsync(ct)) > 0;
+                }
+                var esDeEstaApp = await TieneTablaAsync(TablaRequerida) && !await TieneTablaAsync(TablaOtraApp);
                 if (!esDeEstaApp)
                     return ServiceResult<string>.Fail(
                         "El archivo seleccionado no parece una base de datos de esta aplicación (Cámara Portuaria).");

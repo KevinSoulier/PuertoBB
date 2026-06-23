@@ -3,9 +3,9 @@ using CentroMaritimo.UI.ViewModels;
 
 namespace CentroMaritimo.UI.Views;
 
-public partial class AgenciasPage : Page
+public partial class ClientesPage : Page
 {
-    public AgenciasPage(AgenciasViewModel vm)
+    public ClientesPage(ClientesViewModel vm)
     {
         InitializeComponent();
         DataContext = vm;

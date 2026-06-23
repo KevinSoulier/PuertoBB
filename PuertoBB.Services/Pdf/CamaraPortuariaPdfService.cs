@@ -28,7 +28,7 @@ public class CamaraPortuariaPdfService : ICamaraPortuariaPdfService
         var (tipoDoc, nroDoc) = Formato.ParseReceptorDoc(recibo.ReceptorCuit);
         var receptorNombre = recibo.ReceptorRazonSocial is { Length: > 0 } rs
             ? rs
-            : recibo.ReceptorNombre is { Length: > 0 } n ? n : $"#{recibo.EmpresaId}";
+            : recibo.ReceptorNombre is { Length: > 0 } n ? n : $"#{recibo.ClienteId}";
 
         var periodoDesde = new DateOnly(recibo.PeriodoAnio, recibo.PeriodoMes, 1);
         var periodoHasta = periodoDesde.AddMonths(1).AddDays(-1);

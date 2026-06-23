@@ -160,7 +160,7 @@ public class ControlPagosViewModel : PageViewModel
         if (objetivos.Count == 0) return;
         if (!await _dialog.ShowConfirmAsync("Marcar como pagado",
                 objetivos.Count == 1
-                    ? $"¿Marcar el recibo {objetivos[0].Comprobante} de {objetivos[0].Agencia} como pagado?"
+                    ? $"¿Marcar el recibo {objetivos[0].Comprobante} de {objetivos[0].Cliente} como pagado?"
                     : $"¿Marcar {objetivos.Count} recibos como pagados?")) return;
         await EjecutarEnLoteAsync(objetivos, x => _recibos.MarcarPagadoAsync(x.Id),
             "Recibo marcado como pagado.", "recibo(s) marcados como pagados.");
@@ -182,7 +182,7 @@ public class ControlPagosViewModel : PageViewModel
         var objetivos = Seleccionados.Where(x => x.EsMarcableIncobrable).ToList();
         if (objetivos.Count == 0) return;
         var descripcion = objetivos.Count == 1
-            ? $"Se dará de baja la deuda del recibo {objetivos[0].Comprobante} de {objetivos[0].Agencia}."
+            ? $"Se dará de baja la deuda del recibo {objetivos[0].Comprobante} de {objetivos[0].Cliente}."
             : $"Se dará de baja la deuda de {objetivos.Count} recibos.";
         var motivo = await _dialog.ShowInputAsync("Marcar incobrable", "Motivo (opcional)", null, descripcion);
         if (motivo is null) return; // cancelado
@@ -196,7 +196,7 @@ public class ControlPagosViewModel : PageViewModel
         if (objetivos.Count == 0) return;
         if (!await _dialog.ShowConfirmAsync("Quitar incobrable",
                 objetivos.Count == 1
-                    ? $"¿Reactivar la deuda del recibo {objetivos[0].Comprobante} de {objetivos[0].Agencia}?"
+                    ? $"¿Reactivar la deuda del recibo {objetivos[0].Comprobante} de {objetivos[0].Cliente}?"
                     : $"¿Reactivar la deuda de {objetivos.Count} recibos?")) return;
         await EjecutarEnLoteAsync(objetivos, x => _recibos.QuitarIncobrableAsync(x.Id),
             "Baja por incobrable revertida.", "recibo(s) reactivados.");
@@ -217,7 +217,7 @@ public class ControlPagosViewModel : PageViewModel
             foreach (var item in objetivos)
             {
                 ct.ThrowIfCancellationRequested();
-                progreso.Report(new ProgresoMasivo(++i, total, item.Agencia));
+                progreso.Report(new ProgresoMasivo(++i, total, item.Cliente));
                 var res = await accion(item);
                 if (res.Success) ok++;
                 else ultimoError = res.ErrorMessage;

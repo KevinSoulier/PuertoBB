@@ -133,7 +133,7 @@ public partial class App : Application
         services.AddTransient<ControlPagosPage>();   services.AddTransient<ControlPagosViewModel>();
         services.AddTransient<RecibosPage>();        services.AddTransient<RecibosViewModel>();
         services.AddTransient<EmisionMasivaPage>();  services.AddTransient<EmisionMasivaViewModel>();
-        services.AddTransient<EmpresasPage>();       services.AddTransient<EmpresasViewModel>();
+        services.AddTransient<ClientesPage>();       services.AddTransient<ClientesViewModel>();
         services.AddTransient<ConceptosReciboPage>(); services.AddTransient<ConceptosReciboViewModel>();
         services.AddTransient<GruposPage>();         services.AddTransient<GruposViewModel>();
         services.AddTransient<ConfiguracionPage>();  services.AddTransient<ConfiguracionViewModel>();

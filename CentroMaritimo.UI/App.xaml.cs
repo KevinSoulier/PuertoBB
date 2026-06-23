@@ -135,7 +135,7 @@ public partial class App : Application
         services.AddTransient<VouchersPage>();       services.AddTransient<VouchersViewModel>();
         services.AddTransient<CierrePeriodoPage>();  services.AddTransient<CierrePeriodoViewModel>();
         services.AddTransient<EmisionMasivaPage>();  services.AddTransient<EmisionMasivaViewModel>();
-        services.AddTransient<AgenciasPage>();       services.AddTransient<AgenciasViewModel>();
+        services.AddTransient<ClientesPage>();       services.AddTransient<ClientesViewModel>();
         services.AddTransient<BarcosPage>();         services.AddTransient<BarcosViewModel>();
         services.AddTransient<ConceptosReciboPage>(); services.AddTransient<ConceptosReciboViewModel>();
         services.AddTransient<GruposPage>();         services.AddTransient<GruposViewModel>();

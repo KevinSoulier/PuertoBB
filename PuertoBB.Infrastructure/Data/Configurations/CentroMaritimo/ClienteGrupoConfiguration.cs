@@ -4,11 +4,11 @@ using PuertoBB.Core.Entities.CentroMaritimo;
 
 namespace PuertoBB.Infrastructure.Data.Configurations.CentroMaritimo;
 
-public class AgenciaGrupoConfiguration : IEntityTypeConfiguration<AgenciaGrupo>
+public class ClienteGrupoConfiguration : IEntityTypeConfiguration<ClienteGrupo>
 {
-    public void Configure(EntityTypeBuilder<AgenciaGrupo> b)
+    public void Configure(EntityTypeBuilder<ClienteGrupo> b)
     {
         b.HasKey(ag => ag.Id);
-        b.HasIndex(ag => new { ag.AgenciaId, ag.GrupoFacturacionId }).IsUnique();
+        b.HasIndex(ag => new { ag.ClienteId, ag.GrupoFacturacionId }).IsUnique();
     }
 }

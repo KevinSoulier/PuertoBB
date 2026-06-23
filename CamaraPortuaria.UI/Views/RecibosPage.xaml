@@ -1,4 +1,4 @@
-<Page x:Class="CamaraPortuaria.UI.Views.RecibosPage"
+﻿<Page x:Class="CamaraPortuaria.UI.Views.RecibosPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -92,7 +92,7 @@
                   SelectionMode="Single"
                   VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Empresa" Binding="{Binding Empresa}" Width="*" />
+                <DataGridTextColumn Header="Empresa" Binding="{Binding Cliente}" Width="*" />
                 <DataGridTextColumn Header="Comprobante" Binding="{Binding Comprobante}" Width="120" />
                 <DataGridTextColumn Header="CAE" Binding="{Binding Cae}" Width="140" />
                 <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="110" />

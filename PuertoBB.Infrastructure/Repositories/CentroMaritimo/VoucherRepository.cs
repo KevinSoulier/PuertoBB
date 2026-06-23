@@ -15,7 +15,7 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
 
     public async Task<IReadOnlyList<Voucher>> GetPendientesByPeriodoAsync(int anio, int mes, CancellationToken ct = default)
         => await _db.Vouchers.AsNoTracking()
-            .Include(v => v.Agencia)
+            .Include(v => v.Cliente)
             .Include(v => v.Barco)
             .Where(v => v.ReciboId == null && v.PeriodoAnio == anio && v.PeriodoMes == mes)
             .OrderBy(v => v.Numero)
@@ -23,22 +23,22 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
 
     public async Task<IReadOnlyList<Voucher>> GetTodosByPeriodoAsync(int anio, int mes, CancellationToken ct = default)
         => await _db.Vouchers.AsNoTracking()
-            .Include(v => v.Agencia)
+            .Include(v => v.Cliente)
             .Include(v => v.Barco)
             .Include(v => v.Recibo)
             .Where(v => v.PeriodoAnio == anio && v.PeriodoMes == mes)
-            .OrderBy(v => v.AgenciaId).ThenBy(v => v.Numero)
+            .OrderBy(v => v.ClienteId).ThenBy(v => v.Numero)
             .ToListAsync(ct);
 
-    public async Task<IReadOnlyList<Agencia>> GetAgenciasConVouchersPendientesAsync(int anio, int mes, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Cliente>> GetClientesConVouchersPendientesAsync(int anio, int mes, CancellationToken ct = default)
     {
         var agenciaIds = await _db.Vouchers
             .Where(v => v.ReciboId == null && v.PeriodoAnio == anio && v.PeriodoMes == mes)
-            .Select(v => v.AgenciaId)
+            .Select(v => v.ClienteId)
             .Distinct()
             .ToListAsync(ct);
 
-        return await _db.Agencias.AsNoTracking()
+        return await _db.Clientes.AsNoTracking()
             .Include(a => a.Emails)
             .Where(a => agenciaIds.Contains(a.Id))
             .OrderBy(a => a.Nombre)
@@ -57,9 +57,9 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
         await GuardarAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Voucher>> GetPorAgenciaAsync(int agenciaId, int? anio = null, int? mes = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Voucher>> GetPorClienteAsync(int agenciaId, int? anio = null, int? mes = null, CancellationToken ct = default)
     {
-        var q = _db.Vouchers.AsNoTracking().Include(v => v.Barco).Where(v => v.AgenciaId == agenciaId);
+        var q = _db.Vouchers.AsNoTracking().Include(v => v.Barco).Where(v => v.ClienteId == agenciaId);
         if (anio is int a) q = q.Where(v => v.PeriodoAnio == a);
         if (mes is int m)  q = q.Where(v => v.PeriodoMes == m);
         return await q.OrderByDescending(v => v.Numero).ToListAsync(ct);
@@ -67,7 +67,7 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
 
     public Task<Voucher?> GetByIdConDetalleAsync(int id, CancellationToken ct = default)
         => _db.Vouchers.AsNoTracking()
-            .Include(v => v.Agencia)
+            .Include(v => v.Cliente)
             .Include(v => v.Barco)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
 }

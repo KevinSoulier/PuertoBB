@@ -16,7 +16,7 @@ public static class StressSeedData
 {
     public static async Task<int> GenerarRecibosAsync(CamaraPortuariaDbContext db, int cantidad, ILogger? log = null)
     {
-        var empresas = await db.Empresas.AsNoTracking().ToListAsync();
+        var empresas = await db.Clientes.AsNoTracking().ToListAsync();
         if (empresas.Count == 0)
             throw new InvalidOperationException("No hay empresas en la base; sembrá los datos base antes de generar recibos.");
 
@@ -42,7 +42,7 @@ public static class StressSeedData
 
             var r = new Recibo
             {
-                EmpresaId = em.Id,
+                ClienteId = em.Id,
                 ReceptorNombre = em.Nombre,
                 ReceptorRazonSocial = em.RazonSocial,
                 ReceptorCuit = em.Cuit,

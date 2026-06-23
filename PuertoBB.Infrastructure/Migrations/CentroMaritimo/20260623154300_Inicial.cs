@@ -12,7 +12,22 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "Agencias",
+                name: "Barcos",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Nombre = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Barcos", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Clientes",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
@@ -28,22 +43,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Agencias", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Barcos",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Nombre = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Barcos", x => x.Id);
+                    table.PrimaryKey("PK_Clientes", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -120,12 +120,12 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 });
 
             migrationBuilder.CreateTable(
-                name: "EmailsAgencia",
+                name: "EmailsCliente",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    AgenciaId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ClienteId = table.Column<int>(type: "INTEGER", nullable: false),
                     Email = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     Activo = table.Column<bool>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
@@ -133,11 +133,11 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_EmailsAgencia", x => x.Id);
+                    table.PrimaryKey("PK_EmailsCliente", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_EmailsAgencia_Agencias_AgenciaId",
-                        column: x => x.AgenciaId,
-                        principalTable: "Agencias",
+                        name: "FK_EmailsCliente_Clientes_ClienteId",
+                        column: x => x.ClienteId,
+                        principalTable: "Clientes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -148,7 +148,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    AgenciaId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ClienteId = table.Column<int>(type: "INTEGER", nullable: false),
                     ReceptorNombre = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     ReceptorRazonSocial = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     ReceptorCuit = table.Column<string>(type: "TEXT", maxLength: 13, nullable: false),
@@ -182,9 +182,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 {
                     table.PrimaryKey("PK_Recibos", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Recibos_Agencias_AgenciaId",
-                        column: x => x.AgenciaId,
-                        principalTable: "Agencias",
+                        name: "FK_Recibos_Clientes_ClienteId",
+                        column: x => x.ClienteId,
+                        principalTable: "Clientes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -260,27 +260,27 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 });
 
             migrationBuilder.CreateTable(
-                name: "AgenciasGrupos",
+                name: "ClientesGrupos",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    AgenciaId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ClienteId = table.Column<int>(type: "INTEGER", nullable: false),
                     GrupoFacturacionId = table.Column<int>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_AgenciasGrupos", x => x.Id);
+                    table.PrimaryKey("PK_ClientesGrupos", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_AgenciasGrupos_Agencias_AgenciaId",
-                        column: x => x.AgenciaId,
-                        principalTable: "Agencias",
+                        name: "FK_ClientesGrupos_Clientes_ClienteId",
+                        column: x => x.ClienteId,
+                        principalTable: "Clientes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_AgenciasGrupos_Grupos_GrupoFacturacionId",
+                        name: "FK_ClientesGrupos_Grupos_GrupoFacturacionId",
                         column: x => x.GrupoFacturacionId,
                         principalTable: "Grupos",
                         principalColumn: "Id",
@@ -321,7 +321,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .Annotation("Sqlite:Autoincrement", true),
                     GrupoFacturacionId = table.Column<int>(type: "INTEGER", nullable: false),
                     ReciboId = table.Column<int>(type: "INTEGER", nullable: false),
-                    AgenciaId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ClienteId = table.Column<int>(type: "INTEGER", nullable: false),
                     PeriodoAnio = table.Column<int>(type: "INTEGER", nullable: false),
                     PeriodoMes = table.Column<int>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
@@ -404,7 +404,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    AgenciaId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ClienteId = table.Column<int>(type: "INTEGER", nullable: false),
                     BarcoId = table.Column<int>(type: "INTEGER", nullable: false),
                     Numero = table.Column<int>(type: "INTEGER", nullable: false),
                     Importe = table.Column<decimal>(type: "TEXT", nullable: false),
@@ -419,15 +419,15 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 {
                     table.PrimaryKey("PK_Vouchers", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Vouchers_Agencias_AgenciaId",
-                        column: x => x.AgenciaId,
-                        principalTable: "Agencias",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
                         name: "FK_Vouchers_Barcos_BarcoId",
                         column: x => x.BarcoId,
                         principalTable: "Barcos",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Vouchers_Clientes_ClienteId",
+                        column: x => x.ClienteId,
+                        principalTable: "Clientes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -459,21 +459,21 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 values: new object[] { 1, true, null, null, null, null, null, 1, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Principal", 1, null, false });
 
             migrationBuilder.CreateIndex(
-                name: "IX_AgenciasGrupos_AgenciaId_GrupoFacturacionId",
-                table: "AgenciasGrupos",
-                columns: new[] { "AgenciaId", "GrupoFacturacionId" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_AgenciasGrupos_GrupoFacturacionId",
-                table: "AgenciasGrupos",
-                column: "GrupoFacturacionId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Barcos_Nombre",
                 table: "Barcos",
                 column: "Nombre",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ClientesGrupos_ClienteId_GrupoFacturacionId",
+                table: "ClientesGrupos",
+                columns: new[] { "ClienteId", "GrupoFacturacionId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ClientesGrupos_GrupoFacturacionId",
+                table: "ClientesGrupos",
+                column: "GrupoFacturacionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ConceptosRecibo_Nombre",
@@ -487,14 +487,14 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 column: "ConfiguracionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EmailsAgencia_AgenciaId",
-                table: "EmailsAgencia",
-                column: "AgenciaId");
+                name: "IX_EmailsCliente_ClienteId",
+                table: "EmailsCliente",
+                column: "ClienteId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EmisionesGrupo_GrupoFacturacionId_AgenciaId_PeriodoAnio_PeriodoMes",
+                name: "IX_EmisionesGrupo_GrupoFacturacionId_ClienteId_PeriodoAnio_PeriodoMes",
                 table: "EmisionesGrupo",
-                columns: new[] { "GrupoFacturacionId", "AgenciaId", "PeriodoAnio", "PeriodoMes" },
+                columns: new[] { "GrupoFacturacionId", "ClienteId", "PeriodoAnio", "PeriodoMes" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -520,9 +520,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 column: "ConfiguracionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Recibos_AgenciaId_PeriodoAnio_PeriodoMes",
+                name: "IX_Recibos_ClienteId_PeriodoAnio_PeriodoMes",
                 table: "Recibos",
-                columns: new[] { "AgenciaId", "PeriodoAnio", "PeriodoMes" },
+                columns: new[] { "ClienteId", "PeriodoAnio", "PeriodoMes" },
                 unique: true,
                 filter: "\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
 
@@ -544,14 +544,14 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 column: "ReciboId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Vouchers_AgenciaId",
-                table: "Vouchers",
-                column: "AgenciaId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Vouchers_BarcoId",
                 table: "Vouchers",
                 column: "BarcoId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Vouchers_ClienteId",
+                table: "Vouchers",
+                column: "ClienteId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Vouchers_Numero",
@@ -569,7 +569,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AgenciasGrupos");
+                name: "ClientesGrupos");
 
             migrationBuilder.DropTable(
                 name: "ConceptosRecibo");
@@ -581,7 +581,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 name: "CuentasCorreo");
 
             migrationBuilder.DropTable(
-                name: "EmailsAgencia");
+                name: "EmailsCliente");
 
             migrationBuilder.DropTable(
                 name: "EmisionesGrupo");
@@ -614,7 +614,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 name: "Recibos");
 
             migrationBuilder.DropTable(
-                name: "Agencias");
+                name: "Clientes");
         }
     }
 }

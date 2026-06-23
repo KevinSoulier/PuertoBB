@@ -126,7 +126,7 @@ public class EmisionMasivaViewModel : PageViewModel
             if (!res.Success || res.Data is null) { MostrarError(res.ErrorMessage ?? "No se pudo cargar el estado del grupo."); return; }
 
             foreach (var e in res.Data)
-                Items.Add(new EmisionMasivaItem(e.EntidadId, e.EntidadNombre, e.Recibo, e.ImporteEsperado));
+                Items.Add(new EmisionMasivaItem(e.ClienteId, e.ClienteNombre, e.Recibo, e.ImporteEsperado));
 
             var total = Items.Count;
             var emitidos = Items.Count(i => i.CaeOk);
@@ -176,7 +176,7 @@ public class EmisionMasivaViewModel : PageViewModel
 
     private async Task EjecutarMasivoAsync(
         string titulo,
-        Func<IProgress<ProgresoMasivo>, CancellationToken, Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>>> operacion,
+        Func<IProgress<ProgresoMasivo>, CancellationToken, Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorCliente>>>> operacion,
         string accion)
     {
         LimpiarStatus();
@@ -212,7 +212,7 @@ public class EmisionMasivaViewModel : PageViewModel
             // Siempre vía el grupo: re-sincroniza importe/líneas del grupo ACTUAL antes de (re)intentar el CAE,
             // así un Pendiente trabado por datos viejos (p. ej. monto cero ya corregido en el grupo) se recupera.
             // (EmitirDeGrupoAsync sirve para "sin recibo" y para "Pendiente existente".)
-            var res = await _service.EmitirDeGrupoAsync(grupo.Id, sel.EntidadId, _anio, _mes, enviarMail: false);
+            var res = await _service.EmitirDeGrupoAsync(grupo.Id, sel.ClienteId, _anio, _mes, enviarMail: false);
 
             if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo emitir."); return; }
             var r = res.Data!;
@@ -248,7 +248,7 @@ public class EmisionMasivaViewModel : PageViewModel
     {
         if (Seleccionado is not { ReciboId: int reciboId } sel) return;
         if (!await _dialog.ShowConfirmAsync("Eliminar recibo",
-                $"¿Eliminar el recibo Pendiente de {sel.Empresa}? No tiene CAE y esta acción no se puede deshacer.",
+                $"¿Eliminar el recibo Pendiente de {sel.Cliente}? No tiene CAE y esta acción no se puede deshacer.",
                 "Eliminar", "Cancelar")) return;
 
         LimpiarStatus();
@@ -271,7 +271,7 @@ public class EmisionMasivaViewModel : PageViewModel
             try
             {
                 var bytes = await _pdf.GenerarPdfReciboAsync(recibo);
-                await _dialog.ShowPdfAsync(bytes, $"Recibo {sel.Comprobante}", $"Recibo_{sel.Empresa}_{sel.Comprobante}");
+                await _dialog.ShowPdfAsync(bytes, $"Recibo {sel.Comprobante}", $"Recibo_{sel.Cliente}_{sel.Comprobante}");
             }
             catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }
         });

@@ -105,6 +105,6 @@ private async Task PrevisualizarAsync()
 ```
 
 **Notas:**
-- `GetConDetalleAsync(id)` carga las propiedades de navegación (Empresa, etc.) necesarias para el PDF.
+- `GetConDetalleAsync(id)` carga las propiedades de navegación (Cliente, etc.) necesarias para el PDF.
 - `IsBusy = true` durante la generación muestra el spinner y deshabilita controles.
 - No hay `try/catch` en la generación del PDF dentro de servicios — las excepciones llegan al ViewModel.

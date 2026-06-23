@@ -32,7 +32,7 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
         // Un solo consolidado SIN CAE (Pendiente) por (agencia, período) — índice único parcial: evita dos
         // work-in-progress simultáneos, pero permite consolidados COMPLEMENTARIOS (cada uno con su CAE) cuando
         // aparecen vouchers olvidados después de emitir.
-        b.HasIndex(r => new { r.AgenciaId, r.PeriodoAnio, r.PeriodoMes })
+        b.HasIndex(r => new { r.ClienteId, r.PeriodoAnio, r.PeriodoMes })
             .IsUnique()
             .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
 

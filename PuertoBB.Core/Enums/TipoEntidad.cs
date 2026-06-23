@@ -1,6 +1,6 @@
 namespace PuertoBB.Core.Enums;
 
-public enum TipoEntidad
+public enum TipoCliente
 {
     CamaraPortuaria,
     CentroMaritimo

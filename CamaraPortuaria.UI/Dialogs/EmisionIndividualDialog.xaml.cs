@@ -19,16 +19,16 @@ public partial class EmisionIndividualDialog : UserControl
     private readonly ObservableCollection<string> _conceptosFiltrados = [];
 
     public EmisionIndividualDialog(
-        string labelEntidad,
-        IReadOnlyList<EntidadEmisionItem> entidades,
+        string labelCliente,
+        IReadOnlyList<ClienteEmisionItem> entidades,
         IReadOnlyList<string> conceptos)
     {
         InitializeComponent();
 
         _todosConceptos = [.. conceptos];
 
-        LabelEntidad.Text = labelEntidad;
-        EntidadCombo.ItemsSource = entidades;
+        LabelCliente.Text = labelCliente;
+        ClienteCombo.ItemsSource = entidades;
         FechaPicker.SelectedDate = DateTime.Today;
 
         LineasGrid.ItemsSource = _lineas;
@@ -93,7 +93,7 @@ public partial class EmisionIndividualDialog : UserControl
 
     private void TryConfirmar(bool enviarMail)
     {
-        if (EntidadCombo.SelectedItem is not EntidadEmisionItem entidad)
+        if (ClienteCombo.SelectedItem is not ClienteEmisionItem entidad)
         { MostrarError("Seleccione una empresa."); return; }
 
         if (FechaPicker.SelectedDate is null || FechaPicker.SelectedDate.Value.Date > DateTime.Today)

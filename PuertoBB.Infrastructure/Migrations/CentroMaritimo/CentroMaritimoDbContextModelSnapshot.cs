@@ -17,7 +17,32 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Agencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Barco", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("Barcos");
+                });
+
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Cliente", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -56,16 +81,16 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.ToTable("Agencias");
+                    b.ToTable("Clientes");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.AgenciaGrupo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ClienteGrupo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -81,35 +106,10 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasIndex("GrupoFacturacionId");
 
-                    b.HasIndex("AgenciaId", "GrupoFacturacionId")
+                    b.HasIndex("ClienteId", "GrupoFacturacionId")
                         .IsUnique();
 
-                    b.ToTable("AgenciasGrupos");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Barco", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Nombre")
-                        .IsUnique();
-
-                    b.ToTable("Barcos");
+                    b.ToTable("ClientesGrupos");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ConceptoRecibo", b =>
@@ -330,7 +330,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         });
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmailAgencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmailCliente", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -339,7 +339,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Property<bool>("Activo")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -355,9 +355,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AgenciaId");
+                    b.HasIndex("ClienteId");
 
-                    b.ToTable("EmailsAgencia");
+                    b.ToTable("EmailsCliente");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmisionGrupo", b =>
@@ -366,7 +366,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -392,7 +392,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.HasIndex("ReciboId")
                         .IsUnique();
 
-                    b.HasIndex("GrupoFacturacionId", "AgenciaId", "PeriodoAnio", "PeriodoMes")
+                    b.HasIndex("GrupoFacturacionId", "ClienteId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique();
 
                     b.ToTable("EmisionesGrupo", (string)null);
@@ -586,13 +586,13 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("CAE")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("CodigoAfip")
                         .HasColumnType("INTEGER");
@@ -694,7 +694,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasIndex("PeriodoAnio", "PeriodoMes");
 
-                    b.HasIndex("AgenciaId", "PeriodoAnio", "PeriodoMes")
+                    b.HasIndex("ClienteId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique()
                         .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
 
@@ -750,10 +750,10 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("BarcoId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("BarcoId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -782,9 +782,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AgenciaId");
-
                     b.HasIndex("BarcoId");
+
+                    b.HasIndex("ClienteId");
 
                     b.HasIndex("Numero")
                         .IsUnique();
@@ -794,21 +794,21 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("Vouchers");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.AgenciaGrupo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ClienteGrupo", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
+                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Cliente", "Cliente")
                         .WithMany("Grupos")
-                        .HasForeignKey("AgenciaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", "Grupo")
-                        .WithMany("Agencias")
+                        .WithMany("Clientes")
                         .HasForeignKey("GrupoFacturacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Agencia");
+                    b.Navigation("Cliente");
 
                     b.Navigation("Grupo");
                 });
@@ -822,15 +822,15 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmailAgencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmailCliente", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
+                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Cliente", "Cliente")
                         .WithMany("Emails")
-                        .HasForeignKey("AgenciaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Agencia");
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmisionGrupo", b =>
@@ -885,13 +885,13 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Recibo", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
+                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Cliente", "Cliente")
                         .WithMany("Recibos")
-                        .HasForeignKey("AgenciaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Agencia");
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ReciboLinea", b =>
@@ -907,15 +907,15 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Voucher", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
-                        .WithMany("Vouchers")
-                        .HasForeignKey("AgenciaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Barco", "Barco")
                         .WithMany()
                         .HasForeignKey("BarcoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Cliente", "Cliente")
+                        .WithMany("Vouchers")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -924,14 +924,14 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .HasForeignKey("ReciboId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("Agencia");
-
                     b.Navigation("Barco");
+
+                    b.Navigation("Cliente");
 
                     b.Navigation("Recibo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Agencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Cliente", b =>
                 {
                     b.Navigation("Emails");
 
@@ -951,7 +951,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
             modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", b =>
                 {
-                    b.Navigation("Agencias");
+                    b.Navigation("Clientes");
 
                     b.Navigation("Emisiones");
 

@@ -21,7 +21,7 @@ public class MainWindowViewModel : BaseViewModel
         new NavigationViewItemSeparator(),
 
         // Maestros
-        new NavigationViewItem("Empresas", SymbolRegular.BuildingMultiple24, typeof(EmpresasPage)),
+        new NavigationViewItem("Empresas", SymbolRegular.BuildingMultiple24, typeof(ClientesPage)),
         new NavigationViewItem("Detalles", SymbolRegular.TextBulletListSquare24, typeof(ConceptosReciboPage)),
         new NavigationViewItem("Grupos",   SymbolRegular.PeopleTeam24,       typeof(GruposPage)),
     ];

@@ -15,7 +15,7 @@ UI (CentroMaritimo.UI):
 
 ViewModel:
   CierrePeriodoViewModel.EjecutarCierreAsync(anio, mes, ct)
-  1. Llama IVoucherService.GetAgenciasConVouchersPendientesAsync(anio, mes)
+  1. Llama IVoucherService.GetClientesConVouchersPendientesAsync(anio, mes)
   2. Muestra resumen al usuario (N agencias, M vouchers)
   3. Confirma via IDialogService.ConfirmarAsync
   4. Llama ICentroMaritimoReciboService.CerrarPeriodoAsync(anio, mes, ct)
@@ -41,13 +41,13 @@ Service (ICentroMaritimoReciboService.CerrarPeriodoAsync):
        → si enviarMail: IMailService.EnviarReciboAsync → recibo.FechaEnvioMail (envío "Enviado" derivado)
        → IReciboRepository.UpdateAsync(recibo)
 
-  Return ServiceResult<List<ResultadoCierrePorAgencia>>
+  Return ServiceResult<List<ResultadoCierrePorCliente>>
 
 Infrastructure:
   IReciboRepository.GetConsolidadoPendienteAsync(agenciaId, anio, mes) — SOLO Pendiente (sin CAE); target de reintento
   IReciboRepository.AddConVouchersAsync(recibo, voucherIds)            — un único SaveChanges atómico
   IReciboRepository.ExisteConsolidadoAsync                             — ¿hay algún consolidado no anulado?
-  Índice único parcial Recibo (Agencia,Anio,Mes) WHERE EsConsolidadoVouchers=1 AND EstadoFiscal='Pendiente'
+  Índice único parcial Recibo (Cliente,Anio,Mes) WHERE EsConsolidadoVouchers=1 AND EstadoFiscal='Pendiente'
     → 1 solo consolidado en curso (sin CAE) por período; varios con CAE (original + complementarios) permitidos
 
 Core (estado final):

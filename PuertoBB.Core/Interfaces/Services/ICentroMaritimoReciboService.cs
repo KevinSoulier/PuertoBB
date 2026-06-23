@@ -10,26 +10,26 @@ public interface ICentroMaritimoReciboService
 {
     /// <summary>Consolida los vouchers pendientes de cada agencia del período en un recibo.
     /// <paramref name="progreso"/> recibe el avance por agencia para el overlay de espera.</summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoCierrePorAgencia>>> CerrarPeriodoAsync(int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ResultadoCierrePorCliente>>> CerrarPeriodoAsync(int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
     /// <summary>Consolida los vouchers pendientes de UNA agencia del período en un recibo (reintento individual).</summary>
-    Task<ServiceResult<ResultadoCierrePorAgencia>> CerrarPeriodoAgenciaAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
+    Task<ServiceResult<ResultadoCierrePorCliente>> CerrarPeriodoClienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
 
     /// <summary>Emite el recibo AFIP de una agencia SIN enviar mail.</summary>
-    Task<ServiceResult<ResultadoCierrePorAgencia>> EmitirReciboAgenciaAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
+    Task<ServiceResult<ResultadoCierrePorCliente>> EmitirReciboClienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default);
 
     /// <summary>Emite recibos AFIP para todas las agencias pendientes del período SIN enviar mails.
     /// <paramref name="progreso"/> recibe el avance por agencia para el overlay de espera.</summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoCierrePorAgencia>>> EmitirRecibosPeriodoAsync(int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ResultadoCierrePorCliente>>> EmitirRecibosPeriodoAsync(int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
-    /// <summary>Agencias del grupo que YA tienen recibo en el período.</summary>
+    /// <summary>Clientes del grupo que YA tienen recibo en el período.</summary>
     Task<ServiceResult<IReadOnlyList<string>>> GetDuplicadosAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
 
     /// <summary>
     /// Estado de cada agencia del grupo en el período (alimenta la tabla de emisión masiva):
     /// el recibo es null si la agencia aún no fue emitida.
     /// </summary>
-    Task<ServiceResult<IReadOnlyList<EstadoEmisionEntidad<Recibo>>>> GetEstadoMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<EstadoEmisionCliente<Recibo>>>> GetEstadoMasivoAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
 
     /// <summary>
     /// Emite un recibo de cuota por cada agencia pendiente del grupo en el período. Si <paramref name="enviarMail"/>
@@ -38,13 +38,13 @@ public interface ICentroMaritimoReciboService
     /// <paramref name="reenviarYaEnviados"/> es true y <paramref name="enviarMail"/> también, además reenvía
     /// el mail de los ya enviados. <paramref name="progreso"/> recibe el avance por agencia.
     /// </summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, bool reenviarYaEnviados = false, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorCliente>>> EmitirMasivoAsync(int grupoId, int anio, int mes, bool enviarMail = true, bool reenviarYaEnviados = false, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
     /// <summary>Envía por mail los recibos del grupo que ya tienen CAE y aún no fueron enviados ("Enviar").</summary>
-    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorEntidad>>> EnviarMasivoAsync(int grupoId, int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
+    Task<ServiceResult<IReadOnlyList<ResultadoEmisionPorCliente>>> EnviarMasivoAsync(int grupoId, int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
     /// <summary>Emite/continúa el recibo de cuota de UNA agencia del grupo en el período (acción por fila).</summary>
-    Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirDeGrupoAsync(int grupoId, int agenciaId, int anio, int mes, bool enviarMail, CancellationToken ct = default);
+    Task<ServiceResult<ResultadoEmisionPorCliente>> EmitirDeGrupoAsync(int grupoId, int agenciaId, int anio, int mes, bool enviarMail, CancellationToken ct = default);
 
     /// <summary>
     /// Emite un recibo individual a una agencia (cobro extraordinario / puntual).
@@ -52,13 +52,13 @@ public interface ICentroMaritimoReciboService
     /// es false solo genera el CAE; el mail se manda luego con <see cref="ReintentarAsync"/>.
     /// Si <paramref name="lineas"/> trae ítems, el recibo es multi-ítem (total = suma) y <paramref name="importe"/>/<paramref name="detalle"/> se ignoran.
     /// </summary>
-    Task<ServiceResult<ResultadoEmisionPorEntidad>> EmitirIndividualAsync(int agenciaId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, bool enviarMail, IReadOnlyList<ReciboLineaInput>? lineas = null, CancellationToken ct = default);
+    Task<ServiceResult<ResultadoEmisionPorCliente>> EmitirIndividualAsync(int agenciaId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, bool enviarMail, IReadOnlyList<ReciboLineaInput>? lineas = null, CancellationToken ct = default);
 
     /// <summary>
     /// Reintenta/continúa la emisión de un recibo existente de forma idempotente: pide el CAE solo si
     /// falta, y manda el mail si <paramref name="enviarMail"/> es true y aún no se envió.
     /// </summary>
-    Task<ServiceResult<ResultadoEmisionPorEntidad>> ReintentarAsync(int reciboId, bool enviarMail, CancellationToken ct = default);
+    Task<ServiceResult<ResultadoEmisionPorCliente>> ReintentarAsync(int reciboId, bool enviarMail, CancellationToken ct = default);
 
     /// <summary>Edita el contenido (líneas/importe/detalle) de un recibo Pendiente (sin CAE). Rechaza si ya tiene CAE.</summary>
     Task<ServiceResult<bool>> EditarReciboPendienteAsync(int reciboId, IReadOnlyList<ReciboLineaInput> lineas, CancellationToken ct = default);

@@ -7,8 +7,8 @@ namespace PuertoBB.Core.Entities.CamaraPortuaria;
 /// El Recibo es autocontenido (entidad de auditoría): no conoce al grupo; esta entidad es la
 /// única que vincula grupo + período facturado + recibo. Al borrar el grupo, estas filas
 /// cascadean y los recibos quedan intactos.
-/// Índice único (GrupoFacturacionId, EmpresaId, PeriodoAnio, PeriodoMes): anti-duplicados de emisión.
-/// EmpresaId/PeriodoAnio/PeriodoMes están denormalizados y deben coincidir con el Recibo
+/// Índice único (GrupoFacturacionId, ClienteId, PeriodoAnio, PeriodoMes): anti-duplicados de emisión.
+/// ClienteId/PeriodoAnio/PeriodoMes están denormalizados y deben coincidir con el Recibo
 /// (invariante garantizado por el servicio de emisión).
 /// </summary>
 public class EmisionGrupo : BaseEntity
@@ -18,7 +18,7 @@ public class EmisionGrupo : BaseEntity
     public int              ReciboId           { get; set; }
     public Recibo           Recibo             { get; set; } = null!;
 
-    public int EmpresaId   { get; set; }
+    public int ClienteId   { get; set; }
     public int PeriodoAnio { get; set; }
     public int PeriodoMes  { get; set; }
 }

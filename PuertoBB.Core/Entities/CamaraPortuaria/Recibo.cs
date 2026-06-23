@@ -6,15 +6,15 @@ using PuertoBB.Core.Enums;
 namespace PuertoBB.Core.Entities.CamaraPortuaria;
 
 /// <summary>
-/// Recibo emitido a una Empresa. Entidad de auditoría autocontenida: los datos fiscales del
+/// Recibo emitido a una Cliente. Cliente de auditoría autocontenida: los datos fiscales del
 /// receptor se copian al emitir (Receptor*) y el vínculo con el grupo que lo originó vive en
 /// <see cref="EmisionGrupo"/> (null = emisión individual).
 /// El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
 public class Recibo : BaseEntity, IReciboBusquedaView
 {
-    public int     EmpresaId { get; set; }
-    public Empresa Empresa   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
 
     /// <summary>Vínculo con la emisión de grupo que lo originó; null = emisión individual.</summary>
     public EmisionGrupo? EmisionGrupo { get; set; }

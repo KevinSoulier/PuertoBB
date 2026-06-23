@@ -17,7 +17,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public Task<Recibo?> GetConDetalleAsync(int id, CancellationToken ct = default)
         => _db.Recibos
-            .Include(r => r.Empresa).ThenInclude(e => e.Emails)
+            .Include(r => r.Cliente).ThenInclude(e => e.Emails)
             .Include(r => r.NotaDeCredito)
             .Include(r => r.Lineas)
             .FirstOrDefaultAsync(r => r.Id == id, ct);
@@ -30,7 +30,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public Task<Recibo?> GetPorClaveAsync(int empresaId, int? grupoId, int anio, int mes, CancellationToken ct = default)
         => FiltrarPorClave(_db.Recibos
-                .Include(r => r.Empresa).ThenInclude(e => e.Emails)
+                .Include(r => r.Cliente).ThenInclude(e => e.Emails)
                 .Include(r => r.Lineas), empresaId, grupoId, anio, mes)
             .FirstOrDefaultAsync(ct);
 
@@ -41,7 +41,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
     /// </summary>
     private static IQueryable<Recibo> FiltrarPorClave(IQueryable<Recibo> q, int empresaId, int? grupoId, int anio, int mes)
     {
-        q = q.Where(r => r.EmpresaId == empresaId && r.PeriodoAnio == anio && r.PeriodoMes == mes);
+        q = q.Where(r => r.ClienteId == empresaId && r.PeriodoAnio == anio && r.PeriodoMes == mes);
         return grupoId is int gid
             ? q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid)
             : q.Where(r => r.EmisionGrupo == null && r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente);
@@ -73,7 +73,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public async Task<IReadOnlyList<Recibo>> GetPorGrupoYPeriodoAsync(int grupoId, int anio, int mes, CancellationToken ct = default)
         => await _db.Recibos
-            .Include(r => r.Empresa).ThenInclude(e => e.Emails)
+            .Include(r => r.Cliente).ThenInclude(e => e.Emails)
             .Include(r => r.Lineas)
             .Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == grupoId &&
                         r.PeriodoAnio == anio && r.PeriodoMes == mes)
@@ -81,12 +81,12 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public async Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes f, CancellationToken ct = default)
     {
-        var q = _db.Recibos.AsNoTracking().Include(r => r.Empresa).AsQueryable();
+        var q = _db.Recibos.AsNoTracking().Include(r => r.Cliente).AsQueryable();
 
         if (f.PeriodoAnio is int anio)        q = q.Where(r => r.PeriodoAnio == anio);
         if (f.PeriodoMes is int mes)          q = q.Where(r => r.PeriodoMes == mes);
         if (f.GrupoFacturacionId is int gid)  q = q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid);
-        if (f.EntidadId is int eid)           q = q.Where(r => r.EmpresaId == eid);
+        if (f.ClienteId is int eid)           q = q.Where(r => r.ClienteId == eid);
         if (f.Estado is { } estado)           q = q.Where(r => r.EstadoFiscal == estado);
         if (f.ExcluirIncobrables)              q = q.Where(r => r.FechaIncobrable == null);
 
@@ -96,13 +96,13 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
                              r.EstadoFiscal == Core.Enums.EstadoFiscal.Emitido &&
                              r.FechaPago == null && r.FechaIncobrable == null);
 
-        return await q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Empresa.Nombre).ToListAsync(ct);
+        return await q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Cliente.Nombre).ToListAsync(ct);
     }
 
     public async Task<PaginaResultado<Recibo>> GetControlPaginadoAsync(FiltroControlPagos f, CancellationToken ct = default)
     {
         var hoy = DateTime.Today;
-        var q = AplicarEstado(_db.Recibos.AsNoTracking().Include(r => r.Empresa), f.Estado, hoy);
+        var q = AplicarEstado(_db.Recibos.AsNoTracking().Include(r => r.Cliente), f.Estado, hoy);
 
         var total = await q.CountAsync(ct);
         var vencidos = await q.CountAsync(r =>
@@ -121,7 +121,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
     }
 
     public async Task<IReadOnlyList<Recibo>> GetControlCandidatosAsync(FiltroControlPagos f, CancellationToken ct = default)
-        => await Ordenar(AplicarEstado(_db.Recibos.AsNoTracking().Include(r => r.Empresa), f.Estado, DateTime.Today))
+        => await Ordenar(AplicarEstado(_db.Recibos.AsNoTracking().Include(r => r.Cliente), f.Estado, DateTime.Today))
             .ToListAsync(ct);
 
     /// <summary>Predicado de estado de la sección "Control" (espejo de EstadoReciboHelper.EtiquetaEstado).
@@ -143,11 +143,11 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         };
 
     private static IOrderedQueryable<Recibo> Ordenar(IQueryable<Recibo> q)
-        => q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Empresa.Nombre);
+        => q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Cliente.Nombre);
 
     public async Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default)
-        => await _db.Recibos.AsNoTracking().Include(r => r.Empresa)
+        => await _db.Recibos.AsNoTracking().Include(r => r.Cliente)
             .Include(r => r.NotaDeCredito)
             .Where(r => r.PeriodoAnio == anio && r.PeriodoMes == mes)
-            .OrderBy(r => r.Empresa.Nombre).ToListAsync(ct);
+            .OrderBy(r => r.Cliente.Nombre).ToListAsync(ct);
 }

@@ -8,10 +8,10 @@ using PuertoBB.Infrastructure.Data;
 
 #nullable disable
 
-namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
+namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
 {
-    [DbContext(typeof(CentroMaritimoDbContext))]
-    [Migration("20260620034202_Inicial")]
+    [DbContext(typeof(CamaraPortuariaDbContext))]
+    [Migration("20260623154256_Inicial")]
     partial class Inicial
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Agencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -59,16 +59,16 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.ToTable("Agencias");
+                    b.ToTable("Clientes");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.AgenciaGrupo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ClienteGrupo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -84,38 +84,13 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasIndex("GrupoFacturacionId");
 
-                    b.HasIndex("AgenciaId", "GrupoFacturacionId")
+                    b.HasIndex("ClienteId", "GrupoFacturacionId")
                         .IsUnique();
 
-                    b.ToTable("AgenciasGrupos");
+                    b.ToTable("ClientesGrupos");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Barco", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Nombre")
-                        .IsUnique();
-
-                    b.ToTable("Barcos");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ConceptoRecibo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ConceptoRecibo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -140,7 +115,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("ConceptosRecibo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Configuracion", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -161,9 +136,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.Property<int>("DiasVencimiento")
                         .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("ImporteVoucherPredeterminado")
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("IngresosBrutos")
                         .HasMaxLength(50)
@@ -201,7 +173,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 15,
-                            ImporteVoucherPredeterminado = 0m,
                             MailAsunto = "{comprobante} {periodo} — {razonSocial}",
                             MailCuerpo = "Estimados,\n\nAdjuntamos el comprobante correspondiente al período {periodo}.\n\nSaludos.",
                             MailCuerpoEsHtml = false,
@@ -209,35 +180,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         });
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ContadorVoucher", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UltimoNumero")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Contadores");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            UltimoNumero = 0
-                        });
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.CuentaCorreo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.CuentaCorreo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -333,7 +276,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         });
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmailAgencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmailCliente", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -342,7 +285,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Property<bool>("Activo")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -358,18 +301,18 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AgenciaId");
+                    b.HasIndex("ClienteId");
 
-                    b.ToTable("EmailsAgencia");
+                    b.ToTable("EmailsCliente");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmisionGrupo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmisionGrupo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AgenciaId")
+                    b.Property<int>("ClienteId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
@@ -395,13 +338,13 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.HasIndex("ReciboId")
                         .IsUnique();
 
-                    b.HasIndex("GrupoFacturacionId", "AgenciaId", "PeriodoAnio", "PeriodoMes")
+                    b.HasIndex("GrupoFacturacionId", "ClienteId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique();
 
                     b.ToTable("EmisionesGrupo", (string)null);
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -433,7 +376,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("Grupos");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacionLinea", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -472,7 +415,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("GruposLineas");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.NotaDeCredito", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.NotaDeCredito", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -520,7 +463,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("NotasDeCredito");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.PuntoDeVenta", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.PuntoDeVenta", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -583,19 +526,19 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         });
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Recibo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("AgenciaId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("CAE")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("CodigoAfip")
                         .HasColumnType("INTEGER");
@@ -607,9 +550,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("EsConsolidadoVouchers")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("EstadoFiscal")
                         .IsRequired()
@@ -695,11 +635,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PeriodoAnio", "PeriodoMes");
+                    b.HasIndex("ClienteId");
 
-                    b.HasIndex("AgenciaId", "PeriodoAnio", "PeriodoMes")
-                        .IsUnique()
-                        .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
+                    b.HasIndex("PeriodoAnio", "PeriodoMes");
 
                     b.HasIndex("PuntoDeVenta", "NumeroComprobante", "CodigoAfip")
                         .IsUnique()
@@ -708,7 +646,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("Recibos");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ReciboLinea", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ReciboLinea", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -747,106 +685,56 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.ToTable("RecibosLineas");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Voucher", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ClienteGrupo", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("AgenciaId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("BarcoId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("Fecha")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("Importe")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Numero")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("PeriodoAnio")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("PeriodoMes")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("ReciboId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AgenciaId");
-
-                    b.HasIndex("BarcoId");
-
-                    b.HasIndex("Numero")
-                        .IsUnique();
-
-                    b.HasIndex("ReciboId");
-
-                    b.ToTable("Vouchers");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.AgenciaGrupo", b =>
-                {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", "Cliente")
                         .WithMany("Grupos")
-                        .HasForeignKey("AgenciaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", "Grupo")
-                        .WithMany("Agencias")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", "Grupo")
+                        .WithMany("Clientes")
                         .HasForeignKey("GrupoFacturacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Agencia");
+                    b.Navigation("Cliente");
 
                     b.Navigation("Grupo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.CuentaCorreo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.CuentaCorreo", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Configuracion", null)
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", null)
                         .WithMany("CuentasCorreo")
                         .HasForeignKey("ConfiguracionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmailAgencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmailCliente", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", "Cliente")
                         .WithMany("Emails")
-                        .HasForeignKey("AgenciaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Agencia");
+                    b.Navigation("Cliente");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.EmisionGrupo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.EmisionGrupo", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", "Grupo")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", "Grupo")
                         .WithMany("Emisiones")
                         .HasForeignKey("GrupoFacturacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Recibo", "Recibo")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", "Recibo")
                         .WithOne("EmisionGrupo")
-                        .HasForeignKey("PuertoBB.Core.Entities.CentroMaritimo.EmisionGrupo", "ReciboId")
+                        .HasForeignKey("PuertoBB.Core.Entities.CamaraPortuaria.EmisionGrupo", "ReciboId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -855,9 +743,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Navigation("Recibo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacionLinea", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", "Grupo")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", "Grupo")
                         .WithMany("Lineas")
                         .HasForeignKey("GrupoFacturacionId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -866,40 +754,40 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Navigation("Grupo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.NotaDeCredito", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.NotaDeCredito", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Recibo", "ReciboOriginal")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", "ReciboOriginal")
                         .WithOne("NotaDeCredito")
-                        .HasForeignKey("PuertoBB.Core.Entities.CentroMaritimo.NotaDeCredito", "ReciboOriginalId")
+                        .HasForeignKey("PuertoBB.Core.Entities.CamaraPortuaria.NotaDeCredito", "ReciboOriginalId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ReciboOriginal");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.PuntoDeVenta", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.PuntoDeVenta", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Configuracion", null)
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", null)
                         .WithMany("PuntosDeVenta")
                         .HasForeignKey("ConfiguracionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Recibo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", "Cliente")
                         .WithMany("Recibos")
-                        .HasForeignKey("AgenciaId")
+                        .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Agencia");
+                    b.Navigation("Cliente");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.ReciboLinea", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.ReciboLinea", b =>
                 {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Recibo", "Recibo")
+                    b.HasOne("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", "Recibo")
                         .WithMany("Lineas")
                         .HasForeignKey("ReciboId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -908,68 +796,38 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Navigation("Recibo");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Voucher", b =>
-                {
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Agencia", "Agencia")
-                        .WithMany("Vouchers")
-                        .HasForeignKey("AgenciaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Barco", "Barco")
-                        .WithMany()
-                        .HasForeignKey("BarcoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PuertoBB.Core.Entities.CentroMaritimo.Recibo", "Recibo")
-                        .WithMany("Vouchers")
-                        .HasForeignKey("ReciboId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Agencia");
-
-                    b.Navigation("Barco");
-
-                    b.Navigation("Recibo");
-                });
-
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Agencia", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Cliente", b =>
                 {
                     b.Navigation("Emails");
 
                     b.Navigation("Grupos");
 
                     b.Navigation("Recibos");
-
-                    b.Navigation("Vouchers");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Configuracion", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Configuracion", b =>
                 {
                     b.Navigation("CuentasCorreo");
 
                     b.Navigation("PuntosDeVenta");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion", b =>
                 {
-                    b.Navigation("Agencias");
+                    b.Navigation("Clientes");
 
                     b.Navigation("Emisiones");
 
                     b.Navigation("Lineas");
                 });
 
-            modelBuilder.Entity("PuertoBB.Core.Entities.CentroMaritimo.Recibo", b =>
+            modelBuilder.Entity("PuertoBB.Core.Entities.CamaraPortuaria.Recibo", b =>
                 {
                     b.Navigation("EmisionGrupo");
 
                     b.Navigation("Lineas");
 
                     b.Navigation("NotaDeCredito");
-
-                    b.Navigation("Vouchers");
                 });
 #pragma warning restore 612, 618
         }

@@ -64,7 +64,7 @@
                   MouseDoubleClick="VouchersGrid_MouseDoubleClick">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Nro." Binding="{Binding Numero}" Width="80" />
-                <DataGridTextColumn Header="Agencia" Binding="{Binding Agencia}" Width="*" />
+                <DataGridTextColumn Header="Agencia" Binding="{Binding Cliente}" Width="*" />
                 <DataGridTextColumn Header="Barco" Binding="{Binding Barco}" Width="*" />
                 <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha}" Width="100" />
                 <DataGridTextColumn Header="Importe" Binding="{Binding Importe}" Width="120" />
@@ -95,13 +95,13 @@
                         <StackPanel Orientation="Horizontal">
                             <ComboBox x:Name="AgenciaCombo"
                                       IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
-                                      ItemsSource="{Binding AgenciasFiltradas}"
+                                      ItemsSource="{Binding ClientesFiltradas}"
                                       DisplayMemberPath="Nombre"
-                                      Text="{Binding AgenciaTexto, UpdateSourceTrigger=PropertyChanged}"
-                                      SelectedItem="{Binding AgenciaSeleccionada}"
+                                      Text="{Binding ClienteTexto, UpdateSourceTrigger=PropertyChanged}"
+                                      SelectedItem="{Binding ClienteSeleccionada}"
                                       PreviewKeyDown="ComboBox_OpenOnDownKey"
                                       Width="200" />
-                            <Button ToolTip="Ir a Agencias" Command="{Binding IrAAgenciasCommand}"
+                            <Button ToolTip="Ir a Agencias" Command="{Binding IrAClientesCommand}"
                                     Width="32" Height="32" Margin="4,0,0,0"
                                     Style="{StaticResource AccentButtonStyle}" Padding="2">
                                 <ui:SymbolIcon Symbol="Add24" FontSize="14" />

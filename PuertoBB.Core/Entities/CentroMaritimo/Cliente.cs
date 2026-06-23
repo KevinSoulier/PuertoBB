@@ -3,7 +3,7 @@ using PuertoBB.Core.Entities.Common;
 
 namespace PuertoBB.Core.Entities.CentroMaritimo;
 
-public class Agencia : BaseEntity
+public class Cliente : BaseEntity
 {
     public string  Nombre        { get; set; } = string.Empty;
     public string  RazonSocial   { get; set; } = string.Empty;
@@ -12,8 +12,8 @@ public class Agencia : BaseEntity
     public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor), ej. 1 = IVA Responsable Inscripto
     public bool    Activa        { get; set; } = true;
 
-    public ICollection<EmailAgencia> Emails   { get; set; } = [];
-    public ICollection<AgenciaGrupo> Grupos   { get; set; } = [];
+    public ICollection<EmailCliente> Emails   { get; set; } = [];
+    public ICollection<ClienteGrupo> Grupos   { get; set; } = [];
     public ICollection<Voucher>      Vouchers { get; set; } = [];
     public ICollection<Recibo>       Recibos  { get; set; } = [];
 

@@ -6,9 +6,9 @@ Todas las entidades viven en `PuertoBB.Core/Entities/`. Cada aplicación tiene s
 
 ## Cámara Portuaria — `Core/Entities/CamaraPortuaria/`
 
-### `Empresa`
+### `Cliente`
 ```csharp
-public class Empresa : BaseEntity
+public class Cliente : BaseEntity
 {
     public string  Nombre      { get; set; } = string.Empty;
     public string  RazonSocial { get; set; } = string.Empty;
@@ -17,17 +17,17 @@ public class Empresa : BaseEntity
     public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor, RG 5616)
     public bool    Activa      { get; set; } = true;
 
-    public ICollection<EmailEmpresa>  Emails  { get; set; } = [];
-    public ICollection<EmpresaGrupo>  Grupos  { get; set; } = [];
+    public ICollection<EmailCliente>  Emails  { get; set; } = [];
+    public ICollection<ClienteGrupo>  Grupos  { get; set; } = [];
 }
 ```
 
-### `EmailEmpresa`
+### `EmailCliente`
 ```csharp
-public class EmailEmpresa : BaseEntity
+public class EmailCliente : BaseEntity
 {
-    public int     EmpresaId { get; set; }
-    public Empresa Empresa   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
     public string  Email     { get; set; } = string.Empty;
     public bool    Activo    { get; set; } = true;
 }
@@ -41,21 +41,21 @@ public class GrupoFacturacion : BaseEntity
     public string? Descripcion { get; set; }
     public bool    Activo      { get; set; } = true;
 
-    public ICollection<EmpresaGrupo>  Empresas { get; set; } = [];
+    public ICollection<ClienteGrupo>  Clientes { get; set; } = [];
     public ICollection<ReciboLinea>   Lineas   { get; set; } = [];
 }
 ```
 
-### `EmpresaGrupo` *(join N:M)*
+### `ClienteGrupo` *(join N:M)*
 ```csharp
-public class EmpresaGrupo : BaseEntity
+public class ClienteGrupo : BaseEntity
 {
-    public int              EmpresaId          { get; set; }
-    public Empresa          Empresa            { get; set; } = null!;
+    public int              ClienteId          { get; set; }
+    public Cliente          Cliente            { get; set; } = null!;
     public int              GrupoFacturacionId { get; set; }
     public GrupoFacturacion Grupo              { get; set; } = null!;
 }
-// Índice único: (EmpresaId, GrupoFacturacionId)
+// Índice único: (ClienteId, GrupoFacturacionId)
 ```
 
 ### `EmisionGrupo` *(vínculo Grupo ↔ Recibo, cascade al borrar el grupo)*
@@ -68,19 +68,19 @@ public class EmisionGrupo : BaseEntity
     public Recibo           Recibo             { get; set; } = null!;
 
     // Denormalizados desde el Recibo (anti-duplicados de emisión por grupo)
-    public int EmpresaId   { get; set; }
+    public int ClienteId   { get; set; }
     public int PeriodoAnio { get; set; }
     public int PeriodoMes  { get; set; }
 }
-// Índice único: (GrupoFacturacionId, EmpresaId, PeriodoAnio, PeriodoMes)
+// Índice único: (GrupoFacturacionId, ClienteId, PeriodoAnio, PeriodoMes)
 ```
 
 ### `Recibo`
 ```csharp
 public class Recibo : BaseEntity
 {
-    public int     EmpresaId { get; set; }
-    public Empresa Empresa   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
 
     // Null = emisión individual. La relación con el grupo vive en EmisionGrupo.
     public EmisionGrupo? EmisionGrupo { get; set; }
@@ -226,9 +226,9 @@ public class CuentaCorreo : BaseEntity
 
 ## Centro Marítimo — `Core/Entities/CentroMaritimo/`
 
-### `Agencia`
+### `Cliente`
 ```csharp
-public class Agencia : BaseEntity
+public class Cliente : BaseEntity
 {
     public string  Nombre       { get; set; } = string.Empty;
     public string  RazonSocial  { get; set; } = string.Empty;
@@ -237,18 +237,18 @@ public class Agencia : BaseEntity
     public int?    CondicionIvaId { get; set; } // código AFIP (CatalogoCondicionesIvaReceptor, RG 5616)
     public bool    Activa       { get; set; } = true;
 
-    public ICollection<EmailAgencia> Emails   { get; set; } = [];
-    public ICollection<AgenciaGrupo> Grupos   { get; set; } = [];
+    public ICollection<EmailCliente> Emails   { get; set; } = [];
+    public ICollection<ClienteGrupo> Grupos   { get; set; } = [];
     public ICollection<Voucher>      Vouchers { get; set; } = [];
 }
 ```
 
-### `EmailAgencia`
+### `EmailCliente`
 ```csharp
-public class EmailAgencia : BaseEntity
+public class EmailCliente : BaseEntity
 {
-    public int     AgenciaId { get; set; }
-    public Agencia Agencia   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
     public string  Email     { get; set; } = string.Empty;
     public bool    Activo    { get; set; } = true;
 }
@@ -262,21 +262,21 @@ public class GrupoFacturacion : BaseEntity
     public string? Descripcion { get; set; }
     public bool    Activo      { get; set; } = true;
 
-    public ICollection<AgenciaGrupo> Agencias { get; set; } = [];
+    public ICollection<ClienteGrupo> Clientes { get; set; } = [];
     public ICollection<ReciboLinea>  Lineas   { get; set; } = [];
 }
 ```
 
-### `AgenciaGrupo` *(join N:M)*
+### `ClienteGrupo` *(join N:M)*
 ```csharp
-public class AgenciaGrupo : BaseEntity
+public class ClienteGrupo : BaseEntity
 {
-    public int              AgenciaId          { get; set; }
-    public Agencia          Agencia            { get; set; } = null!;
+    public int              ClienteId          { get; set; }
+    public Cliente          Cliente            { get; set; } = null!;
     public int              GrupoFacturacionId { get; set; }
     public GrupoFacturacion Grupo              { get; set; } = null!;
 }
-// Índice único: (AgenciaId, GrupoFacturacionId)
+// Índice único: (ClienteId, GrupoFacturacionId)
 ```
 
 ### `EmisionGrupo` *(vínculo Grupo ↔ Recibo, cascade al borrar el grupo)*
@@ -288,11 +288,11 @@ public class EmisionGrupo : BaseEntity
     public int              ReciboId           { get; set; }
     public Recibo           Recibo             { get; set; } = null!;
 
-    public int AgenciaId   { get; set; }
+    public int ClienteId   { get; set; }
     public int PeriodoAnio { get; set; }
     public int PeriodoMes  { get; set; }
 }
-// Índice único: (GrupoFacturacionId, AgenciaId, PeriodoAnio, PeriodoMes)
+// Índice único: (GrupoFacturacionId, ClienteId, PeriodoAnio, PeriodoMes)
 ```
 
 ### `Barco`
@@ -316,8 +316,8 @@ public class ContadorVoucher : BaseEntity
 ```csharp
 public class Voucher : BaseEntity
 {
-    public int     AgenciaId { get; set; }
-    public Agencia Agencia   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
     public int     BarcoId   { get; set; }
     public Barco   Barco     { get; set; } = null!;
 
@@ -338,8 +338,8 @@ public class Voucher : BaseEntity
 ```csharp
 public class Recibo : BaseEntity
 {
-    public int     AgenciaId { get; set; }
-    public Agencia Agencia   { get; set; } = null!;
+    public int     ClienteId { get; set; }
+    public Cliente Cliente   { get; set; } = null!;
 
     // Null = individual o consolidado de vouchers. La relación con el grupo vive en EmisionGrupo.
     public EmisionGrupo? EmisionGrupo { get; set; }
@@ -385,7 +385,7 @@ public class Recibo : BaseEntity
     public NotaDeCredito?       NotaDeCredito { get; set; }
 }
 // Índice único: (PuntoDeVenta, NumeroComprobante, CodigoAfip) WHERE NumeroComprobante > 0
-// Índice único parcial: (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=1 AND EstadoFiscal<>'Anulado'
+// Índice único parcial: (ClienteId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=1 AND EstadoFiscal<>'Anulado'
 ```
 
 ### `ReciboLinea`
@@ -495,9 +495,9 @@ public enum TipoComprobante { Recibo, NotaDeCredito }
 | Entidades separadas por app | Sí | Cada app tiene DB propia; compartir entidades crearía acoplamiento |
 | Período como dos ints | `PeriodoAnio + PeriodoMes` | Sin ambigüedades de timezone; indexa eficientemente |
 | `Configuracion` singleton | Id = 1 por convención | App unipersonal, sin multi-tenant |
-| `EmpresaGrupo`/`AgenciaGrupo` como entidad | Sí | Permite agregar campos futuros sin migración compleja |
+| `ClienteGrupo` como entidad (join N:M Cliente↔Grupo) | Sí | Permite agregar campos futuros sin migración compleja |
 | `NotaDeCredito` separada de `Recibo` | Sí | Comprobantes AFIP distintos; relación explícita |
-| Múltiples emails por entidad | `EmailEmpresa`/`EmailAgencia` | Algunos destinatarios requieren copias a varios contactos |
+| Múltiples emails por entidad | `EmailCliente` | Algunos destinatarios requieren copias a varios contactos |
 | `Vencido` calculado, no persistido | Sí | Evita transiciones automáticas; se calcula en la capa de presentación |
 | Vouchers sin series | Contador global único | Laura confirmó: un solo contador numérico, sin letra prefija |
 | Códigos AFIP configurables | En `Configuracion` | Permite cambiar si el tipo fiscal cambia, sin redespliegue |

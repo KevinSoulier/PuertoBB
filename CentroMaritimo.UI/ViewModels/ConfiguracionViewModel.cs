@@ -396,7 +396,7 @@ public class ConfiguracionViewModel : PageViewModel
     // CORREO (varias cuentas; una activa)
     // ══════════════════════════════════════════
     public ObservableCollection<CuentaCorreoItem> CuentasCorreo { get; } = new();
-    private List<CuentaCorreo> _cuentasEntidades = new();
+    private List<CuentaCorreo> _cuentasClientees = new();
 
     private CuentaCorreoItem? _cuentaSeleccionada;
     public CuentaCorreoItem? CuentaSeleccionada
@@ -587,7 +587,7 @@ public class ConfiguracionViewModel : PageViewModel
 
     private void CargarCuentaPorId(int id)
     {
-        var ent = _cuentasEntidades.FirstOrDefault(c => c.Id == id);
+        var ent = _cuentasClientees.FirstOrDefault(c => c.Id == id);
         if (ent is null) return;
         _ctaEd = Clonar(ent);
         _ctaEdId = ent.Id;
@@ -643,7 +643,7 @@ public class ConfiguracionViewModel : PageViewModel
 
         try
         {
-            var esPrimera = _cuentasEntidades.Count == 0;
+            var esPrimera = _cuentasClientees.Count == 0;
             _ctaEd.Id = _ctaEdId;
             _ctaEd.Activo = _ctaEdId == 0 ? esPrimera : _ctaEdActivo;
             var guardada = await _repo.GuardarCuentaCorreoAsync(_ctaEd);
@@ -658,7 +658,7 @@ public class ConfiguracionViewModel : PageViewModel
     private async Task EliminarCuentaAsync()
     {
         if (CuentaSeleccionada is not { } sel) { MostrarError("Seleccioná una cuenta de la lista."); return; }
-        var esActiva = _cuentasEntidades.FirstOrDefault(c => c.Id == sel.Id)?.Activo ?? false;
+        var esActiva = _cuentasClientees.FirstOrDefault(c => c.Id == sel.Id)?.Activo ?? false;
         var mensaje = esActiva
             ? $"¿Eliminar la cuenta «{sel.Nombre}»? Es la cuenta activa: la app quedará sin cuenta para enviar correos hasta que marques otra."
             : $"¿Eliminar la cuenta «{sel.Nombre}»?";
@@ -676,9 +676,9 @@ public class ConfiguracionViewModel : PageViewModel
 
     private async Task RecargarCuentasAsync()
     {
-        _cuentasEntidades = (await _repo.GetCuentasCorreoAsync()).ToList();
+        _cuentasClientees = (await _repo.GetCuentasCorreoAsync()).ToList();
         CuentasCorreo.Clear();
-        foreach (var c in _cuentasEntidades) CuentasCorreo.Add(CuentaCorreoItem.From(c));
+        foreach (var c in _cuentasClientees) CuentasCorreo.Add(CuentaCorreoItem.From(c));
     }
 
     /// <summary>Arma un MailConfig con los valores en edición (sin pasar por la base), para el login OAuth.</summary>

@@ -8,5 +8,5 @@ namespace PuertoBB.Core.Models.Resultados;
 /// validar el monto ANTES de emitir (se muestra en la columna Importe de los no emitidos).
 /// </summary>
 /// <typeparam name="TRecibo">El tipo de Recibo de la app (Cámara Portuaria o Centro Marítimo).</typeparam>
-public record EstadoEmisionEntidad<TRecibo>(int EntidadId, string EntidadNombre, TRecibo? Recibo, decimal ImporteEsperado)
+public record EstadoEmisionCliente<TRecibo>(int ClienteId, string ClienteNombre, TRecibo? Recibo, decimal ImporteEsperado)
     where TRecibo : class;

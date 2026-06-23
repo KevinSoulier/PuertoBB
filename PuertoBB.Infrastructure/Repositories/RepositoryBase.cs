@@ -60,7 +60,7 @@ public abstract class RepositoryBase<T> : IRepository<T> where T : BaseEntity
         }
         catch (DbUpdateException ex)
         {
-            Logger.LogError(ex, "Error al persistir {Entidad}", typeof(T).Name);
+            Logger.LogError(ex, "Error al persistir {Cliente}", typeof(T).Name);
             throw new ReciboException(
                 $"No se pudo guardar {typeof(T).Name}. Verifique que no haya duplicados o datos inválidos.", ex);
         }

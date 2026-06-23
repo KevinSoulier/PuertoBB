@@ -9,8 +9,8 @@ namespace CamaraPortuaria.UI.ViewModels.Items;
 public class ReciboItem
 {
     public int Id { get; }
-    public int EmpresaId { get; }
-    public string Empresa { get; }
+    public int ClienteId { get; }
+    public string Cliente { get; }
     public string Periodo { get; }
     public string Importe { get; }
     public string Comprobante { get; }
@@ -51,9 +51,9 @@ public class ReciboItem
         var hoy = DateTime.Today;
         var acc = AccionesRecibo.De(r);
         Id = r.Id;
-        EmpresaId = r.EmpresaId;
+        ClienteId = r.ClienteId;
         // Nombre desde el snapshot fiscal (inmutable); fallback a la navegación para recibos legacy.
-        Empresa = r.ReceptorNombre is { Length: > 0 } nombre ? nombre : r.Empresa?.Nombre ?? $"#{r.EmpresaId}";
+        Cliente = r.ReceptorNombre is { Length: > 0 } nombre ? nombre : r.Cliente?.Nombre ?? $"#{r.ClienteId}";
         Periodo = Formato.Periodo(r.PeriodoAnio, r.PeriodoMes);
         Importe = Formato.Moneda(r.Importe);
         CaeOk = !string.IsNullOrEmpty(r.CAE);

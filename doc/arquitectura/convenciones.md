@@ -97,13 +97,13 @@ _host = Host.CreateDefaultBuilder()
 ### Ejemplo de uso en servicio
 
 ```csharp
-_logger.LogInformation("Recibo emitido: Empresa={EmpresaId} Período={Anio}/{Mes} CAE={CAE}",
-    recibo.EmpresaId, recibo.PeriodoAnio, recibo.PeriodoMes, recibo.CAE);
+_logger.LogInformation("Recibo emitido: Cliente={ClienteId} Período={Anio}/{Mes} CAE={CAE}",
+    recibo.ClienteId, recibo.PeriodoAnio, recibo.PeriodoMes, recibo.CAE);
 
-_logger.LogWarning("Envío de mail falló para Empresa={EmpresaId}: {Error}",
+_logger.LogWarning("Envío de mail falló para Cliente={ClienteId}: {Error}",
     empresa.Id, ex.Message);
 
-_logger.LogError(ex, "Error al solicitar CAE para Empresa={EmpresaId}", empresa.Id);
+_logger.LogError(ex, "Error al solicitar CAE para Cliente={ClienteId}", empresa.Id);
 ```
 
 Usar **logging estructurado** (propiedades nombradas `{Nombre}`, no interpolación de strings).
@@ -175,7 +175,7 @@ TaskScheduler.UnobservedTaskException += (s, e) =>
 - **Cero lógica de negocio en code-behind.** Si hay algo más que `InitializeComponent()`, está mal.
 - **Toda operación de I/O es `async Task` con `CancellationToken`.**
 - **`<Nullable>enable</Nullable>` activo en todos los proyectos.**
-- **Nombres de dominio en español** (`Empresa`, `Recibo`, `Grupo`). **Código técnico en inglés** (`Repository`, `ViewModel`, `DbContext`).
+- **Nombres de dominio en español** (`Cliente`, `Recibo`, `Grupo`). **Código técnico en inglés** (`Repository`, `ViewModel`, `DbContext`).
 - **Un archivo por clase.** Nombre del archivo = nombre de la clase.
 - **Nunca `MessageBox` directo** — siempre a través de `IDialogService` inyectado.
 - **`ServiceResult<T>`** para resultados de servicios, no excepciones para flujo de negocio.

@@ -7,11 +7,11 @@ public class CentroMaritimoDbContext : DbContext
 {
     public CentroMaritimoDbContext(DbContextOptions<CentroMaritimoDbContext> options) : base(options) { }
 
-    public DbSet<Agencia>          Agencias        => Set<Agencia>();
-    public DbSet<EmailAgencia>     EmailsAgencia   => Set<EmailAgencia>();
+    public DbSet<Cliente>          Clientes        => Set<Cliente>();
+    public DbSet<EmailCliente>     EmailsCliente   => Set<EmailCliente>();
     public DbSet<GrupoFacturacion>      Grupos          => Set<GrupoFacturacion>();
     public DbSet<GrupoFacturacionLinea> GruposLineas    => Set<GrupoFacturacionLinea>();
-    public DbSet<AgenciaGrupo>          AgenciasGrupos  => Set<AgenciaGrupo>();
+    public DbSet<ClienteGrupo>          ClientesGrupos  => Set<ClienteGrupo>();
     public DbSet<EmisionGrupo>          EmisionesGrupo  => Set<EmisionGrupo>();
     public DbSet<Barco>            Barcos          => Set<Barco>();
     public DbSet<Voucher>          Vouchers        => Set<Voucher>();

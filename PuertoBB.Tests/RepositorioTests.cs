@@ -17,15 +17,15 @@ public class CamaraRepositorioTests
     public async Task Recibo_IndiceUnicoDeEmision_BloqueaDuplicados()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
+        db.Clientes.Add(new Cp.Cliente { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
         db.Grupos.Add(new Cp.GrupoFacturacion { Id = 5, Nombre = "G", Importe = 100, CreatedAt = DateTime.Now });
         await db.SaveChangesAsync();
 
         var repo = new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance);
         Cp.Recibo Nuevo() => new()
         {
-            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
-            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
             Importe = 100, Detalle = "x", CAE = "1", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
         };
 
@@ -41,13 +41,13 @@ public class CamaraRepositorioTests
         // P2-5: el índice único (PuntoDeVenta, NumeroComprobante, CodigoAfip) es la última
         // defensa contra una numeración AFIP duplicada; los Pendientes (Nro=0) quedan afuera.
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
+        db.Clientes.Add(new Cp.Cliente { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
         await db.SaveChangesAsync();
 
         var repo = new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance);
         Cp.Recibo Nuevo(long numero) => new()
         {
-            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 100, Detalle = "x", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now,
             PuntoDeVenta = 1, CodigoAfip = 15, NumeroComprobante = numero, CAE = numero > 0 ? "1" : ""
         };
@@ -64,7 +64,7 @@ public class CamaraRepositorioTests
     public async Task ReciboIndividual_YReciboDeGrupo_ConvivenEnElMismoPeriodo()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
+        db.Clientes.Add(new Cp.Cliente { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
         db.Grupos.Add(new Cp.GrupoFacturacion { Id = 5, Nombre = "G", Importe = 100, CreatedAt = DateTime.Now });
         await db.SaveChangesAsync();
 
@@ -72,14 +72,14 @@ public class CamaraRepositorioTests
         // El individual debe estar en Pendiente para que FiltrarPorClave(grupoId:null) lo retorne (P1-4).
         await repo.AddAsync(new Cp.Recibo
         {
-            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 50, Detalle = "individual", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now,
             EstadoFiscal = PuertoBB.Core.Enums.EstadoFiscal.Pendiente
         });
         await repo.AddAsync(new Cp.Recibo
         {
-            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
-            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
             Importe = 100, Detalle = "grupo", CAE = "2", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
         });
 
@@ -127,15 +127,15 @@ public class CamaraRepositorioTests
     public async Task BorrarGrupo_ConRecibos_CascadeaRelacion_YRecibosSobreviven()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
-        db.Empresas.Add(new Cp.Empresa { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
+        db.Clientes.Add(new Cp.Cliente { Id = 1, Nombre = "E", RazonSocial = "E", Cuit = "30711234561", CreatedAt = DateTime.Now });
         db.Grupos.Add(new Cp.GrupoFacturacion { Id = 5, Nombre = "G", Importe = 100, CreatedAt = DateTime.Now });
         await db.SaveChangesAsync();
 
         var recibos = new CpRepos.ReciboRepository(db, NullLogger<CpRepos.ReciboRepository>.Instance);
         await recibos.AddAsync(new Cp.Recibo
         {
-            EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
-            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, EmpresaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
+            ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6,
+            EmisionGrupo = new Cp.EmisionGrupo { GrupoFacturacionId = 5, ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
             Importe = 100, Detalle = "x", CAE = "1", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
         });
 
@@ -167,10 +167,10 @@ public class CentroRepositorioTests
     public async Task ExisteConsolidado_DetectaReciboDeVouchers()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        db.Agencias.Add(new Cm.Agencia { Id = 1, Nombre = "A", RazonSocial = "A", Cuit = "30700000001", CreatedAt = DateTime.Now });
+        db.Clientes.Add(new Cm.Cliente { Id = 1, Nombre = "A", RazonSocial = "A", Cuit = "30700000001", CreatedAt = DateTime.Now });
         db.Recibos.Add(new Cm.Recibo
         {
-            Id = 1, AgenciaId = 1, PeriodoAnio = 2026, PeriodoMes = 6, EsConsolidadoVouchers = true,
+            Id = 1, ClienteId = 1, PeriodoAnio = 2026, PeriodoMes = 6, EsConsolidadoVouchers = true,
             Importe = 500, Detalle = "Vouchers", CAE = "1", FechaEmision = DateTime.Today, CreatedAt = DateTime.Now
         });
         await db.SaveChangesAsync();
@@ -184,12 +184,12 @@ public class CentroRepositorioTests
     public async Task Voucher_NumeroUnico_BloqueaDuplicados()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
-        db.Agencias.Add(new Cm.Agencia { Id = 1, Nombre = "A", RazonSocial = "A", Cuit = "30700000001", CreatedAt = DateTime.Now });
+        db.Clientes.Add(new Cm.Cliente { Id = 1, Nombre = "A", RazonSocial = "A", Cuit = "30700000001", CreatedAt = DateTime.Now });
         db.Barcos.Add(new Cm.Barco { Id = 1, Nombre = "B", CreatedAt = DateTime.Now });
         await db.SaveChangesAsync();
 
         var repo = new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance);
-        Cm.Voucher V() => new() { AgenciaId = 1, BarcoId = 1, Numero = 100, Importe = 10, Fecha = DateTime.Today, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now };
+        Cm.Voucher V() => new() { ClienteId = 1, BarcoId = 1, Numero = 100, Importe = 10, Fecha = DateTime.Today, PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now };
         await repo.AddAsync(V());
         await Assert.ThrowsAsync<ReciboException>(() => repo.AddAsync(V()));
     }
