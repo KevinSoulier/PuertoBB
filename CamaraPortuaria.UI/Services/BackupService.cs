@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,12 @@ namespace CamaraPortuaria.UI.Services;
 /// </summary>
 public class BackupService : IBackupService
 {
+    /// <summary>Cantidad de backups automáticos que se conservan (los más viejos se borran por rotación).</summary>
+    private const int MaxBackupsAutomaticos = 10;
+
+    /// <summary>Tabla propia de la Cámara (no existe en el Centro Marítimo): valida que un backup sea de esta app.</summary>
+    private const string TablaCentinela = "Empresas";
+
     private readonly CamaraPortuariaDbContext _db;
     private readonly ILogger<BackupService> _logger;
 
@@ -115,6 +122,116 @@ public class BackupService : IBackupService
         {
             _logger.LogError(ex, "Falló PRAGMA optimize");
             return ServiceResult<bool>.Fail($"No se pudo optimizar la base de datos: {ex.Message}");
+        }
+    }
+
+    public string CarpetaBackups()
+    {
+        var dbPath = ((SqliteConnection)_db.Database.GetDbConnection()).DataSource;
+        var dir = Path.Combine(Path.GetDirectoryName(dbPath)!, "Backups");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    public DateTime? FechaUltimoBackup()
+    {
+        try
+        {
+            var archivos = Directory.GetFiles(CarpetaBackups(), "*.db");
+            return archivos.Length == 0 ? null : archivos.Max(File.GetLastWriteTime);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo determinar la fecha del último backup");
+            return null;
+        }
+    }
+
+    public async Task<ServiceResult<string>> BackupAutomaticoAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var destino = Path.Combine(CarpetaBackups(), NombreSugerido());
+            var res = await BackupAsync(destino, ct);
+            if (!res.Success)
+                return ServiceResult<string>.Fail(res.ErrorMessage ?? "No se pudo generar el backup.");
+
+            // Verificar la copia recién creada antes de confiar en ella y rotar las viejas.
+            var verif = await VerificarArchivoAsync(destino, validarEsDeEstaApp: false, ct);
+            if (!verif.Success || verif.Data != "ok")
+            {
+                _logger.LogWarning("El backup automático {Ruta} no pasó la verificación: {Detalle}",
+                    destino, verif.Data ?? verif.ErrorMessage);
+                return ServiceResult<string>.Fail("El backup se generó pero no pasó la verificación de integridad.");
+            }
+
+            RotarBackups();
+            _logger.LogInformation("Backup automático generado y verificado en {Ruta}", destino);
+            return ServiceResult<string>.Ok(destino);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falló el backup automático");
+            return ServiceResult<string>.Fail($"No se pudo generar el backup automático: {ex.Message}");
+        }
+    }
+
+    /// <summary>Conserva los <see cref="MaxBackupsAutomaticos"/> backups más recientes y borra el resto.</summary>
+    private void RotarBackups()
+    {
+        try
+        {
+            var sobrantes = Directory.GetFiles(CarpetaBackups(), "*.db")
+                .OrderByDescending(File.GetLastWriteTime)
+                .Skip(MaxBackupsAutomaticos)
+                .ToList();
+            foreach (var f in sobrantes)
+            {
+                File.Delete(f);
+                _logger.LogInformation("Backup viejo eliminado por rotación: {Ruta}", f);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudieron rotar los backups viejos");
+        }
+    }
+
+    public async Task<ServiceResult<string>> VerificarArchivoAsync(
+        string path, bool validarEsDeEstaApp = false, CancellationToken ct = default)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return ServiceResult<string>.Fail("El archivo de backup no existe.");
+
+            // Pooling=False para no dejar un handle abierto sobre el archivo (luego se puede copiar/borrar).
+            await using var conn = new SqliteConnection($"Data Source={path};Mode=ReadOnly;Pooling=False");
+            await conn.OpenAsync(ct);
+
+            if (validarEsDeEstaApp)
+            {
+                using var check = conn.CreateCommand();
+                check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$t";
+                check.Parameters.AddWithValue("$t", TablaCentinela);
+                var esDeEstaApp = Convert.ToInt64(await check.ExecuteScalarAsync(ct)) > 0;
+                if (!esDeEstaApp)
+                    return ServiceResult<string>.Fail(
+                        "El archivo seleccionado no parece una base de datos de esta aplicación (Cámara Portuaria).");
+            }
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "PRAGMA integrity_check";
+            using var reader = await cmd.ExecuteReaderAsync(ct);
+            var rows = new List<string>();
+            while (await reader.ReadAsync(ct))
+                rows.Add(reader.GetString(0));
+            return ServiceResult<string>.Ok(string.Join("\n", rows));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falló la verificación del archivo {Ruta}", path);
+            return ServiceResult<string>.Fail($"No se pudo verificar el archivo: {ex.Message}");
         }
     }
 }

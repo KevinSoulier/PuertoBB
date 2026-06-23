@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Markup;
 using CentroMaritimo.UI.Data;
@@ -77,6 +78,14 @@ public partial class App : Application
 
             _logger = _host.Services.GetRequiredService<ILogger<App>>();
 
+            // Modo generador de datos de stress (sin abrir la ventana): --seed-stress N.
+            if (ParseSeedStress(e.Args) is int seedN)
+            {
+                await EjecutarSeedStressAsync(seedN);
+                Shutdown(0);
+                return;
+            }
+
             await InicializarBaseDeDatosAsync();
             RestaurarTema();
 
@@ -137,9 +146,81 @@ public partial class App : Application
     {
         await using var scope = _host.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<CentroMaritimoDbContext>();
-        await db.Database.MigrateAsync();
+        var backup = scope.ServiceProvider.GetRequiredService<IBackupService>();
+
+        // Backup defensivo antes de aplicar migraciones sobre una base existente: una migración
+        // fallida en una actualización no debe dejar la base sin un respaldo previo.
+        var hayBasePrevia = File.Exists(Path.Combine(AppDataDir, "centro-maritimo.db"));
+        if (hayBasePrevia && (await db.Database.GetPendingMigrationsAsync()).Any())
+        {
+            _logger?.LogInformation("Hay migraciones pendientes; generando backup defensivo antes de migrar.");
+            var pre = await backup.BackupAutomaticoAsync();
+            if (!pre.Success)
+                _logger?.LogWarning("No se pudo generar el backup previo a la migración: {Error}", pre.ErrorMessage);
+        }
+
+        try
+        {
+            await db.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogCritical(ex, "Falló la migración de la base de datos");
+            throw new InvalidOperationException(
+                "No se pudo actualizar la base de datos. Si había una base anterior, quedó respaldada en la " +
+                "carpeta de backups. Contactá al equipo de desarrollo.\n\nDetalle: " + ex.Message, ex);
+        }
+
         if (ModoDemo)
             await SeedData.EnsureSeededAsync(db);
+
+        DispararBackupDiario();
+    }
+
+    /// <summary>
+    /// Genera un backup automático diario (a lo sumo uno por día) sin demorar el arranque de la UI.
+    /// Usa su propio scope porque corre después de que el scope de inicialización se libera.
+    /// </summary>
+    private void DispararBackupDiario() => _ = Task.Run(async () =>
+    {
+        try
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var backup = scope.ServiceProvider.GetRequiredService<IBackupService>();
+            if (backup.FechaUltimoBackup()?.Date == DateTime.Now.Date) return; // ya hay copia de hoy
+            var res = await backup.BackupAutomaticoAsync();
+            if (res.Success) _logger?.LogInformation("Backup automático diario: {Ruta}", res.Data);
+            else _logger?.LogWarning("El backup automático diario falló: {Error}", res.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error en el backup automático diario");
+        }
+    });
+
+    /// <summary>Devuelve N si los argumentos incluyen "--seed-stress N" (N &gt; 0); si no, null.</summary>
+    private static int? ParseSeedStress(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+            if (args[i] == "--seed-stress" && int.TryParse(args[i + 1], out var n) && n > 0)
+                return n;
+        return null;
+    }
+
+    /// <summary>Genera datos de stress contra la base real de la app (migra + siembra base + N recibos) y
+    /// deja un resumen en <c>stress-seed.txt</c> (esta app es WinExe: no hay consola para el output).</summary>
+    private async Task EjecutarSeedStressAsync(int cantidad)
+    {
+        await using var scope = _host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CentroMaritimoDbContext>();
+        await db.Database.MigrateAsync();
+        await SeedData.EnsureSeededAsync(db); // garantiza agencias para los recibos
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var total = await StressSeedData.GenerarRecibosAsync(db, cantidad, _logger);
+        sw.Stop();
+        var resumen = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Stress seed: {cantidad} pedidos · {total} recibos en base · {sw.Elapsed:mm\\:ss\\.fff}";
+        await File.WriteAllTextAsync(Path.Combine(AppDataDir, "stress-seed.txt"), resumen);
+        _logger?.LogInformation("{Resumen}", resumen);
     }
 
     private void RestaurarTema()

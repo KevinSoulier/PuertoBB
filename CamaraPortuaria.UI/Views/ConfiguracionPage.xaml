@@ -650,10 +650,10 @@
 
                         <!-- Backup -->
                         <TextBlock Text="Backup" FontWeight="SemiBold" Margin="0,0,0,4" />
-                        <TextBlock Text="Generá una copia de seguridad de la base o restaurá desde una copia existente. Al restaurar la aplicación se cerrará automáticamente."
+                        <TextBlock Text="Generá una copia de seguridad de la base o restaurá desde una copia existente. La app también guarda backups automáticos al abrirse (se conservan los últimos 10). Al restaurar, la aplicación se cerrará automáticamente."
                                    TextWrapping="Wrap" FontSize="11"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12" />
-                        <WrapPanel Margin="0,0,0,24">
+                        <WrapPanel Margin="0,0,0,8">
                             <ui:Button Content="Generar backup…" Command="{Binding BackupCommand}"
                                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                                        ToolTip="Guardar una copia de seguridad de la base de datos en disco.">
@@ -664,7 +664,14 @@
                                        ToolTip="Reemplazar la base actual por una copia de seguridad previa.">
                                 <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUpload24" /></ui:Button.Icon>
                             </ui:Button>
+                            <ui:Button Content="Abrir carpeta de backups" Command="{Binding AbrirCarpetaBackupsCommand}"
+                                       Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
+                                       ToolTip="Abrir la carpeta donde se guardan los backups automáticos.">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="FolderOpen24" /></ui:Button.Icon>
+                            </ui:Button>
                         </WrapPanel>
+                        <TextBlock Text="{Binding UltimoBackupTexto}" TextWrapping="Wrap" FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
 
                         <!-- Mantenimiento -->
                         <Separator Margin="0,0,0,12" />

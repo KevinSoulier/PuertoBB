@@ -1,12 +1,19 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:b="clr-namespace:CamaraPortuaria.UI.Behaviors">
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="Colors.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+    <!-- Todas las grillas: clic derecho sobre una celda → "Copiar" su valor (behavior DataGridCellCopy).
+         BasedOn hereda el template Fluent de WPF-UI; sin él, WPF cae al DataGrid clásico. -->
+    <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+        <Setter Property="b:DataGridCellCopy.IsEnabled" Value="True" />
+    </Style>
 
     <!-- DatePicker: hereda el template Fluent de WPF-UI (BasedOn) y solo ajusta fondo sólido
          para contraste sobre Mica/Acrylic. Sin BasedOn, WPF cae al template clásico (sin estilo). -->

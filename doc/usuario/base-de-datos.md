@@ -36,9 +36,35 @@ anterior, o para migrar datos a otra máquina.
 **Cómo:**
 1. Click en **"Restaurar backup…"**
 2. Seleccioná el archivo `.db` de backup
-3. Leé la advertencia y confirmá con **"Restaurar"**
-4. La app copia el archivo, muestra confirmación, y se cierra automáticamente
-5. Al reabrir la app, los datos son los del backup
+3. La app **valida** que el archivo sea una base sana y de esta misma aplicación (si está dañado o
+   es de la otra app, lo rechaza sin tocar tus datos)
+4. Antes de reemplazar, la app **guarda automáticamente una copia de la base actual** (red de
+   seguridad por si el backup elegido no era el correcto)
+5. Leé la advertencia y confirmá con **"Restaurar"**
+6. La app copia el archivo, muestra confirmación, y se cierra automáticamente
+7. Al reabrir la app, los datos son los del backup
+
+---
+
+### Backups automáticos
+
+Además de los backups manuales, la app **genera copias por su cuenta** para que nunca dependas de
+acordarte:
+
+- **Al abrir la app** (una vez por día): guarda una copia en la carpeta `Backups`.
+- **Antes de actualizar la base** (cuando una versión nueva de la app cambia el esquema): guarda una
+  copia previa, así una actualización fallida nunca te deja sin respaldo.
+- **Antes de restaurar**: como se explicó arriba.
+
+Cada copia se **verifica** apenas se crea (se abre y se le corre el chequeo de integridad), y se
+**conservan las últimas 10** — las más viejas se borran solas para no llenar el disco.
+
+El botón **"Abrir carpeta de backups"** (en la sección Backup) abre el Explorador en esa carpeta. Debajo
+de los botones, un texto te recuerda **cuándo fue el último backup** (y te avisa si pasó más de una semana).
+
+> **Recomendación importante:** los backups automáticos viven en **la misma máquina** que la base. Si
+> el disco falla, se pierden junto con todo lo demás. Copiá la carpeta `Backups` cada tanto a un lugar
+> externo: un pendrive, un disco aparte, o una carpeta de OneDrive/Google Drive.
 
 ---
 
@@ -108,3 +134,6 @@ El archivo `.db` vive en la carpeta de datos de la app dentro del perfil del usu
 | CamaraPortuaria | `%LocalAppData%\PuertoBB\CamaraPortuaria\camara-portuaria.db` |
 
 En Windows, `%LocalAppData%` es típicamente `C:\Users\<usuario>\AppData\Local`.
+
+Los backups automáticos se guardan en la subcarpeta `Backups` junto a la base (por ejemplo,
+`%LocalAppData%\PuertoBB\CentroMaritimo\Backups\`).

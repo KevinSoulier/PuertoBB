@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -740,11 +741,16 @@ public class ConfiguracionViewModel : PageViewModel
     // ══════════════════════════════════════════
     // OTROS COMANDOS
     // ══════════════════════════════════════════
-    public ICommand BackupCommand              { get; }
-    public ICommand RestaurarCommand           { get; }
-    public ICommand VerificarIntegridadCommand { get; }
-    public ICommand VacuumCommand              { get; }
-    public ICommand OptimizarCommand           { get; }
+    public ICommand BackupCommand               { get; }
+    public ICommand RestaurarCommand            { get; }
+    public ICommand AbrirCarpetaBackupsCommand  { get; }
+    public ICommand VerificarIntegridadCommand  { get; }
+    public ICommand VacuumCommand               { get; }
+    public ICommand OptimizarCommand            { get; }
+
+    private string _ultimoBackupTexto = "Último backup automático: —";
+    /// <summary>Texto de recordatorio sobre el último backup automático (con ⚠ si está vencido).</summary>
+    public string UltimoBackupTexto { get => _ultimoBackupTexto; set => SetField(ref _ultimoBackupTexto, value); }
 
     // ══════════════════════════════════════════
     // CONSTRUCTOR
@@ -815,6 +821,7 @@ public class ConfiguracionViewModel : PageViewModel
         // Otros
         BackupCommand              = new AsyncRelayCommand(BackupAsync);
         RestaurarCommand           = new AsyncRelayCommand(RestaurarAsync);
+        AbrirCarpetaBackupsCommand = new RelayCommand(_ => AbrirCarpetaBackups());
         VerificarIntegridadCommand = new AsyncRelayCommand(VerificarIntegridadAsync);
         VacuumCommand              = new AsyncRelayCommand(VacuumAsync);
         OptimizarCommand           = new AsyncRelayCommand(OptimizarAsync);
@@ -835,6 +842,7 @@ public class ConfiguracionViewModel : PageViewModel
             OnPropertyChanged(p);
         await RecargarPuntosAsync();
         await RecargarCuentasAsync();
+        RefrescarUltimoBackup();
     }
 
     private async Task RecargarPuntosAsync()
@@ -1072,22 +1080,51 @@ public class ConfiguracionViewModel : PageViewModel
         await EjecutarOcupadoAsync("Generando backup", async () =>
         {
             var res = await _backup.BackupAsync(dlg.FileName);
-            if (res.Success) MostrarExito($"Backup generado en {dlg.FileName}");
-            else MostrarError(res.ErrorMessage ?? "No se pudo generar el backup.");
+            if (!res.Success) { MostrarError(res.ErrorMessage ?? "No se pudo generar el backup."); return; }
+            // Verificar la copia recién creada antes de darla por buena.
+            var verif = await _backup.VerificarArchivoAsync(dlg.FileName);
+            if (verif.Success && verif.Data == "ok")
+                MostrarExito($"Backup generado y verificado en {dlg.FileName}");
+            else
+                MostrarAdvertencia($"El backup se generó en {dlg.FileName}, pero la verificación encontró problemas. Generá otra copia.");
         });
+        RefrescarUltimoBackup();
     }
 
     private async Task RestaurarAsync()
     {
         var dlg = new OpenFileDialog { Filter = "Base SQLite (*.db)|*.db", Title = "Seleccioná el backup a restaurar" };
         if (dlg.ShowDialog() != true) return;
+
+        // Validar el archivo elegido (sano y de esta app) ANTES de tocar la base actual.
+        var verif = await _backup.VerificarArchivoAsync(dlg.FileName, validarEsDeEstaApp: true);
+        if (!verif.Success)
+        {
+            await _dialog.ShowAlertAsync("Backup inválido", verif.ErrorMessage ?? "No se pudo validar el archivo seleccionado.");
+            return;
+        }
+        if (verif.Data != "ok")
+        {
+            await _dialog.ShowAlertAsync("Backup dañado",
+                "El archivo seleccionado está dañado y no se puede usar para restaurar:\n\n" + verif.Data);
+            return;
+        }
+
         var confirmado = await _dialog.ShowConfirmAsync(
             "Restaurar backup",
-            "Esto reemplazará TODA la base de datos actual con el backup seleccionado.\n\nLa aplicación se cerrará al finalizar y deberás reabrirla para continuar.\n\n¿Querés continuar?",
+            "Esto reemplazará TODA la base de datos actual con el backup seleccionado.\n\nSe guardará una copia de seguridad de la base actual antes de reemplazarla.\n\nLa aplicación se cerrará al finalizar y deberás reabrirla para continuar.\n\n¿Querés continuar?",
             "Restaurar", "Cancelar");
         if (!confirmado) return;
         await EjecutarOcupadoAsync("Restaurando", async () =>
         {
+            // Red de seguridad: respaldar la base actual antes de sobrescribirla.
+            var previo = await _backup.BackupAutomaticoAsync();
+            if (!previo.Success)
+            {
+                MostrarError("No se pudo respaldar la base actual antes de restaurar. Se canceló la operación por seguridad.");
+                return;
+            }
+
             var res = await _backup.RestaurarAsync(dlg.FileName);
             if (res.Success)
             {
@@ -1097,6 +1134,37 @@ public class ConfiguracionViewModel : PageViewModel
             }
             else MostrarError(res.ErrorMessage ?? "No se pudo restaurar el backup.");
         });
+    }
+
+    private void AbrirCarpetaBackups()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = _backup.CarpetaBackups(), UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MostrarError($"No se pudo abrir la carpeta de backups: {ex.Message}");
+        }
+    }
+
+    /// <summary>Actualiza el texto del recordatorio según la antigüedad del último backup automático.</summary>
+    private void RefrescarUltimoBackup()
+    {
+        var fecha = _backup.FechaUltimoBackup();
+        if (fecha is null)
+        {
+            UltimoBackupTexto = "⚠ Todavía no hay backups automáticos. Se generará uno al abrir la app.";
+            return;
+        }
+        var dias = (int)(DateTime.Now.Date - fecha.Value.Date).TotalDays;
+        UltimoBackupTexto = dias switch
+        {
+            0 => $"Último backup automático: hoy a las {fecha:HH:mm}.",
+            1 => "Último backup automático: ayer.",
+            <= 7 => $"Último backup automático: hace {dias} días.",
+            _ => $"⚠ Último backup automático: hace {dias} días — conviene generar uno."
+        };
     }
 
     private async Task VerificarIntegridadAsync()
