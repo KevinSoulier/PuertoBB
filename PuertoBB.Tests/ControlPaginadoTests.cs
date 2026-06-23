@@ -15,8 +15,9 @@ namespace PuertoBB.Tests;
 
 /// <summary>
 /// Cubre el paginado server-side de la sección "Control" (<c>GetControlPaginadoAsync</c>): el mapeo de
-/// cada <see cref="FiltroEstadoControl"/> a recibos, el conteo total/vencidos, el Skip/Take y la búsqueda
-/// de texto. El predicado SQL debe coincidir con <c>EstadoReciboHelper.EtiquetaEstado</c>.
+/// cada <see cref="FiltroEstadoControl"/> a recibos, el conteo total/vencidos y el Skip/Take. El predicado
+/// SQL debe coincidir con <c>EstadoReciboHelper.EtiquetaEstado</c>. La búsqueda de texto vive en
+/// <c>ControlBusquedaTests</c>.
 /// </summary>
 public class ControlPaginadoTests
 {
@@ -84,40 +85,7 @@ public class ControlPaginadoTests
             page.Items.Select(r => r.ReceptorNombre).OrderBy(x => x));
     }
 
-    [Fact]
-    public async Task PendientesDePago_SoloVencidos_DevuelveSoloVencido()
-    {
-        using var fx = SqliteTestDb.CreateCamara(out var db);
-        SeedTodosLosEstados(db);
-        var repo = RepoCamara(db);
-
-        var page = await repo.GetControlPaginadoAsync(new FiltroControlPagos
-        {
-            Estado = FiltroEstadoControl.PendientesDePago, SoloVencidos = true,
-        });
-
-        Assert.Equal(1, page.Total);
-        Assert.Equal("Vencido", Assert.Single(page.Items).ReceptorNombre);
-    }
-
-    [Fact]
-    public async Task PendientesDePago_IncluirIncobrables_AgregaLosIncobrables()
-    {
-        using var fx = SqliteTestDb.CreateCamara(out var db);
-        SeedTodosLosEstados(db);
-        var repo = RepoCamara(db);
-
-        var page = await repo.GetControlPaginadoAsync(new FiltroControlPagos
-        {
-            Estado = FiltroEstadoControl.PendientesDePago, IncluirIncobrables = true,
-        });
-
-        Assert.Equal(3, page.Total); // EmitidoVigente + Vencido + Incobrable
-        Assert.Contains(page.Items, r => r.ReceptorNombre == "Incobrable");
-    }
-
     [Theory]
-    [InlineData(FiltroEstadoControl.Emitido,    "EmitidoVigente")]
     [InlineData(FiltroEstadoControl.Vencido,    "Vencido")]
     [InlineData(FiltroEstadoControl.Pagado,     "Pagado")]
     [InlineData(FiltroEstadoControl.Incobrable, "Incobrable")]
@@ -134,7 +102,7 @@ public class ControlPaginadoTests
     }
 
     [Fact]
-    public async Task Todos_DevuelveTodosIncluidoElPendienteSinCae()
+    public async Task Todos_ExcluyeElPendienteSinCae()
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
         SeedTodosLosEstados(db);
@@ -142,8 +110,9 @@ public class ControlPaginadoTests
 
         var page = await repo.GetControlPaginadoAsync(new FiltroControlPagos { Estado = FiltroEstadoControl.Todos });
 
-        Assert.Equal(6, page.Total);
-        Assert.Contains(page.Items, r => r.ReceptorNombre == "SinCae");
+        // Control solo muestra comprobantes con CAE: el borrador "SinCae" (Pendiente) queda fuera.
+        Assert.Equal(5, page.Total);
+        Assert.DoesNotContain(page.Items, r => r.ReceptorNombre == "SinCae");
     }
 
     [Fact]
@@ -184,48 +153,13 @@ public class ControlPaginadoTests
             Estado = FiltroEstadoControl.Todos, Pagina = 99, TamanioPagina = 2,
         });
 
-        Assert.Equal(6, page.Total);
+        Assert.Equal(5, page.Total); // 6 sembrados − 1 "SinCae" (Pendiente, sin CAE)
         Assert.Equal(3, page.TotalPaginas);
         Assert.Equal(3, page.Pagina); // recortada a la última
     }
 
     [Fact]
-    public async Task Busqueda_PorNombreReceptor()
-    {
-        using var fx = SqliteTestDb.CreateCamara(out var db);
-        SeedTodosLosEstados(db);
-        var repo = RepoCamara(db);
-
-        var page = await repo.GetControlPaginadoAsync(new FiltroControlPagos
-        {
-            Estado = FiltroEstadoControl.Todos, Texto = "venci",
-        });
-
-        Assert.Equal("Vencido", Assert.Single(page.Items).ReceptorNombre);
-    }
-
-    [Fact]
-    public async Task Busqueda_PorNumeroDeComprobante()
-    {
-        using var fx = SqliteTestDb.CreateCamara(out var db);
-        var empresaId = SeedEmpresa(db);
-        db.Recibos.AddRange(
-            NuevoRecibo(empresaId, "Uno", EstadoFiscal.Emitido, Hoy.AddDays(10), numero: 1),
-            NuevoRecibo(empresaId, "Target", EstadoFiscal.Emitido, Hoy.AddDays(10), numero: 12345));
-        db.SaveChanges();
-        var repo = RepoCamara(db);
-
-        // Valida que NumeroComprobante.ToString().Contains se traduce a SQL en SQLite.
-        var page = await repo.GetControlPaginadoAsync(new FiltroControlPagos
-        {
-            Estado = FiltroEstadoControl.Todos, Texto = "2345",
-        });
-
-        Assert.Equal("Target", Assert.Single(page.Items).ReceptorNombre);
-    }
-
-    [Fact]
-    public async Task CentroMaritimo_PendientesDePago_FiltraYBuscaPorAgencia()
+    public async Task CentroMaritimo_PendientesDePago_FiltraSoloEmitido()
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
         var ag = new CmAgencia
@@ -253,8 +187,5 @@ public class ControlPaginadoTests
 
         var pendientes = await repo.GetControlPaginadoAsync(new FiltroControlPagos { Estado = FiltroEstadoControl.PendientesDePago });
         Assert.Equal("Emitido", Assert.Single(pendientes.Items).ReceptorNombre);
-
-        var porAgencia = await repo.GetControlPaginadoAsync(new FiltroControlPagos { Estado = FiltroEstadoControl.Todos, Texto = "naviera" });
-        Assert.Equal(2, porAgencia.Total);
     }
 }

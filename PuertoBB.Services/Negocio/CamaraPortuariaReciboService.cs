@@ -692,5 +692,13 @@ public class CamaraPortuariaReciboService : ICamaraPortuariaReciboService
         => ServiceResult<IReadOnlyList<Recibo>>.Ok(await _recibos.GetPendientesAsync(filtro, ct));
 
     public async Task<ServiceResult<PaginaResultado<Recibo>>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default)
-        => ServiceResult<PaginaResultado<Recibo>>.Ok(await _recibos.GetControlPaginadoAsync(filtro, ct));
+    {
+        // Sin texto: paginado server-side. Con texto: búsqueda en memoria fiel a la grilla (ControlBusqueda).
+        if (string.IsNullOrWhiteSpace(filtro.Texto))
+            return ServiceResult<PaginaResultado<Recibo>>.Ok(await _recibos.GetControlPaginadoAsync(filtro, ct));
+
+        var candidatos = await _recibos.GetControlCandidatosAsync(filtro, ct);
+        return ServiceResult<PaginaResultado<Recibo>>.Ok(
+            ControlBusqueda.Filtrar(candidatos, filtro.Texto, filtro.Pagina, filtro.TamanioPagina, DateTime.Today));
+    }
 }

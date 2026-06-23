@@ -18,17 +18,46 @@
 
         <!-- Fila de filtros -->
         <WrapPanel Grid.Row="2" Margin="0,0,0,8">
-            <ui:TextBox PlaceholderText="Buscar en pagos..."
+            <ui:TextBox PlaceholderText="Buscar (agencia, comprobante, período, importe, fechas)..."
                         Text="{Binding TextoBusqueda, UpdateSourceTrigger=PropertyChanged}"
-                        Width="220" VerticalAlignment="Center" Margin="0,0,8,8">
+                        Width="360" VerticalAlignment="Center" Margin="0,0,16,8">
                 <ui:TextBox.Icon><ui:SymbolIcon Symbol="Search24" /></ui:TextBox.Icon>
             </ui:TextBox>
-            <ComboBox ItemsSource="{Binding EstadosFiltro}" SelectedItem="{Binding FiltroEstado}"
-                      Width="180" VerticalAlignment="Center" Margin="0,0,8,8" />
-            <CheckBox Content="Solo vencidos" IsChecked="{Binding SoloVencidos}"
-                      VerticalAlignment="Center" Margin="0,0,8,8" />
-            <CheckBox Content="Incluir incobrables" IsChecked="{Binding IncluirIncobrables}"
-                      VerticalAlignment="Center" Margin="0,0,0,8" />
+            <!-- Selector de estado: RadioButtons en línea (ListBox single-select estilado) -->
+            <ListBox ItemsSource="{Binding EstadosFiltro}" SelectedItem="{Binding FiltroEstado}"
+                     VerticalAlignment="Center" Margin="0,0,0,8"
+                     Background="Transparent" BorderThickness="0" Padding="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Margin" Value="0,0,16,0" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <!-- Background transparente (no null) para que todo el ítem reciba el click. -->
+                                    <Border Background="{TemplateBinding Background}">
+                                        <ContentPresenter />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <RadioButton Content="{Binding}" IsHitTestVisible="False"
+                                     IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=OneWay}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
         </WrapPanel>
 
         <!-- Fila de acciones -->

@@ -7,9 +7,8 @@ namespace PuertoBB.Core.Enums;
 /// </summary>
 public enum FiltroEstadoControl
 {
-    /// <summary>Vista de cobranza por defecto: emitidos por cobrar (modulada por los checkboxes).</summary>
+    /// <summary>Vista de cobranza por defecto: emitidos por cobrar (impagos, no incobrables).</summary>
     PendientesDePago,
-    Emitido,
     Vencido,
     Pagado,
     Incobrable,

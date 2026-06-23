@@ -11,7 +11,7 @@ namespace PuertoBB.Core.Entities.CamaraPortuaria;
 /// <see cref="EmisionGrupo"/> (null = emisión individual).
 /// El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
-public class Recibo : BaseEntity, IReciboEstadoView
+public class Recibo : BaseEntity, IReciboBusquedaView
 {
     public int     EmpresaId { get; set; }
     public Empresa Empresa   { get; set; } = null!;

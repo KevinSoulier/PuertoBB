@@ -12,7 +12,7 @@ namespace PuertoBB.Core.Entities.CentroMaritimo;
 /// Recibos consolidados únicos por (AgenciaId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=true;
 /// el anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
-public class Recibo : BaseEntity, IReciboEstadoView
+public class Recibo : BaseEntity, IReciboBusquedaView
 {
     public int     AgenciaId { get; set; }
     public Agencia Agencia   { get; set; } = null!;

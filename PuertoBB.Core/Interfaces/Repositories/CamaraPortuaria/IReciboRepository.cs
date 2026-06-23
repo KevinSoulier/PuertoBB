@@ -27,9 +27,14 @@ public interface IReciboRepository : IRepository<Recibo>
     /// <summary>Recibos que matchean el filtro del dashboard (con Empresa/Grupo cargados).</summary>
     Task<IReadOnlyList<Recibo>> GetPendientesAsync(FiltroPendientes filtro, CancellationToken ct = default);
 
-    /// <summary>Una página de recibos para la sección "Control": filtra por estado/texto en la base
-    /// (paginado server-side) y devuelve la página + total + contador de vencidos.</summary>
+    /// <summary>Una página de recibos para la sección "Control": filtra por estado en la base
+    /// (paginado server-side) y devuelve la página + total + contador de vencidos. La búsqueda por
+    /// texto la resuelve el servicio en memoria sobre <see cref="GetControlCandidatosAsync"/>.</summary>
     Task<PaginaResultado<Recibo>> GetControlPaginadoAsync(FiltroControlPagos filtro, CancellationToken ct = default);
+
+    /// <summary>Todos los recibos que matchean el estado del filtro (ordenados como el paginado,
+    /// con Empresa cargada), sin filtro de texto ni paginado. Base para la búsqueda en memoria.</summary>
+    Task<IReadOnlyList<Recibo>> GetControlCandidatosAsync(FiltroControlPagos filtro, CancellationToken ct = default);
 
     /// <summary>Todos los recibos de un período (para la grilla de recibos).</summary>
     Task<IReadOnlyList<Recibo>> GetPorPeriodoAsync(int anio, int mes, CancellationToken ct = default);

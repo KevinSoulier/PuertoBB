@@ -3,17 +3,13 @@ using PuertoBB.Core.Enums;
 namespace PuertoBB.Core.Models.Resultados;
 
 /// <summary>
-/// Filtro + paginación de la sección "Control" (paginado server-side). El estado se traduce a
-/// predicados de columna en el repositorio; la búsqueda de texto va contra columnas clave (nombre del
-/// receptor, n° de comprobante, CAE).
+/// Filtro + paginación de la sección "Control". El estado se traduce a predicados de columna en el
+/// repositorio (paginado server-side). La búsqueda de texto, cuando hay texto, se resuelve en memoria
+/// contra los campos formateados de la grilla (ver <c>ControlBusqueda</c>).
 /// </summary>
 public record FiltroControlPagos
 {
     public FiltroEstadoControl Estado { get; init; } = FiltroEstadoControl.PendientesDePago;
-
-    /// <summary>Solo aplican cuando <see cref="Estado"/> es <see cref="FiltroEstadoControl.PendientesDePago"/>.</summary>
-    public bool SoloVencidos       { get; init; }
-    public bool IncluirIncobrables { get; init; }
 
     public string? Texto { get; init; }
 

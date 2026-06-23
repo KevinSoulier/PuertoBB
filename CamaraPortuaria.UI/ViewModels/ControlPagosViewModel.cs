@@ -25,12 +25,6 @@ public class ControlPagosViewModel : PageViewModel
 
     public ObservableCollection<ReciboItem> Recibos { get; private set; } = [];
 
-    private bool _soloVencidos;
-    public bool SoloVencidos { get => _soloVencidos; set { if (SetField(ref _soloVencidos, value)) ResetYRecargar(); } }
-
-    private bool _incluirIncobrables;
-    public bool IncluirIncobrables { get => _incluirIncobrables; set { if (SetField(ref _incluirIncobrables, value)) ResetYRecargar(); } }
-
     private string _textoBusqueda = string.Empty;
     public string TextoBusqueda
     {
@@ -39,7 +33,7 @@ public class ControlPagosViewModel : PageViewModel
     }
 
     public IReadOnlyList<string> EstadosFiltro { get; } =
-        ["Pendientes de pago", "Emitido", "Vencido", "Pagado", "Incobrable", "Anulado", "Todos"];
+        ["Pendientes de pago", "Vencido", "Pagado", "Incobrable", "Anulado", "Todos"];
 
     private string _filtroEstado = "Pendientes de pago";
     public string FiltroEstado { get => _filtroEstado; set { if (SetField(ref _filtroEstado, value)) ResetYRecargar(); } }
@@ -128,12 +122,10 @@ public class ControlPagosViewModel : PageViewModel
     {
         var filtro = new FiltroControlPagos
         {
-            Estado             = MapEstado(_filtroEstado),
-            SoloVencidos       = _soloVencidos,
-            IncluirIncobrables = _incluirIncobrables,
-            Texto              = string.IsNullOrWhiteSpace(_textoBusqueda) ? null : _textoBusqueda.Trim(),
-            Pagina             = PaginaActual,
-            TamanioPagina      = TamanioPagina,
+            Estado        = MapEstado(_filtroEstado),
+            Texto         = string.IsNullOrWhiteSpace(_textoBusqueda) ? null : _textoBusqueda.Trim(),
+            Pagina        = PaginaActual,
+            TamanioPagina = TamanioPagina,
         };
         var res = await _recibos.GetControlPaginadoAsync(filtro);
         if (!res.Success || res.Data is not { } page)
@@ -154,7 +146,6 @@ public class ControlPagosViewModel : PageViewModel
 
     private static FiltroEstadoControl MapEstado(string etiqueta) => etiqueta switch
     {
-        "Emitido"    => FiltroEstadoControl.Emitido,
         "Vencido"    => FiltroEstadoControl.Vencido,
         "Pagado"     => FiltroEstadoControl.Pagado,
         "Incobrable" => FiltroEstadoControl.Incobrable,
