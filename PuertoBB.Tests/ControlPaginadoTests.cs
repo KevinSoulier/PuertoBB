@@ -7,9 +7,9 @@ using PuertoBB.Tests.TestSupport;
 using Xunit;
 using CpRepos = PuertoBB.Infrastructure.Repositories.CamaraPortuaria;
 using CmRepos = PuertoBB.Infrastructure.Repositories.CentroMaritimo;
-using CmCliente = PuertoBB.Core.Entities.CentroMaritimo.Cliente;
-using CmRecibo = PuertoBB.Core.Entities.CentroMaritimo.Recibo;
-using CmEmail = PuertoBB.Core.Entities.CentroMaritimo.EmailCliente;
+using CmCliente = PuertoBB.Core.Entities.Cliente;
+using CmRecibo = PuertoBB.Core.Entities.Recibo;
+using CmEmail = PuertoBB.Core.Entities.EmailCliente;
 
 namespace PuertoBB.Tests;
 

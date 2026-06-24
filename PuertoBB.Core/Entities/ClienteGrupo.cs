@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CamaraPortuaria;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>Join N:M Cliente ↔ GrupoFacturacion. Índice único: (ClienteId, GrupoFacturacionId).</summary>
 public class ClienteGrupo : BaseEntity

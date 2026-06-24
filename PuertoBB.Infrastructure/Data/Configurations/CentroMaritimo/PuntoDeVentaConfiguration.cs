@@ -11,6 +11,10 @@ public class PuntoDeVentaConfiguration : IEntityTypeConfiguration<PuntoDeVenta>
         b.HasKey(p => p.Id);
         b.Property(p => p.Nombre).HasMaxLength(100).IsRequired();
 
+        // Defensivo: el Numero de PV es parte de la PK AFIP del comprobante; no puede repetirse
+        // dentro de una misma configuración (no rompe el caso de un único PV).
+        b.HasIndex(p => new { p.ConfiguracionId, p.Numero }).IsUnique();
+
         b.HasOne<Configuracion>()
             .WithMany(c => c.PuntosDeVenta)
             .HasForeignKey(p => p.ConfiguracionId)

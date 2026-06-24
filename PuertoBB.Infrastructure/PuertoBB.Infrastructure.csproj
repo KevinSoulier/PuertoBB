@@ -1,21 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\PuertoBB.Core\PuertoBB.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <!-- Override del nativo e_sqlite3 a SQLite 3.50.3 (>= 3.50.2) para cerrar CVE-2025-6965 /
          GHSA-2m69-gcr7-jv3q (NU1903). EF Core 10.0.8 arrastra SQLitePCLRaw.lib.e_sqlite3 2.1.11
          (SQLite 3.49.x, vulnerable). El paquete nativo solo trae runtimes/<rid>/native/e_sqlite3.dll;
          la cadena administrada (core/provider 2.1.11) no cambia y el ABI C de SQLite es estable. -->
-    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
   </ItemGroup>
 
   <PropertyGroup>

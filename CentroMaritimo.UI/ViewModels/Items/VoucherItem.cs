@@ -21,6 +21,6 @@ public class VoucherItem
         Barco = v.Barco?.Nombre ?? $"#{v.BarcoId}";
         Fecha = Formato.Fecha(v.Fecha);
         Importe = Formato.Moneda(v.Importe);
-        Consolidado = v.ReciboId is not null;
+        Consolidado = v.ConsolidacionId is not null;
     }
 }

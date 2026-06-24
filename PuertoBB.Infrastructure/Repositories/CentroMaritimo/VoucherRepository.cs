@@ -17,7 +17,7 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
         => await _db.Vouchers.AsNoTracking()
             .Include(v => v.Cliente)
             .Include(v => v.Barco)
-            .Where(v => v.ReciboId == null && v.PeriodoAnio == anio && v.PeriodoMes == mes)
+            .Where(v => v.ConsolidacionId == null && v.PeriodoAnio == anio && v.PeriodoMes == mes)
             .OrderBy(v => v.Numero)
             .ToListAsync(ct);
 
@@ -25,7 +25,7 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
         => await _db.Vouchers.AsNoTracking()
             .Include(v => v.Cliente)
             .Include(v => v.Barco)
-            .Include(v => v.Recibo)
+            .Include(v => v.Consolidacion).ThenInclude(c => c!.Recibo)
             .Where(v => v.PeriodoAnio == anio && v.PeriodoMes == mes)
             .OrderBy(v => v.ClienteId).ThenBy(v => v.Numero)
             .ToListAsync(ct);
@@ -33,7 +33,7 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
     public async Task<IReadOnlyList<Cliente>> GetClientesConVouchersPendientesAsync(int anio, int mes, CancellationToken ct = default)
     {
         var agenciaIds = await _db.Vouchers
-            .Where(v => v.ReciboId == null && v.PeriodoAnio == anio && v.PeriodoMes == mes)
+            .Where(v => v.ConsolidacionId == null && v.PeriodoAnio == anio && v.PeriodoMes == mes)
             .Select(v => v.ClienteId)
             .Distinct()
             .ToListAsync(ct);
@@ -45,13 +45,13 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
             .ToListAsync(ct);
     }
 
-    public async Task MarcarConsolidadosAsync(IEnumerable<int> voucherIds, int reciboId, CancellationToken ct = default)
+    public async Task MarcarConsolidadosAsync(IEnumerable<int> voucherIds, int consolidacionId, CancellationToken ct = default)
     {
         var ids = voucherIds.ToList();
         var vouchers = await _db.Vouchers.Where(v => ids.Contains(v.Id)).ToListAsync(ct);
         foreach (var v in vouchers)
         {
-            v.ReciboId = reciboId;
+            v.ConsolidacionId = consolidacionId;
             v.UpdatedAt = DateTime.Now;
         }
         await GuardarAsync(ct);

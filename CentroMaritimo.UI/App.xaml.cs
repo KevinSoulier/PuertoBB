@@ -42,13 +42,24 @@ public partial class App : Application
     public static bool AfipMockService { get; private set; }
 
     /// <summary>
-    /// Modo demo = cualquiera de los dos mocks activo. Controla la siembra de datos de ejemplo
-    /// (SeedData) y el rótulo "— MODO DEMO" en el título de la ventana.
+    /// Modo demo = cualquiera de los dos mocks activo. Controla el rótulo "— MODO DEMO" en el título
+    /// de la ventana. La siembra de datos de prueba se controla aparte con <see cref="SeedMockData"/>.
     /// </summary>
     public static bool ModoDemo => MailMockService || AfipMockService;
 
+    /// <summary>
+    /// Siembra datos de prueba (clientes + recibos) al iniciar, una sola vez si la base está vacía.
+    /// Independiente de los mocks: permite probar AFIP y correo REALES con datos falsos precargados.
+    /// Configurable en appsettings.json → PuertoBB:SeedMockData. Default: false.
+    /// </summary>
+    public static bool SeedMockData { get; private set; }
+
+    /// <summary>Cantidad de recibos de prueba que se siembran al iniciar con <see cref="SeedMockData"/>
+    /// (una sola vez, si la base no tiene recibos). Ajustá el número para más/menos volumen.</summary>
+    private const int RecibosDemo = 10000;
+
     private static string AppDataDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PuertoBB", "CentroMaritimo");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Puerto de Bahia Blanca", "CentroMaritimo");
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -65,6 +76,7 @@ public partial class App : Application
                 .AddJsonFile("appsettings.json", optional: true).Build();
             MailMockService = cfg.GetValue("PuertoBB:MailMockService", false);
             AfipMockService = cfg.GetValue("PuertoBB:AfipMockService", false);
+            SeedMockData    = cfg.GetValue("PuertoBB:SeedMockData", false);
 
             _host = Host.CreateDefaultBuilder()
                 .ConfigureLogging(logging =>
@@ -171,8 +183,14 @@ public partial class App : Application
                 "carpeta de backups. Contactá al equipo de desarrollo.\n\nDetalle: " + ex.Message, ex);
         }
 
-        if (ModoDemo)
+        if (SeedMockData)
+        {
             await SeedData.EnsureSeededAsync(db);
+            // Carga los recibos de prueba una sola vez (si la base no tiene ninguno) para no duplicarlos
+            // en cada arranque. El primer inicio con base vacía tarda unos segundos generándolos.
+            if (!await db.Recibos.AnyAsync())
+                await StressSeedData.GenerarRecibosAsync(db, RecibosDemo, _logger);
+        }
 
         DispararBackupDiario();
     }

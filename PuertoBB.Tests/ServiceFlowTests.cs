@@ -18,14 +18,14 @@ using QuestPDF.Infrastructure;
 using Xunit;
 using CpRepos = PuertoBB.Infrastructure.Repositories.CamaraPortuaria;
 using CmRepos = PuertoBB.Infrastructure.Repositories.CentroMaritimo;
-using CmCliente = PuertoBB.Core.Entities.CentroMaritimo.Cliente;
-using CmRecibo = PuertoBB.Core.Entities.CentroMaritimo.Recibo;
-using CpGrupo = PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacion;
-using Cliente = PuertoBB.Core.Entities.CamaraPortuaria.Cliente;
-using EmailCliente = PuertoBB.Core.Entities.CamaraPortuaria.EmailCliente;
-using ClienteGrupo = PuertoBB.Core.Entities.CamaraPortuaria.ClienteGrupo;
-using CmEmail = PuertoBB.Core.Entities.CentroMaritimo.EmailCliente;
-using CmClienteGrupo = PuertoBB.Core.Entities.CentroMaritimo.ClienteGrupo;
+using CmCliente = PuertoBB.Core.Entities.Cliente;
+using CmRecibo = PuertoBB.Core.Entities.Recibo;
+using CpGrupo = PuertoBB.Core.Entities.GrupoFacturacion;
+using Cliente = PuertoBB.Core.Entities.Cliente;
+using EmailCliente = PuertoBB.Core.Entities.EmailCliente;
+using ClienteGrupo = PuertoBB.Core.Entities.ClienteGrupo;
+using CmEmail = PuertoBB.Core.Entities.EmailCliente;
+using CmClienteGrupo = PuertoBB.Core.Entities.ClienteGrupo;
 
 namespace PuertoBB.Tests;
 
@@ -314,8 +314,8 @@ public class CamaraEmisionTests
             CreatedAt = DateTime.Now,
             Lineas =
             [
-                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Cuota mensual", Cantidad = 1, PrecioUnitario = 5000m, Importe = 5000m, Orden = 0, CreatedAt = DateTime.Now },
-                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Aporte extra",  Cantidad = 2, PrecioUnitario = 1500m, Importe = 3000m, Orden = 1, CreatedAt = DateTime.Now },
+                new PuertoBB.Core.Entities.GrupoFacturacionLinea { Descripcion = "Cuota mensual", Cantidad = 1, PrecioUnitario = 5000m, Importe = 5000m, Orden = 0, CreatedAt = DateTime.Now },
+                new PuertoBB.Core.Entities.GrupoFacturacionLinea { Descripcion = "Aporte extra",  Cantidad = 2, PrecioUnitario = 1500m, Importe = 3000m, Orden = 1, CreatedAt = DateTime.Now },
             ]
         };
         db.Grupos.Add(grupo);
@@ -979,8 +979,8 @@ public class CamaraEmisionTests
             Nombre = "Cuota+extras", Importe = 0m, CreatedAt = DateTime.Now,
             Lineas =
             [
-                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Cuota mensual", Cantidad = 1, PrecioUnitario = 5000m, Importe = 5000m, Orden = 0, CreatedAt = DateTime.Now },
-                new PuertoBB.Core.Entities.CamaraPortuaria.GrupoFacturacionLinea { Descripcion = "Aporte extra",  Cantidad = 2, PrecioUnitario = 1500m, Importe = 3000m, Orden = 1, CreatedAt = DateTime.Now },
+                new PuertoBB.Core.Entities.GrupoFacturacionLinea { Descripcion = "Cuota mensual", Cantidad = 1, PrecioUnitario = 5000m, Importe = 5000m, Orden = 0, CreatedAt = DateTime.Now },
+                new PuertoBB.Core.Entities.GrupoFacturacionLinea { Descripcion = "Aporte extra",  Cantidad = 2, PrecioUnitario = 1500m, Importe = 3000m, Orden = 1, CreatedAt = DateTime.Now },
             ]
         };
         db.Grupos.Add(grupo);
@@ -1126,10 +1126,10 @@ public class CentroCierreTests
         Assert.Equal(3500m, r.Importe);
 
         var recibo = db.Recibos.Single();
-        Assert.True(recibo.EsConsolidadoVouchers);
+        var consolidacion = db.Consolidaciones.Single(c => c.ReciboId == recibo.Id);  // es un consolidado
         Assert.Equal(3500m, recibo.Importe);
         Assert.Contains("Vouchers Nros:", recibo.Detalle);
-        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(recibo.Id, v.ReciboId));
+        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(consolidacion.Id, v.ConsolidacionId));
         // N-6: invariante fiscal — el total persistido SIEMPRE es la suma de las líneas.
         Assert.Equal(db.RecibosLineas.Where(l => l.ReciboId == recibo.Id).Sum(l => l.Importe), recibo.Importe);
     }
@@ -1192,7 +1192,9 @@ public class CentroCierreTests
         var recibo = db.Recibos.Single();
         Assert.Equal(EstadoFiscal.Pendiente, recibo.EstadoFiscal);
         Assert.True(string.IsNullOrEmpty(recibo.CAE));
-        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(recibo.Id, v.ReciboId));
+        var consolidacion = db.Consolidaciones.Single(c => c.ReciboId == recibo.Id);
+        Assert.True(consolidacion.Pendiente);
+        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(consolidacion.Id, v.ConsolidacionId));
     }
 
     [Fact]
@@ -1482,7 +1484,7 @@ public class CentroCierreTests
         // Anular el consolidado → vouchers liberados
         var anulacion = await service.AnularReciboAsync(reciboId, enviarMail: false);
         Assert.True(anulacion.Success);
-        Assert.All(db.Vouchers.ToList(), v => Assert.Null(v.ReciboId)); // P1-3: vouchers liberados
+        Assert.All(db.Vouchers.ToList(), v => Assert.Null(v.ConsolidacionId)); // P1-3: vouchers liberados
 
         // Agregar un voucher nuevo y volver a cerrar el mismo período
         db.Vouchers.Add(new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m, Fecha = new DateTime(2026, 6, 15), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
@@ -1492,7 +1494,8 @@ public class CentroCierreTests
         Assert.True(cierre2.Data![0].Exito);  // debe emitir sin error de índice único
         Assert.Equal(2, db.Recibos.Count());   // el anulado + el nuevo
         var nuevo = db.Recibos.Single(r => r.EstadoFiscal != EstadoFiscal.Anulado);
-        Assert.Equal(3, nuevo.Vouchers.Count); // 3 vouchers en el nuevo consolidado
+        var consNuevo = db.Consolidaciones.Single(c => c.ReciboId == nuevo.Id);
+        Assert.Equal(3, db.Vouchers.Count(v => v.ConsolidacionId == consNuevo.Id)); // 3 vouchers en el nuevo consolidado
     }
 
     // ── Recibo consolidado complementario (voucher olvidado tras emitir) ──
@@ -1518,17 +1521,21 @@ public class CentroCierreTests
         var cierre2 = await service.EmitirRecibosPeriodoAsync(2026, 6);
         Assert.True(cierre2.Data![0].Exito);
 
-        var consolidados = db.Recibos.Where(r => r.EsConsolidadoVouchers && r.EstadoFiscal != EstadoFiscal.Anulado).ToList();
+        var consolidados = db.Consolidaciones.Include(c => c.Recibo)
+            .Where(c => c.Recibo.EstadoFiscal != EstadoFiscal.Anulado)
+            .Select(c => c.Recibo).ToList();
         Assert.Equal(2, consolidados.Count);                                  // original + complementario
         Assert.Equal(EstadoFiscal.Emitido, db.Recibos.Single(r => r.Id == original.Id).EstadoFiscal); // original intacto
         Assert.Empty(db.NotasDeCredito.ToList());                            // NO se emitió Nota de Crédito
 
         var complementario = consolidados.Single(r => r.Id != original.Id);
         Assert.NotEqual(original.NumeroComprobante, complementario.NumeroComprobante);
-        Assert.Single(complementario.Vouchers);
+        var consComp = db.Consolidaciones.Single(c => c.ReciboId == complementario.Id);
+        var consOrig = db.Consolidaciones.Single(c => c.ReciboId == original.Id);
+        Assert.Equal(1, db.Vouchers.Count(v => v.ConsolidacionId == consComp.Id));
         Assert.Equal(500m, complementario.Importe);
-        Assert.Equal(complementario.Id, db.Vouchers.Single(v => v.Numero == 3).ReciboId); // el olvidado quedó en el complementario
-        Assert.Equal(2, db.Vouchers.Count(v => v.ReciboId == original.Id));   // los 2 originales siguen en el original
+        Assert.Equal(consComp.Id, db.Vouchers.Single(v => v.Numero == 3).ConsolidacionId); // el olvidado quedó en el complementario
+        Assert.Equal(2, db.Vouchers.Count(v => v.ConsolidacionId == consOrig.Id));   // los 2 originales siguen en el original
     }
 
     [Fact]
@@ -1652,7 +1659,7 @@ public class CentroCierreTests
     {
         using var fx = SqliteTestDb.CreateCentro(out var db);
         var ag = new CmCliente { Nombre = "Ag", RazonSocial = "Ag SA", Cuit = "30700000001", CondicionIvaId = 1, CreatedAt = DateTime.Now, Emails = [new CmEmail { Email = "a@x.com", CreatedAt = DateTime.Now }] };
-        var grupo = new PuertoBB.Core.Entities.CentroMaritimo.GrupoFacturacion { Nombre = "Cuota social", Importe = 4000m, CreatedAt = DateTime.Now };
+        var grupo = new PuertoBB.Core.Entities.GrupoFacturacion { Nombre = "Cuota social", Importe = 4000m, CreatedAt = DateTime.Now };
         db.Clientes.Add(ag);
         db.Grupos.Add(grupo);
         db.SaveChanges();
@@ -1684,7 +1691,8 @@ public class CentroCierreTests
         var recibo = db.Recibos.Single();
         Assert.NotEqual(EstadoFiscal.Anulado, recibo.EstadoFiscal);           // nada quedó a medias
         Assert.Empty(db.NotasDeCredito);
-        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(recibo.Id, v.ReciboId));   // siguen vinculados
+        var consolidacion = db.Consolidaciones.Single(c => c.ReciboId == recibo.Id);
+        Assert.All(db.Vouchers.ToList(), v => Assert.Equal(consolidacion.Id, v.ConsolidacionId));   // siguen vinculados
     }
 
     [Fact]
@@ -1704,7 +1712,7 @@ public class CentroCierreTests
 
         using var verDb = NuevoContextoCm(fx);
         Assert.Equal(EstadoFiscal.Anulado, verDb.Recibos.Single().EstadoFiscal);
-        Assert.All(verDb.Vouchers.ToList(), v => Assert.Null(v.ReciboId));  // P1-3 con Transient real
+        Assert.All(verDb.Vouchers.ToList(), v => Assert.Null(v.ConsolidacionId));  // P1-3 con Transient real
         Assert.Equal(1, verDb.NotasDeCredito.Count());
     }
 
@@ -1788,7 +1796,6 @@ public class VoucherServiceTests
         {
             ClienteId = ag1.Id, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 3000m, Detalle = "Vouchers Nros: 1, 2",
-            EsConsolidadoVouchers = true,
             PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
             NumeroComprobante = 101, CAE = "12345678901234",
             FechaVencimientoCAE = DateTime.Today.AddDays(10),
@@ -1800,7 +1807,6 @@ public class VoucherServiceTests
         {
             ClienteId = ag2.Id, PeriodoAnio = 2026, PeriodoMes = 6,
             Importe = 1500m, Detalle = "Vouchers Nros: 3",
-            EsConsolidadoVouchers = true,
             PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
             NumeroComprobante = 102, CAE = "12345678901235",
             FechaVencimientoCAE = DateTime.Today.AddDays(10),
@@ -1810,12 +1816,17 @@ public class VoucherServiceTests
         db.Recibos.AddRange(reciboEmitido, reciboCompleto);
         db.SaveChanges();
 
+        var consEmitido  = new Consolidacion { ReciboId = reciboEmitido.Id,  ClienteId = ag1.Id, PeriodoAnio = 2026, PeriodoMes = 6, Pendiente = false, CreatedAt = DateTime.Now };
+        var consCompleto = new Consolidacion { ReciboId = reciboCompleto.Id, ClienteId = ag2.Id, PeriodoAnio = 2026, PeriodoMes = 6, Pendiente = false, CreatedAt = DateTime.Now };
+        db.Consolidaciones.AddRange(consEmitido, consCompleto);
+        db.SaveChanges();
+
         db.Vouchers.AddRange(
             // ag1 → recibo Emitido
-            new Voucher { ClienteId = ag1.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
-            new Voucher { ClienteId = ag1.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag1.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5),  PeriodoAnio = 2026, PeriodoMes = 6, ConsolidacionId = consEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag1.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8),  PeriodoAnio = 2026, PeriodoMes = 6, ConsolidacionId = consEmitido.Id, CreatedAt = DateTime.Now },
             // ag2 → recibo Completo
-            new Voucher { ClienteId = ag2.Id, BarcoId = barco.Id, Numero = 3, Importe = 1500m, Fecha = new DateTime(2026, 6, 9),  PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboCompleto.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag2.Id, BarcoId = barco.Id, Numero = 3, Importe = 1500m, Fecha = new DateTime(2026, 6, 9),  PeriodoAnio = 2026, PeriodoMes = 6, ConsolidacionId = consCompleto.Id, CreatedAt = DateTime.Now },
             // ag3 → pendiente (sin recibo)
             new Voucher { ClienteId = ag3.Id, BarcoId = barco.Id, Numero = 4, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now },
             new Voucher { ClienteId = ag3.Id, BarcoId = barco.Id, Numero = 5, Importe = 700m,  Fecha = new DateTime(2026, 6, 14), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
@@ -1868,7 +1879,7 @@ public class VoucherServiceTests
         var reciboEmitido = new CmRecibo
         {
             ClienteId = ag.Id, PeriodoAnio = 2026, PeriodoMes = 6,
-            Importe = 3000m, EsConsolidadoVouchers = true,
+            Importe = 3000m,
             PuntoDeVenta = 1, TipoComprobante = TipoComprobante.Recibo, CodigoAfip = 211,
             NumeroComprobante = 101, CAE = "12345678901234",
             FechaVencimientoCAE = DateTime.Today.AddDays(10),
@@ -1878,9 +1889,13 @@ public class VoucherServiceTests
         db.Recibos.Add(reciboEmitido);
         db.SaveChanges();
 
+        var consEmitido = new Consolidacion { ReciboId = reciboEmitido.Id, ClienteId = ag.Id, PeriodoAnio = 2026, PeriodoMes = 6, Pendiente = false, CreatedAt = DateTime.Now };
+        db.Consolidaciones.Add(consEmitido);
+        db.SaveChanges();
+
         db.Vouchers.AddRange(
-            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
-            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8), PeriodoAnio = 2026, PeriodoMes = 6, ReciboId = reciboEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 1, Importe = 1000m, Fecha = new DateTime(2026, 6, 5), PeriodoAnio = 2026, PeriodoMes = 6, ConsolidacionId = consEmitido.Id, CreatedAt = DateTime.Now },
+            new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 2, Importe = 2000m, Fecha = new DateTime(2026, 6, 8), PeriodoAnio = 2026, PeriodoMes = 6, ConsolidacionId = consEmitido.Id, CreatedAt = DateTime.Now },
             new Voucher { ClienteId = ag.Id, BarcoId = barco.Id, Numero = 3, Importe = 500m,  Fecha = new DateTime(2026, 6, 11), PeriodoAnio = 2026, PeriodoMes = 6, CreatedAt = DateTime.Now });
         db.SaveChanges();
 
@@ -1897,8 +1912,8 @@ public class VoucherServiceTests
         var lista = res.Data!.ToList();
         // El consolidado NO desaparece: vienen los 3 (2 consolidados + 1 pendiente), ordenados por Numero.
         Assert.Equal(new[] { 1, 2, 3 }, lista.Select(v => v.Numero).ToArray());
-        // Los consolidados traen su recibo cargado para poder mostrar el estado.
-        Assert.Equal(EstadoFiscal.Emitido, lista.Single(v => v.Numero == 1).Recibo!.EstadoFiscal);
-        Assert.Null(lista.Single(v => v.Numero == 3).ReciboId);
+        // Los consolidados traen su recibo cargado (vía Consolidacion) para poder mostrar el estado.
+        Assert.Equal(EstadoFiscal.Emitido, lista.Single(v => v.Numero == 1).Consolidacion!.Recibo.EstadoFiscal);
+        Assert.Null(lista.Single(v => v.Numero == 3).ConsolidacionId);
     }
 }

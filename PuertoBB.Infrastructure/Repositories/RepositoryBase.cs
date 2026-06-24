@@ -31,14 +31,13 @@ public abstract class RepositoryBase<T> : IRepository<T> where T : BaseEntity
 
     public virtual async Task AddAsync(T entity, CancellationToken ct = default)
     {
-        entity.CreatedAt = DateTime.Now;
+        // CreatedAt/UpdatedAt los sella PuertoBBDbContext en SaveChanges (única fuente de verdad).
         await Set.AddAsync(entity, ct);
         await GuardarAsync(ct);
     }
 
     public virtual async Task UpdateAsync(T entity, CancellationToken ct = default)
     {
-        entity.UpdatedAt = DateTime.Now;
         Set.Update(entity);
         await GuardarAsync(ct);
     }

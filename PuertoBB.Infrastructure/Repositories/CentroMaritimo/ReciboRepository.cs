@@ -18,7 +18,6 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
     public Task<Recibo?> GetConDetalleAsync(int id, CancellationToken ct = default)
         => _db.Recibos
             .Include(r => r.Cliente).ThenInclude(a => a.Emails)
-            .Include(r => r.Vouchers).ThenInclude(v => v.Barco)
             .Include(r => r.NotaDeCredito)
             .Include(r => r.Lineas)
             .FirstOrDefaultAsync(r => r.Id == id, ct);
@@ -32,20 +31,22 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
     public Task<Recibo?> GetPorClaveAsync(int agenciaId, int? grupoId, int anio, int mes, CancellationToken ct = default)
         => FiltrarPorClave(_db.Recibos
                 .Include(r => r.Cliente).ThenInclude(a => a.Emails)
-                .Include(r => r.Vouchers).ThenInclude(v => v.Barco)
                 .Include(r => r.Lineas), agenciaId, grupoId, anio, mes)
             .FirstOrDefaultAsync(ct);
 
     /// <summary>
-    /// Clave de emisión: agencia + grupo (vía EmisionGrupo; null = individual) + período.
-    /// Para individuales (grupoId null) excluye consolidados y solo retoma el recibo Pendiente.
+    /// Clave de emisión de cuota: agencia + grupo (vía EmisionGrupo; null = individual) + período.
+    /// Para individuales (grupoId null) excluye consolidados (recibos referenciados por una Consolidacion)
+    /// y solo retoma el recibo Pendiente.
     /// </summary>
-    private static IQueryable<Recibo> FiltrarPorClave(IQueryable<Recibo> q, int agenciaId, int? grupoId, int anio, int mes)
+    private IQueryable<Recibo> FiltrarPorClave(IQueryable<Recibo> q, int agenciaId, int? grupoId, int anio, int mes)
     {
         q = q.Where(r => r.ClienteId == agenciaId && r.PeriodoAnio == anio && r.PeriodoMes == mes);
         return grupoId is int gid
             ? q.Where(r => r.EmisionGrupo != null && r.EmisionGrupo.GrupoFacturacionId == gid)
-            : q.Where(r => r.EmisionGrupo == null && !r.EsConsolidadoVouchers && r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente);
+            : q.Where(r => r.EmisionGrupo == null
+                           && !_db.Consolidaciones.Any(c => c.ReciboId == r.Id)
+                           && r.EstadoFiscal == EstadoFiscal.Pendiente);
     }
 
     public async Task<IReadOnlyList<Recibo>> GetPorGrupoYPeriodoAsync(int grupoId, int anio, int mes, CancellationToken ct = default)
@@ -61,12 +62,19 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         var recibo = await _db.Recibos
             .Include(r => r.Lineas)
             .Include(r => r.EmisionGrupo)
-            .Include(r => r.Vouchers)
             .FirstOrDefaultAsync(r => r.Id == reciboId, ct);
         if (recibo is null) return;
 
-        // Liberar los vouchers consolidados (vuelven a "libres") y remover los dependientes del recibo.
-        foreach (var v in recibo.Vouchers) v.ReciboId = null;
+        // Si es un consolidado, liberar sus vouchers (vuelven a "libres") y borrar la consolidación.
+        var consolidacion = await _db.Consolidaciones
+            .Include(c => c.Vouchers)
+            .FirstOrDefaultAsync(c => c.ReciboId == reciboId, ct);
+        if (consolidacion is not null)
+        {
+            foreach (var v in consolidacion.Vouchers) v.ConsolidacionId = null;
+            _db.Consolidaciones.Remove(consolidacion);
+        }
+
         if (recibo.EmisionGrupo is not null) _db.Remove(recibo.EmisionGrupo);
         _db.RemoveRange(recibo.Lineas);
         _db.Recibos.Remove(recibo);
@@ -74,49 +82,62 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
     }
 
     public Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
-        => _db.Recibos.AnyAsync(r =>
-            r.ClienteId == agenciaId &&
-            r.EsConsolidadoVouchers &&
-            r.PeriodoAnio == anio &&
-            r.PeriodoMes == mes &&
-            r.EstadoFiscal != Core.Enums.EstadoFiscal.Anulado, ct);
+        => _db.Consolidaciones.AnyAsync(c =>
+            c.ClienteId == agenciaId &&
+            c.PeriodoAnio == anio &&
+            c.PeriodoMes == mes &&
+            c.Recibo.EstadoFiscal != EstadoFiscal.Anulado, ct);
 
-    public Task<Recibo?> GetConsolidadoPendienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
-        => _db.Recibos
-            .Include(r => r.Cliente).ThenInclude(a => a.Emails)
-            .Include(r => r.Vouchers).ThenInclude(v => v.Barco)
-            .Include(r => r.Lineas)
-            .FirstOrDefaultAsync(r => r.ClienteId == agenciaId && r.EsConsolidadoVouchers &&
-                                      r.PeriodoAnio == anio && r.PeriodoMes == mes &&
-                                      r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente, ct);
+    public Task<Consolidacion?> GetConsolidacionPendienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
+        => _db.Consolidaciones
+            .Include(c => c.Recibo).ThenInclude(r => r.Cliente).ThenInclude(a => a.Emails)
+            .Include(c => c.Recibo).ThenInclude(r => r.Lineas)
+            .Include(c => c.Vouchers).ThenInclude(v => v.Barco)
+            .FirstOrDefaultAsync(c => c.ClienteId == agenciaId && c.PeriodoAnio == anio &&
+                                      c.PeriodoMes == mes && c.Pendiente, ct);
 
-    public Task<IReadOnlyList<int>> GetClientesConConsolidadoPendienteAsync(int anio, int mes, CancellationToken ct = default)
-        => _db.Recibos
-            .Where(r => r.EsConsolidadoVouchers && r.EstadoFiscal == Core.Enums.EstadoFiscal.Pendiente &&
-                        r.PeriodoAnio == anio && r.PeriodoMes == mes)
-            .Select(r => r.ClienteId)
+    public Task<Consolidacion?> GetConsolidacionByReciboAsync(int reciboId, CancellationToken ct = default)
+        => _db.Consolidaciones
+            .Include(c => c.Vouchers).ThenInclude(v => v.Barco)
+            .FirstOrDefaultAsync(c => c.ReciboId == reciboId, ct);
+
+    public Task<IReadOnlyList<int>> GetClientesConConsolidacionPendienteAsync(int anio, int mes, CancellationToken ct = default)
+        => _db.Consolidaciones
+            .Where(c => c.Pendiente && c.PeriodoAnio == anio && c.PeriodoMes == mes)
+            .Select(c => c.ClienteId)
             .Distinct()
             .ToListAsync(ct)
             .ContinueWith(t => (IReadOnlyList<int>)t.Result, TaskContinuationOptions.ExecuteSynchronously);
 
-    public async Task AddConVouchersAsync(Recibo recibo, IReadOnlyList<int> voucherIds, CancellationToken ct = default)
+    public async Task AddConsolidacionConVouchersAsync(Consolidacion consolidacion, IReadOnlyList<int> voucherIds, CancellationToken ct = default)
     {
-        recibo.CreatedAt = DateTime.Now;
-        _db.Recibos.Add(recibo);
+        var now = DateTime.Now;
+        consolidacion.CreatedAt = now;
+        consolidacion.Recibo.CreatedAt = now;
+        // Add de la consolidación inserta también su Recibo (grafo de entidades nuevas).
+        _db.Consolidaciones.Add(consolidacion);
         var vouchers = await _db.Vouchers.Where(v => voucherIds.Contains(v.Id)).ToListAsync(ct);
-        foreach (var v in vouchers) v.Recibo = recibo;
+        foreach (var v in vouchers) v.Consolidacion = consolidacion;
         await GuardarAsync(ct);
     }
 
-    public async Task AnularConNotaAsync(Recibo recibo, Core.Entities.CentroMaritimo.NotaDeCredito nota, CancellationToken ct = default)
+    public async Task AnularConNotaAsync(Recibo recibo, NotaDeCredito nota, CancellationToken ct = default)
     {
-        recibo.EstadoFiscal = Core.Enums.EstadoFiscal.Anulado;
+        recibo.EstadoFiscal = EstadoFiscal.Anulado;
         recibo.UpdatedAt = DateTime.Now;
         nota.CreatedAt = DateTime.Now;
+
         // Desvincular vouchers del consolidado para permitir reemisión del período (P1-3).
-        if (recibo.EsConsolidadoVouchers)
-            foreach (var v in recibo.Vouchers) v.ReciboId = null;
-        _db.Set<Core.Entities.CentroMaritimo.NotaDeCredito>().Add(nota);
+        var consolidacion = await _db.Consolidaciones
+            .Include(c => c.Vouchers)
+            .FirstOrDefaultAsync(c => c.ReciboId == recibo.Id, ct);
+        if (consolidacion is not null)
+        {
+            foreach (var v in consolidacion.Vouchers) v.ConsolidacionId = null;
+            consolidacion.Pendiente = false; // ya no es un work-in-progress
+        }
+
+        _db.Set<NotaDeCredito>().Add(nota);
         await GuardarAsync(ct);
     }
 
@@ -134,7 +155,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         var hoy = DateTime.Today;
         if (f.SoloVencidos)
             q = q.Where(r => r.FechaVencimientoPago < hoy &&
-                             r.EstadoFiscal == Core.Enums.EstadoFiscal.Emitido &&
+                             r.EstadoFiscal == EstadoFiscal.Emitido &&
                              r.FechaPago == null && r.FechaIncobrable == null);
 
         return await q.OrderByDescending(r => r.PeriodoAnio).ThenByDescending(r => r.PeriodoMes).ThenBy(r => r.Cliente.Nombre).ToListAsync(ct);

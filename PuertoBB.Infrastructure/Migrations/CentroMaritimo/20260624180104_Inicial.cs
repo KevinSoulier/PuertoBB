@@ -159,7 +159,6 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     PeriodoMes = table.Column<int>(type: "INTEGER", nullable: false),
                     Importe = table.Column<decimal>(type: "TEXT", nullable: false),
                     Detalle = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: false),
-                    EsConsolidadoVouchers = table.Column<bool>(type: "INTEGER", nullable: false),
                     PuntoDeVenta = table.Column<int>(type: "INTEGER", nullable: false),
                     TipoComprobante = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
                     CodigoAfip = table.Column<int>(type: "INTEGER", nullable: false),
@@ -314,6 +313,31 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 });
 
             migrationBuilder.CreateTable(
+                name: "Consolidaciones",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    ReciboId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ClienteId = table.Column<int>(type: "INTEGER", nullable: false),
+                    PeriodoAnio = table.Column<int>(type: "INTEGER", nullable: false),
+                    PeriodoMes = table.Column<int>(type: "INTEGER", nullable: false),
+                    Pendiente = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Consolidaciones", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Consolidaciones_Recibos_ReciboId",
+                        column: x => x.ReciboId,
+                        principalTable: "Recibos",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "EmisionesGrupo",
                 columns: table => new
                 {
@@ -411,7 +435,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     Fecha = table.Column<DateTime>(type: "TEXT", nullable: false),
                     PeriodoAnio = table.Column<int>(type: "INTEGER", nullable: false),
                     PeriodoMes = table.Column<int>(type: "INTEGER", nullable: false),
-                    ReciboId = table.Column<int>(type: "INTEGER", nullable: true),
+                    ConsolidacionId = table.Column<int>(type: "INTEGER", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
@@ -431,11 +455,11 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Vouchers_Recibos_ReciboId",
-                        column: x => x.ReciboId,
-                        principalTable: "Recibos",
+                        name: "FK_Vouchers_Consolidaciones_ConsolidacionId",
+                        column: x => x.ConsolidacionId,
+                        principalTable: "Consolidaciones",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.InsertData(
@@ -482,6 +506,19 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Consolidaciones_ClienteId_PeriodoAnio_PeriodoMes",
+                table: "Consolidaciones",
+                columns: new[] { "ClienteId", "PeriodoAnio", "PeriodoMes" },
+                unique: true,
+                filter: "\"Pendiente\" = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Consolidaciones_ReciboId",
+                table: "Consolidaciones",
+                column: "ReciboId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CuentasCorreo_ConfiguracionId",
                 table: "CuentasCorreo",
                 column: "ConfiguracionId");
@@ -515,16 +552,15 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_PuntosDeVenta_ConfiguracionId",
+                name: "IX_PuntosDeVenta_ConfiguracionId_Numero",
                 table: "PuntosDeVenta",
-                column: "ConfiguracionId");
+                columns: new[] { "ConfiguracionId", "Numero" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Recibos_ClienteId_PeriodoAnio_PeriodoMes",
+                name: "IX_Recibos_ClienteId",
                 table: "Recibos",
-                columns: new[] { "ClienteId", "PeriodoAnio", "PeriodoMes" },
-                unique: true,
-                filter: "\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
+                column: "ClienteId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Recibos_PeriodoAnio_PeriodoMes",
@@ -554,15 +590,15 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                 column: "ClienteId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Vouchers_ConsolidacionId",
+                table: "Vouchers",
+                column: "ConsolidacionId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Vouchers_Numero",
                 table: "Vouchers",
                 column: "Numero",
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Vouchers_ReciboId",
-                table: "Vouchers",
-                column: "ReciboId");
         }
 
         /// <inheritdoc />
@@ -609,6 +645,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
             migrationBuilder.DropTable(
                 name: "Barcos");
+
+            migrationBuilder.DropTable(
+                name: "Consolidaciones");
 
             migrationBuilder.DropTable(
                 name: "Recibos");

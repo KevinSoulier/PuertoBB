@@ -432,9 +432,10 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_PuntosDeVenta_ConfiguracionId",
+                name: "IX_PuntosDeVenta_ConfiguracionId_Numero",
                 table: "PuntosDeVenta",
-                column: "ConfiguracionId");
+                columns: new[] { "ConfiguracionId", "Numero" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Recibos_ClienteId",

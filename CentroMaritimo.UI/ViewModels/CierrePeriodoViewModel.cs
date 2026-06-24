@@ -391,7 +391,9 @@ public class CierrePeriodoViewModel : PageViewModel
     {
         var recibo = await _reciboRepo.GetConDetalleAsync(reciboId);
         if (recibo is null) { MostrarError("El recibo no se encontró."); return null; }
-        return await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.ToList(), recibo);
+        var consolidacion = await _reciboRepo.GetConsolidacionByReciboAsync(reciboId);
+        var vouchers = consolidacion?.Vouchers.OrderBy(v => v.Numero).ToList() ?? [];
+        return await _pdf.GenerarPdfDescargaAsync(vouchers, recibo);
     }
 
     private async Task<byte[]?> GenerarPdfLibresAsync(int agenciaId)
@@ -404,6 +406,6 @@ public class CierrePeriodoViewModel : PageViewModel
     private async Task<IReadOnlyList<Voucher>> CargarVouchersLibresAsync(int agenciaId)
     {
         var todos = await _voucherRepo.GetPorClienteAsync(agenciaId, Anio, _mes);
-        return todos.Where(v => v.ReciboId is null).ToList();
+        return todos.Where(v => v.ConsolidacionId is null).ToList();
     }
 }

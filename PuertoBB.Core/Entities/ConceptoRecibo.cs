@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CamaraPortuaria;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Detalle/concepto reutilizable para los recibos (autocompletado en la emisión individual).

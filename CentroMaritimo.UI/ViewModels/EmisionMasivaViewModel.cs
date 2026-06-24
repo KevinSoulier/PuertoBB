@@ -189,17 +189,24 @@ public class EmisionMasivaViewModel : PageViewModel
         var omitidos = datos.Count(r => r.Omitido);                       // ya completos: NO son error
         var fallidos = datos.Where(r => !r.Exito && !r.Omitido).ToList();
         var primerError = fallidos.FirstOrDefault()?.ErrorEmision ?? "Error desconocido.";
+        // El recibo queda Emitido (CAE OK) aunque el mail falle: Exito=true con ErrorMail cargado.
+        var conErrorMail = datos.Where(r => r.Exito && r.ErrorMail is not null).ToList();
+        var primerErrorMail = conErrorMail.FirstOrDefault()?.ErrorMail;
 
         if (datos.Count == 0)
             MostrarError("No había nada para procesar en el período.");
-        else if (fallidos.Count == 0)                                     // sin errores reales: éxito (aunque haya omitidos)
+        else if (ok == 0 && omitidos == 0)                                // todo falló en AFIP
+            MostrarError($"{accion} fallida: {fallidos.Count} con error. {primerError}");
+        else if (fallidos.Count > 0)                                      // parcial en AFIP
+            MostrarAdvertencia($"{accion} parcial: {ok} ok, {omitidos} ya estaba(n), {fallidos.Count} con error. Primer error: {primerError}");
+        else if (conErrorMail.Count > 0)                                  // AFIP OK pero falló el mail → advertencia (naranja)
+            MostrarAdvertencia(conErrorMail.Count >= ok
+                ? $"{accion}: {ok} recibo(s) emitido(s) en AFIP, pero NINGÚN mail se pudo enviar. {primerErrorMail}"
+                : $"{accion}: {ok} emitido(s) en AFIP; {conErrorMail.Count} mail(s) no se pudieron enviar. {primerErrorMail}");
+        else                                                              // sin errores reales: éxito (aunque haya omitidos)
             MostrarExito(omitidos > 0
                 ? $"{accion} finalizada: {ok} procesado(s), {omitidos} ya estaba(n) al día."
                 : $"{accion} finalizada: {ok} ok.");
-        else if (ok == 0 && omitidos == 0)
-            MostrarError($"{accion} fallida: {fallidos.Count} con error. {primerError}");
-        else
-            MostrarAdvertencia($"{accion} parcial: {ok} ok, {omitidos} ya estaba(n), {fallidos.Count} con error. Primer error: {primerError}");
         await CargarEstadoAsync();
     }
 

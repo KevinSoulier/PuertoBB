@@ -24,17 +24,11 @@ public class ReciboConfiguration : IEntityTypeConfiguration<Recibo>
         b.Property(r => r.ReceptorCondicionIva).HasMaxLength(100);
 
         // El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
+        // El anti-duplicados de consolidado Pendiente vive en el índice único parcial de Consolidaciones.
 
         b.HasIndex(r => new { r.PuntoDeVenta, r.NumeroComprobante, r.CodigoAfip })
             .IsUnique()
             .HasFilter("\"NumeroComprobante\" > 0");
-
-        // Un solo consolidado SIN CAE (Pendiente) por (agencia, período) — índice único parcial: evita dos
-        // work-in-progress simultáneos, pero permite consolidados COMPLEMENTARIOS (cada uno con su CAE) cuando
-        // aparecen vouchers olvidados después de emitir.
-        b.HasIndex(r => new { r.ClienteId, r.PeriodoAnio, r.PeriodoMes })
-            .IsUnique()
-            .HasFilter("\"EsConsolidadoVouchers\" = 1 AND \"EstadoFiscal\" = 'Pendiente'");
 
         // Índice para la sección "Control" (orden por período del paginado server-side).
         b.HasIndex(r => new { r.PeriodoAnio, r.PeriodoMes });

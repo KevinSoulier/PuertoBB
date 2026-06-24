@@ -29,7 +29,7 @@ public class CuentaCorreoRepoTests
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var repo = new CpRepos.ConfiguracionRepository(db);
-        var nueva = await repo.GuardarCuentaCorreoAsync(new CpEntities.CuentaCorreo { Nombre = "Ventas", SmtpPort = 587, Autenticacion = 2 });
+        var nueva = await repo.GuardarCuentaCorreoAsync(new CuentaCorreo { Nombre = "Ventas", SmtpPort = 587, Autenticacion = 2 });
 
         await repo.MarcarCuentaCorreoActivaAsync(nueva.Id);
 
@@ -43,7 +43,7 @@ public class CuentaCorreoRepoTests
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var repo = new CpRepos.ConfiguracionRepository(db);
-        var nueva = await repo.GuardarCuentaCorreoAsync(new CpEntities.CuentaCorreo { Nombre = "Temp", SmtpPort = 587 });
+        var nueva = await repo.GuardarCuentaCorreoAsync(new CuentaCorreo { Nombre = "Temp", SmtpPort = 587 });
 
         await repo.EliminarCuentaCorreoAsync(nueva.Id);
 
@@ -55,7 +55,7 @@ public class CuentaCorreoRepoTests
     {
         using var fx = SqliteTestDb.CreateCamara(out var db);
         var repo = new CpRepos.ConfiguracionRepository(db);
-        var nueva = await repo.GuardarCuentaCorreoAsync(new CpEntities.CuentaCorreo { Nombre = "Admin", SmtpHost = "smtp.x.com", SmtpPort = 587 });
+        var nueva = await repo.GuardarCuentaCorreoAsync(new CuentaCorreo { Nombre = "Admin", SmtpHost = "smtp.x.com", SmtpPort = 587 });
         await repo.MarcarCuentaCorreoActivaAsync(nueva.Id);
 
         var config = await repo.GetSinTrackingAsync();

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CamaraPortuaria;
+namespace PuertoBB.Core.Entities;
 
 public class Cliente : BaseEntity
 {

@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CentroMaritimo;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Cuenta de correo saliente. Se pueden cargar varias (ej. "Ventas", "Administración") y una queda

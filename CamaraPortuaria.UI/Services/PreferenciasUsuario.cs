@@ -6,7 +6,7 @@ namespace CamaraPortuaria.UI.Services;
 public static class PreferenciasUsuario
 {
     private static string Dir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PuertoBB", "CamaraPortuaria");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Puerto de Bahia Blanca", "CamaraPortuaria");
 
     private static string TemaPath => Path.Combine(Dir, "tema.txt");
 

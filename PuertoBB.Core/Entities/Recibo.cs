@@ -3,21 +3,20 @@ using PuertoBB.Core.Common;
 using PuertoBB.Core.Entities.Common;
 using PuertoBB.Core.Enums;
 
-namespace PuertoBB.Core.Entities.CentroMaritimo;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Recibo emitido a una Cliente. Cliente de auditoría autocontenida: los datos fiscales del
 /// receptor se copian al emitir (Receptor*) y el vínculo con el grupo que lo originó vive en
-/// <see cref="EmisionGrupo"/> (null = emisión individual/consolidado).
-/// Recibos consolidados únicos por (ClienteId, PeriodoAnio, PeriodoMes) WHERE EsConsolidadoVouchers=true;
-/// el anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
+/// <see cref="EmisionGrupo"/> (null = emisión individual).
+/// El anti-duplicados de emisión por grupo vive en el índice único de EmisionesGrupo.
 /// </summary>
 public class Recibo : BaseEntity, IReciboBusquedaView
 {
     public int     ClienteId { get; set; }
     public Cliente Cliente   { get; set; } = null!;
 
-    /// <summary>Vínculo con la emisión de grupo que lo originó; null = individual o consolidado.</summary>
+    /// <summary>Vínculo con la emisión de grupo que lo originó; null = emisión individual.</summary>
     public EmisionGrupo? EmisionGrupo { get; set; }
 
     // Snapshot fiscal del receptor (copiado al emitir, inmutable)
@@ -37,12 +36,10 @@ public class Recibo : BaseEntity, IReciboBusquedaView
     /// <summary>Líneas/ítems del recibo (snapshot inmutable del detalle). El detalle mostrado/enviado sale de acá.</summary>
     public ICollection<ReciboLinea> Lineas { get; set; } = [];
 
-    public bool EsConsolidadoVouchers { get; set; }
-
     // Comprobante AFIP
     public int             PuntoDeVenta        { get; set; }
     public TipoComprobante TipoComprobante     { get; set; }
-    public int             CodigoAfip          { get; set; }
+    public int             CodigoAfip          { get; set; } // código numérico AFIP (ej. 11)
     public long            NumeroComprobante   { get; set; }
     public string          CAE                 { get; set; } = string.Empty;
     public DateTime        FechaVencimientoCAE { get; set; }
@@ -57,13 +54,12 @@ public class Recibo : BaseEntity, IReciboBusquedaView
     public DateTime? FechaEnvioMail  { get; set; } // null = mail no enviado
 
     // Control de pagos (eje de cobro: Pendiente de cobro / Pagado / Incobrable, derivado de estas fechas)
-    public DateTime  FechaVencimientoPago { get; set; }
-    public DateTime? FechaPago            { get; set; }
+    public DateTime  FechaVencimientoPago { get; set; } // = FechaEmision + Configuracion.DiasVencimiento
+    public DateTime? FechaPago            { get; set; } // null hasta marcar como pagado
     public DateTime? FechaIncobrable      { get; set; } // null = no dado de baja; excluyente con FechaPago
     public string?   MotivoIncobrable     { get; set; } // motivo opcional de la baja (auditoría)
 
-    public ICollection<Voucher> Vouchers      { get; set; } = [];
-    public NotaDeCredito?       NotaDeCredito { get; set; }
+    public NotaDeCredito? NotaDeCredito { get; set; }
 
     /// <summary>True si tiene Nota de Crédito asociada (recibo anulado). Derivado.</summary>
     [NotMapped]

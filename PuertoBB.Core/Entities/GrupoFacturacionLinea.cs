@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CamaraPortuaria;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Ítem de detalle de un <see cref="GrupoFacturacion"/>. Define los conceptos a facturar a cada

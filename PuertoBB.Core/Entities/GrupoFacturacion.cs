@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CentroMaritimo;
+namespace PuertoBB.Core.Entities;
 
 public class GrupoFacturacion : BaseEntity
 {

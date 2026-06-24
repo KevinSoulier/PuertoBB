@@ -36,7 +36,7 @@
                          Title="Cámara Portuaria de Bahía Blanca"
                          ShowMinimize="True" ShowMaximize="True" ShowClose="True">
                 <ui:TitleBar.Icon>
-                    <ui:SymbolIcon Symbol="Building24" />
+                    <ui:SymbolIcon Symbol="BuildingLighthouse20" />
                 </ui:TitleBar.Icon>
             </ui:TitleBar>
         </Grid>

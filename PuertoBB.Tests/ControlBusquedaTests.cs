@@ -1,7 +1,7 @@
 using PuertoBB.Core.Enums;
 using PuertoBB.Services.Common;
 using Xunit;
-using Recibo = PuertoBB.Core.Entities.CamaraPortuaria.Recibo;
+using Recibo = PuertoBB.Core.Entities.Recibo;
 
 namespace PuertoBB.Tests;
 

@@ -86,7 +86,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         var porCliente = pendientes.GroupBy(v => v.ClienteId)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<Voucher>)g.OrderBy(v => v.Numero).ToList());
 
-        var conPendiente = await _recibos.GetClientesConConsolidadoPendienteAsync(anio, mes, ct);
+        var conPendiente = await _recibos.GetClientesConConsolidacionPendienteAsync(anio, mes, ct);
         foreach (var agId in conPendiente.Where(id => !porCliente.ContainsKey(id)))
             porCliente[agId] = [];
 
@@ -115,7 +115,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         if (vouchersCliente.Count == 0)
         {
             // Sin vouchers libres solo se sigue si hay un consolidado Pendiente (sin CAE) para reintentar.
-            if (await _recibos.GetConsolidadoPendienteAsync(agenciaId, anio, mes, ct) is null)
+            if (await _recibos.GetConsolidacionPendienteAsync(agenciaId, anio, mes, ct) is null)
                 return ServiceResult<ResultadoCierrePorCliente>.Fail("La agencia no tiene vouchers pendientes en el período.");
         }
 
@@ -131,26 +131,27 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         var nombreCliente = vouchersCliente.FirstOrDefault()?.Cliente?.Nombre ?? $"#{agenciaId}";
         try
         {
-            // Reintento: si quedó un consolidado Pendiente (sin CAE), incorporar los vouchers libres y re-sincronizar.
-            var existente = await _recibos.GetConsolidadoPendienteAsync(agenciaId, anio, mes, ct);
+            // Reintento: si quedó una consolidación Pendiente (recibo sin CAE), incorporar los vouchers libres y re-sincronizar.
+            var existente = await _recibos.GetConsolidacionPendienteAsync(agenciaId, anio, mes, ct);
             if (existente is not null)
             {
-                var agenciaExistente = existente.Cliente;
                 if (vouchersCliente.Count > 0)
                 {
                     await _vouchers.MarcarConsolidadosAsync(vouchersCliente.Select(v => v.Id), existente.Id, ct);
                     // N-3: los vínculos se guardaron en OTRO DbContext (transient). Recargar para que
                     // la colección Vouchers de ESTE contexto incluya los nuevos (mail y count correctos).
-                    existente = await _recibos.GetConsolidadoPendienteAsync(agenciaId, anio, mes, ct)
-                                ?? throw new InvalidOperationException("El consolidado desapareció durante el reintento.");
+                    existente = await _recibos.GetConsolidacionPendienteAsync(agenciaId, anio, mes, ct)
+                                ?? throw new InvalidOperationException("La consolidación desapareció durante el reintento.");
                 }
 
+                var reciboExistente = existente.Recibo;
+                var agenciaExistente = reciboExistente.Cliente;
                 var todosVouchers = existente.Vouchers.OrderBy(v => v.Numero).ToList();
-                existente.Importe = todosVouchers.Sum(v => Round2(v.Importe));
-                existente.Detalle = "Vouchers Nros: " + string.Join(", ", todosVouchers.Select(v => v.Numero));
-                existente.Lineas.Clear();
+                reciboExistente.Importe = todosVouchers.Sum(v => Round2(v.Importe));
+                reciboExistente.Detalle = "Vouchers Nros: " + string.Join(", ", todosVouchers.Select(v => v.Numero));
+                reciboExistente.Lineas.Clear();
                 foreach (var (v, i) in todosVouchers.Select((v, i) => (v, i)))
-                    existente.Lineas.Add(new ReciboLinea
+                    reciboExistente.Lineas.Add(new ReciboLinea
                     {
                         Descripcion    = $"Voucher {v.Numero} — {v.Barco?.Nombre ?? $"#{v.BarcoId}"} — {Formato.Fecha(v.Fecha)}",
                         Cantidad       = 1,
@@ -159,9 +160,9 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                         Orden          = i
                     });
 
-                var resExistente = await ProcesarReciboAsync(existente, existente.Cliente, config, enviarMail, forzarEnvio: false, ct);
+                var resExistente = await ProcesarReciboAsync(reciboExistente, agenciaExistente, config, enviarMail, forzarEnvio: false, existente, ct);
                 return resExistente.Exito
-                    ? ResultadoCierrePorCliente.Ok(agenciaId, agenciaExistente?.Nombre ?? nombreCliente, existente.Vouchers.Count, existente.Importe, existente.NumeroComprobante, resExistente.ErrorMail)
+                    ? ResultadoCierrePorCliente.Ok(agenciaId, agenciaExistente?.Nombre ?? nombreCliente, existente.Vouchers.Count, reciboExistente.Importe, reciboExistente.NumeroComprobante, resExistente.ErrorMail)
                     : ResultadoCierrePorCliente.Fallo(agenciaId, agenciaExistente?.Nombre ?? nombreCliente, resExistente.ErrorEmision ?? "No se pudo procesar el recibo consolidado.");
             }
 
@@ -175,7 +176,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             var importe = vouchersCliente.Sum(v => Round2(v.Importe));
             var detalle = "Vouchers Nros: " + string.Join(", ", vouchersCliente.Select(v => v.Numero));
 
-            var recibo = ConstruirRecibo(agencia, null, importe, detalle, anio, mes, config, esConsolidado: true);
+            var recibo = ConstruirRecibo(agencia, null, importe, detalle, anio, mes, config);
             recibo.EstadoFiscal = EstadoFiscal.Pendiente;
 
             // Snapshot del detalle: una línea por voucher.
@@ -190,10 +191,19 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                 })
                 .ToList();
 
-            // Persistir recibo + vincular vouchers en un único SaveChanges (atómico).
-            await _recibos.AddConVouchersAsync(recibo, vouchersCliente.Select(v => v.Id).ToList(), ct);
+            // La consolidación envuelve al recibo y agrupa los vouchers (el recibo no los conoce, patrón EmisionGrupo).
+            var consolidacion = new Consolidacion
+            {
+                Recibo      = recibo,
+                ClienteId   = agencia.Id,
+                PeriodoAnio = anio,
+                PeriodoMes  = mes,
+                Pendiente   = true
+            };
+            // Persistir consolidación + recibo + vincular vouchers en un único SaveChanges (atómico).
+            await _recibos.AddConsolidacionConVouchersAsync(consolidacion, vouchersCliente.Select(v => v.Id).ToList(), ct);
 
-            var resultado = await ProcesarReciboAsync(recibo, agencia, config, enviarMail, forzarEnvio: false, ct);
+            var resultado = await ProcesarReciboAsync(recibo, agencia, config, enviarMail, forzarEnvio: false, consolidacion, ct);
             return resultado.Exito
                 ? ResultadoCierrePorCliente.Ok(agencia.Id, agencia.Nombre, vouchersCliente.Count, importe, recibo.NumeroComprobante, resultado.ErrorMail)
                 : ResultadoCierrePorCliente.Fallo(agencia.Id, agencia.Nombre, resultado.ErrorEmision ?? "No se pudo emitir el recibo.");
@@ -271,7 +281,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             if (recibo.Cliente is null) continue; // sin la navegación cargada no hay emails para enviar
             ct.ThrowIfCancellationRequested();
             progreso?.Report(new ProgresoMasivo(++i, total, recibo.ReceptorNombre));
-            resultados.Add(await ProcesarReciboAsync(recibo, recibo.Cliente, config, enviarMail: true, forzarEnvio: false, ct));
+            resultados.Add(await ProcesarReciboAsync(recibo, recibo.Cliente, config, enviarMail: true, forzarEnvio: false, consolidacion: null, ct));
         }
 
         return ServiceResult<IReadOnlyList<ResultadoEmisionPorCliente>>.Ok(resultados);
@@ -326,7 +336,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             recibo.ReceptorCondicionIva = CatalogoCondicionesIvaReceptor.Descripcion(agencia.CondicionIvaId);
             recibo.ReceptorCondicionIvaId = agencia.CondicionIvaId;
         }
-        var resultado = await ProcesarReciboAsync(recibo, recibo.Cliente, config, enviarMail, forzarEnvio: false, ct);
+        var resultado = await ProcesarReciboAsync(recibo, recibo.Cliente, config, enviarMail, forzarEnvio: false, consolidacion: null, ct);
         return ServiceResult<ResultadoEmisionPorCliente>.Ok(resultado);
     }
 
@@ -390,7 +400,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                 // Ya emitido y enviado: NO es error. Reenviar solo si se pidió explícitamente; si no, omitir.
                 if (EsCompleto(recibo))
                     return reenviarYaEnviados && enviarMail
-                        ? await ProcesarReciboAsync(recibo, agencia, config, enviarMail: true, forzarEnvio: true, ct)
+                        ? await ProcesarReciboAsync(recibo, agencia, config, enviarMail: true, forzarEnvio: true, consolidacion: null, ct)
                         : ResultadoEmisionPorCliente.Omitida(agencia.Id, agencia.Nombre, "Ya emitido y enviado.");
 
                 // Recibo sin CAE (Pendiente): re-sincronizar el snapshot por si cambiaron los ítems del
@@ -411,7 +421,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                 }
             }
 
-            return await ProcesarReciboAsync(recibo, agencia, config, enviarMail, forzarEnvio: false, ct);
+            return await ProcesarReciboAsync(recibo, agencia, config, enviarMail, forzarEnvio: false, consolidacion: null, ct);
         }
         catch (Exception ex)
         {
@@ -445,8 +455,12 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
     /// corresponde. Para recibos consolidados arma el PDF de descarga; para cuotas, el recibo simple.
     /// </summary>
     private async Task<ResultadoEmisionPorCliente> ProcesarReciboAsync(
-        Recibo recibo, Cliente agencia, Configuracion config, bool enviarMail, bool forzarEnvio, CancellationToken ct)
+        Recibo recibo, Cliente agencia, Configuracion config, bool enviarMail, bool forzarEnvio, Consolidacion? consolidacion, CancellationToken ct)
     {
+        // En el flujo de cierre llega la consolidación; en reintento/reenvío/cuota se resuelve por el recibo
+        // (null = recibo de cuota, no consolidado).
+        consolidacion ??= await _recibos.GetConsolidacionByReciboAsync(recibo.Id, ct);
+
         // 1. CAE (idempotente: no se vuelve a pedir si ya está).
         if (string.IsNullOrEmpty(recibo.CAE))
         {
@@ -462,6 +476,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
                     AplicarCae(recibo, recuperado);
                     recibo.UltimoErrorCae = null;
                     recibo.EstadoFiscal = EstadoFiscal.Emitido;
+                    if (consolidacion is not null) consolidacion.Pendiente = false;
                     _logger.LogWarning("CAE recuperado de AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
                         recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
                     await _recibos.UpdateAsync(recibo, ct);
@@ -480,6 +495,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             AplicarCae(recibo, cae.Data);
             recibo.UltimoErrorCae = null;
             recibo.EstadoFiscal = EstadoFiscal.Emitido;
+            if (consolidacion is not null) consolidacion.Pendiente = false;
             // F: rastro del CAE autorizado ANTES de persistir (único registro si el guardado falla).
             _logger.LogWarning("CAE autorizado por AFIP: PV {Pv} Nro {Nro} CAE {Cae} (recibo {Id}) — persistiendo…",
                 recibo.PuntoDeVenta, recibo.NumeroComprobante, recibo.CAE, recibo.Id);
@@ -496,9 +512,18 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             if (recibo.Cliente is null)
                 recibo = await _recibos.GetConDetalleAsync(recibo.Id, ct) ?? recibo;
 
-            var errorMail = recibo.EsConsolidadoVouchers
-                ? await EnviarConsolidadoAsync(recibo, recibo.Vouchers.OrderBy(v => v.Numero).ToList(), agencia, recibo.PeriodoAnio, recibo.PeriodoMes, ct)
-                : await EnviarReciboAsync(recibo, agencia, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
+            string? errorMail;
+            if (consolidacion is not null)
+            {
+                // Recargar la consolidación con Vouchers+Barco para el PDF (la creación los vincula sin Barco).
+                var vouchers = (await _recibos.GetConsolidacionByReciboAsync(recibo.Id, ct))?.Vouchers.OrderBy(v => v.Numero).ToList()
+                               ?? consolidacion.Vouchers.OrderBy(v => v.Numero).ToList();
+                errorMail = await EnviarConsolidadoAsync(recibo, vouchers, agencia, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
+            }
+            else
+            {
+                errorMail = await EnviarReciboAsync(recibo, agencia, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
+            }
 
             if (errorMail is null)
             {
@@ -515,7 +540,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         return ResultadoEmisionPorCliente.Ok(agencia.Id, agencia.Nombre, recibo.NumeroComprobante, recibo.UltimoErrorMail);
     }
 
-    private Recibo ConstruirRecibo(Cliente agencia, int? grupoId, decimal importe, string detalle, int anio, int mes, Configuracion config, bool esConsolidado)
+    private Recibo ConstruirRecibo(Cliente agencia, int? grupoId, decimal importe, string detalle, int anio, int mes, Configuracion config)
     {
         var hoy = DateTime.Today;
         // No se asigna la navegación Cliente (solo el FK): el DbContext es transient, así que la agencia
@@ -539,7 +564,6 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             Importe = importe,
             Detalle = detalle,
             Lineas = [new ReciboLinea { Descripcion = detalle, Cantidad = 1, PrecioUnitario = importe, Importe = importe, Orden = 0 }],
-            EsConsolidadoVouchers = esConsolidado,
             PuntoDeVenta = config.PuntoDeVentaActivo!.Numero,
             TipoComprobante = TipoComprobante.Recibo,
             CodigoAfip = config.CodigoAfipRecibo,
@@ -554,7 +578,7 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
     /// <summary>Recibo de cuota nuevo en estado Pendiente (sin CAE), con la fecha de emisión indicada.</summary>
     private Recibo ConstruirReciboPendiente(Cliente agencia, int? grupoId, decimal importe, string detalle, DateTime fechaEmision, int anio, int mes, Configuracion config)
     {
-        var recibo = ConstruirRecibo(agencia, grupoId, importe, detalle, anio, mes, config, esConsolidado: false);
+        var recibo = ConstruirRecibo(agencia, grupoId, importe, detalle, anio, mes, config);
         recibo.FechaEmision = fechaEmision;
         recibo.FechaVencimientoPago = fechaEmision.AddDays(config.DiasVencimiento);
         recibo.EstadoFiscal = EstadoFiscal.Pendiente;
@@ -807,11 +831,12 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
             return errorNota is null ? ServiceResult<bool>.Ok(true) : ServiceResult<bool>.Fail(errorNota);
         }
 
-        byte[] pdf = recibo.EsConsolidadoVouchers
-            ? await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.ToList(), recibo, ct)
+        var consolidacion = await _recibos.GetConsolidacionByReciboAsync(recibo.Id, ct);
+        byte[] pdf = consolidacion is not null
+            ? await _pdf.GenerarPdfDescargaAsync(consolidacion.Vouchers.OrderBy(v => v.Numero).ToList(), recibo, ct)
             : await _pdf.GenerarPdfReciboAsync(recibo, ct);
 
-        var comprobante = recibo.EsConsolidadoVouchers ? "Recibo consolidado" : "Recibo";
+        var comprobante = consolidacion is not null ? "Recibo consolidado" : "Recibo";
         var (asunto, texto, html) = await ArmarMailAsync(comprobante, recibo, recibo.PeriodoAnio, recibo.PeriodoMes, ct);
         var error = await EnviarAsync(recibo.Cliente, pdf,
             $"Recibo_{recibo.ReceptorNombre}_{recibo.PeriodoAnio}{recibo.PeriodoMes:00}.pdf",

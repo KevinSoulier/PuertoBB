@@ -1,7 +1,7 @@
 using PuertoBB.Core.Entities.Common;
 using PuertoBB.Core.Enums;
 
-namespace PuertoBB.Core.Entities.CamaraPortuaria;
+namespace PuertoBB.Core.Entities;
 
 public class NotaDeCredito : BaseEntity
 {

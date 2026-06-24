@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CentroMaritimo;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Punto de venta AFIP con su ambiente y certificado. Se pueden cargar varios (ej. uno de

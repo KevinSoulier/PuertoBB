@@ -12,7 +12,9 @@ public class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
         b.Property(v => v.Importe).HasColumnType("TEXT");
         b.HasIndex(v => v.Numero).IsUnique();
 
+        b.HasOne(v => v.Cliente).WithMany().HasForeignKey(v => v.ClienteId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(v => v.Barco).WithMany().HasForeignKey(v => v.BarcoId).OnDelete(DeleteBehavior.Restrict);
-        b.HasOne(v => v.Recibo).WithMany(r => r.Vouchers).HasForeignKey(v => v.ReciboId).OnDelete(DeleteBehavior.Restrict);
+        // Al borrar la consolidación (p. ej. recibo Pendiente eliminado), los vouchers vuelven a "libres".
+        b.HasOne(v => v.Consolidacion).WithMany(c => c.Vouchers).HasForeignKey(v => v.ConsolidacionId).OnDelete(DeleteBehavior.SetNull);
     }
 }

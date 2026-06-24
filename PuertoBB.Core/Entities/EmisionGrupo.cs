@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CentroMaritimo;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Relación entre un GrupoFacturacion y el Recibo que se generó al emitirlo para un período.

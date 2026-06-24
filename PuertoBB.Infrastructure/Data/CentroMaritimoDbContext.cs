@@ -3,7 +3,7 @@ using PuertoBB.Core.Entities.CentroMaritimo;
 
 namespace PuertoBB.Infrastructure.Data;
 
-public class CentroMaritimoDbContext : DbContext
+public class CentroMaritimoDbContext : PuertoBBDbContext
 {
     public CentroMaritimoDbContext(DbContextOptions<CentroMaritimoDbContext> options) : base(options) { }
 
@@ -15,6 +15,7 @@ public class CentroMaritimoDbContext : DbContext
     public DbSet<EmisionGrupo>          EmisionesGrupo  => Set<EmisionGrupo>();
     public DbSet<Barco>            Barcos          => Set<Barco>();
     public DbSet<Voucher>          Vouchers        => Set<Voucher>();
+    public DbSet<Consolidacion>    Consolidaciones => Set<Consolidacion>();
     public DbSet<ContadorVoucher>  Contadores      => Set<ContadorVoucher>();
     public DbSet<Recibo>           Recibos         => Set<Recibo>();
     public DbSet<ReciboLinea>      RecibosLineas   => Set<ReciboLinea>();

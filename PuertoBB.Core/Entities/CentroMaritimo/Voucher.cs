@@ -18,6 +18,6 @@ public class Voucher : BaseEntity
     public int PeriodoAnio { get; set; } // derivado de Fecha al guardar
     public int PeriodoMes  { get; set; }
 
-    public int?    ReciboId { get; set; } // null = pendiente de consolidar
-    public Recibo? Recibo   { get; set; }
+    public int?           ConsolidacionId { get; set; } // null = pendiente de consolidar (voucher libre)
+    public Consolidacion? Consolidacion   { get; set; }
 }

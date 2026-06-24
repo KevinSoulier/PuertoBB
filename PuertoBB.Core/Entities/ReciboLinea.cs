@@ -1,6 +1,6 @@
 using PuertoBB.Core.Entities.Common;
 
-namespace PuertoBB.Core.Entities.CamaraPortuaria;
+namespace PuertoBB.Core.Entities;
 
 /// <summary>
 /// Línea/ítem del detalle de un <see cref="Recibo"/>. Se persiste como snapshot inmutable al emitir:

@@ -3,7 +3,7 @@ using PuertoBB.Core.Entities.CamaraPortuaria;
 
 namespace PuertoBB.Infrastructure.Data;
 
-public class CamaraPortuariaDbContext : DbContext
+public class CamaraPortuariaDbContext : PuertoBBDbContext
 {
     public CamaraPortuariaDbContext(DbContextOptions<CamaraPortuariaDbContext> options) : base(options) { }
 

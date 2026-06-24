@@ -67,7 +67,7 @@ public class VoucherService : IVoucherService
     {
         var existente = await _vouchers.GetByIdAsync(voucher.Id, ct);
         if (existente is null) return ServiceResult<bool>.Fail("El voucher no existe.");
-        if (existente.ReciboId is not null) return ServiceResult<bool>.Fail("El voucher ya fue consolidado y no puede editarse.");
+        if (existente.ConsolidacionId is not null) return ServiceResult<bool>.Fail("El voucher ya fue consolidado y no puede editarse.");
 
         if (voucher.ClienteId > 0) existente.ClienteId = voucher.ClienteId;
         existente.BarcoId = voucher.BarcoId;
@@ -83,7 +83,7 @@ public class VoucherService : IVoucherService
     {
         var existente = await _vouchers.GetByIdAsync(voucherId, ct);
         if (existente is null) return ServiceResult<bool>.Fail("El voucher no existe.");
-        if (existente.ReciboId is not null) return ServiceResult<bool>.Fail("El voucher ya fue consolidado y no puede eliminarse.");
+        if (existente.ConsolidacionId is not null) return ServiceResult<bool>.Fail("El voucher ya fue consolidado y no puede eliminarse.");
 
         await _vouchers.DeleteAsync(voucherId, ct);
         return ServiceResult<bool>.Ok(true);
@@ -100,14 +100,15 @@ public class VoucherService : IVoucherService
                 var nombre = g.First().Cliente?.Nombre ?? $"#{g.Key}";
 
                 // Consolidados (no anulados) de la agencia en el período: original + complementarios (0..n).
-                var recibos = g.Where(v => v.Recibo is { EsConsolidadoVouchers: true } r && r.EstadoFiscal != EstadoFiscal.Anulado)
-                               .Select(v => v.Recibo!)
+                // La relación voucher↔recibo vive en Consolidacion (el recibo no la conoce).
+                var recibos = g.Where(v => v.Consolidacion?.Recibo is { } r && r.EstadoFiscal != EstadoFiscal.Anulado)
+                               .Select(v => v.Consolidacion!.Recibo)
                                .DistinctBy(r => r.Id)
                                .ToList();
 
                 // Cantidad de vouchers por recibo, para el detalle.
-                var porRecibo = g.Where(v => v.ReciboId is not null)
-                                 .GroupBy(v => v.ReciboId!.Value)
+                var porRecibo = g.Where(v => v.Consolidacion?.Recibo is not null)
+                                 .GroupBy(v => v.Consolidacion!.ReciboId)
                                  .ToDictionary(x => x.Key, x => x.Count());
 
                 var consolidados = recibos
@@ -117,7 +118,7 @@ public class VoucherService : IVoucherService
                     .ToList();
 
                 // Pendiente si hay vouchers libres por consolidar (1ª emisión o complementario) o un consolidado sin CAE.
-                var hayLibres = g.Any(v => v.ReciboId is null);
+                var hayLibres = g.Any(v => v.ConsolidacionId is null);
                 var hayPendienteSinCae = consolidados.Any(c => c.Estado == EstadoCierreCliente.Pendiente);
                 var estado =
                       hayLibres || hayPendienteSinCae                                                   ? EstadoCierreCliente.Pendiente
@@ -129,8 +130,8 @@ public class VoucherService : IVoucherService
                                     v.Id, v.Numero,
                                     v.Barco?.Nombre ?? $"#{v.BarcoId}",
                                     v.Fecha, v.Importe,
-                                    Libre: v.ReciboId is null,
-                                    NumeroComprobante: v.Recibo is { NumeroComprobante: > 0 } ? v.Recibo.NumeroComprobante : null))
+                                    Libre: v.ConsolidacionId is null,
+                                    NumeroComprobante: v.Consolidacion?.Recibo is { NumeroComprobante: > 0 } ? v.Consolidacion.Recibo.NumeroComprobante : null))
                                 .ToList();
 
                 return new ClienteCierrePeriodoVm

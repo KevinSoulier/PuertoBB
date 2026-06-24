@@ -18,7 +18,7 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
 
         b.HasMany(a => a.Emails).WithOne(x => x.Cliente).HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(a => a.Grupos).WithOne(x => x.Cliente).HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Cascade);
-        b.HasMany(a => a.Vouchers).WithOne(x => x.Cliente).HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Restrict);
         b.HasMany(a => a.Recibos).WithOne(x => x.Cliente).HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Restrict);
+        // La relación Voucher→Cliente se configura desde VoucherConfiguration (Cliente ya no tiene la colección Vouchers).
     }
 }

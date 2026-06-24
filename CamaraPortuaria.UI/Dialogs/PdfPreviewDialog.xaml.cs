@@ -52,7 +52,7 @@ public partial class PdfPreviewDialog : UserControl
         {
             var userData = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "PuertoBB", "CamaraPortuaria", "WebView2");
+                "Puerto de Bahia Blanca", "CamaraPortuaria", "WebView2");
             Directory.CreateDirectory(userData);
 
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: userData);

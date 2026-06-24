@@ -12,10 +12,10 @@
     <ProjectReference Include="..\Afip.Documentos\Afip.Documentos.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MailKit" Version="4.17.0" />
-    <PackageReference Include="QuestPDF" Version="2026.5.0" />
-    <PackageReference Include="PdfSharp" Version="6.2.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="QuestPDF" />
+    <PackageReference Include="PdfSharp" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 </Project>

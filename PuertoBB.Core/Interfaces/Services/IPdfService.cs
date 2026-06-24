@@ -1,4 +1,3 @@
-using CamaraPortuaria = PuertoBB.Core.Entities.CamaraPortuaria;
 using CentroMaritimo = PuertoBB.Core.Entities.CentroMaritimo;
 
 namespace PuertoBB.Core.Interfaces.Services;
@@ -8,8 +7,8 @@ namespace PuertoBB.Core.Interfaces.Services;
 /// </summary>
 public interface ICamaraPortuariaPdfService
 {
-    Task<byte[]> GenerarPdfReciboAsync(CamaraPortuaria.Recibo recibo, CancellationToken ct = default);
-    Task<byte[]> GenerarPdfNotaDeCreditoAsync(CamaraPortuaria.NotaDeCredito nc, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfReciboAsync(Recibo recibo, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfNotaDeCreditoAsync(NotaDeCredito nc, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -18,9 +17,9 @@ public interface ICamaraPortuariaPdfService
 public interface ICentroMaritimoPdfService
 {
     Task<byte[]> GenerarPdfVoucherAsync(CentroMaritimo.Voucher voucher, CancellationToken ct = default);
-    Task<byte[]> GenerarPdfConsolidadoAsync(CentroMaritimo.Recibo recibo, IEnumerable<CentroMaritimo.Voucher> vouchers, CancellationToken ct = default);
-    Task<byte[]> GenerarPdfReciboAsync(CentroMaritimo.Recibo recibo, CancellationToken ct = default);
-    Task<byte[]> GenerarPdfNotaDeCreditoAsync(CentroMaritimo.NotaDeCredito nc, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfConsolidadoAsync(Recibo recibo, IEnumerable<CentroMaritimo.Voucher> vouchers, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfReciboAsync(Recibo recibo, CancellationToken ct = default);
+    Task<byte[]> GenerarPdfNotaDeCreditoAsync(NotaDeCredito nc, CancellationToken ct = default);
 
     /// <summary>
     /// PDF único de descarga: si <paramref name="recibo"/> no es null, concatena PDF del recibo
@@ -29,7 +28,7 @@ public interface ICentroMaritimoPdfService
     /// </summary>
     Task<byte[]> GenerarPdfDescargaAsync(
         IReadOnlyList<CentroMaritimo.Voucher> vouchers,
-        CentroMaritimo.Recibo? recibo,
+        Recibo? recibo,
         CancellationToken ct = default);
 }
 

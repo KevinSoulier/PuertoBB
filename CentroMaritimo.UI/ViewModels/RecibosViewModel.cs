@@ -352,8 +352,9 @@ public class RecibosViewModel : PageViewModel
             if (recibo is null) { MostrarError("El recibo no se encontró."); return; }
             try
             {
-                bytes = recibo.EsConsolidadoVouchers
-                    ? await _pdf.GenerarPdfDescargaAsync(recibo.Vouchers.OrderBy(v => v.Numero).ToList(), recibo)
+                var consolidacion = await _recibosRepo.GetConsolidacionByReciboAsync(sel.Id);
+                bytes = consolidacion is not null
+                    ? await _pdf.GenerarPdfDescargaAsync(consolidacion.Vouchers.OrderBy(v => v.Numero).ToList(), recibo)
                     : await _pdf.GenerarPdfReciboAsync(recibo);
             }
             catch (Exception ex) { MostrarError($"No se pudo previsualizar: {ex.Message}"); }

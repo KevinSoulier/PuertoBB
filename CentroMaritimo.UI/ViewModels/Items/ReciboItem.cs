@@ -17,7 +17,6 @@ public class ReciboItem
     public string Cae { get; }
     public string FechaEmision { get; }
     public string FechaVencimiento { get; }
-    public bool Consolidado { get; }
     public EstadoFiscal EstadoFiscal { get; }
     /// <summary>Columna "Estado" (fiscal + cobro): Pendiente / Emitido / Vencido / Pagado / Incobrable / Anulado.</summary>
     public string Estado { get; }
@@ -64,7 +63,6 @@ public class ReciboItem
         NotaCreditoComprobante = r.NotaDeCredito is { } nc ? Formato.Comprobante(nc.PuntoDeVenta, nc.NumeroComprobante) : null;
         FechaEmision = Formato.Fecha(r.FechaEmision);
         FechaVencimiento = Formato.Fecha(r.FechaVencimientoPago);
-        Consolidado = r.EsConsolidadoVouchers;
         EstadoFiscal = r.EstadoFiscal;
         Estado = EstadoReciboHelper.EtiquetaEstado(r, hoy);
         EstadoEnvio = EstadoReciboHelper.EtiquetaEnvio(r);

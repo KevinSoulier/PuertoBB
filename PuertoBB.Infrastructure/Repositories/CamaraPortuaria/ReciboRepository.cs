@@ -62,12 +62,12 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         await GuardarAsync(ct);
     }
 
-    public async Task AnularConNotaAsync(Recibo recibo, Core.Entities.CamaraPortuaria.NotaDeCredito nota, CancellationToken ct = default)
+    public async Task AnularConNotaAsync(Recibo recibo, NotaDeCredito nota, CancellationToken ct = default)
     {
         recibo.EstadoFiscal = Core.Enums.EstadoFiscal.Anulado;
         recibo.UpdatedAt = DateTime.Now;
         nota.CreatedAt = DateTime.Now;
-        _db.Set<Core.Entities.CamaraPortuaria.NotaDeCredito>().Add(nota);
+        _db.Set<NotaDeCredito>().Add(nota);
         await GuardarAsync(ct);
     }
 
