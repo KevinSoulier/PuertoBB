@@ -1169,7 +1169,7 @@ public class ConfiguracionViewModel : PageViewModel
 
         var confirmado = await _dialog.ShowConfirmAsync(
             "Restaurar backup",
-            "Esto reemplazará TODA la base de datos actual con el backup seleccionado.\n\nSe guardará una copia de seguridad de la base actual antes de reemplazarla.\n\nLa aplicación se cerrará al finalizar y deberás reabrirla para continuar.\n\n¿Querés continuar?",
+            "Esto reemplazará TODA la base de datos actual con el backup seleccionado.\n\nSe guardará una copia de seguridad de la base actual antes de reemplazarla.\n\nLa aplicación se reiniciará automáticamente al finalizar.\n\n¿Querés continuar?",
             "Restaurar", "Cancelar");
         if (!confirmado) return;
         await EjecutarOcupadoAsync("Restaurando", async () =>
@@ -1185,12 +1185,25 @@ public class ConfiguracionViewModel : PageViewModel
             var res = await _backup.RestaurarAsync(dlg.FileName);
             if (res.Success)
             {
-                MostrarExito("Base restaurada. Cierre y vuelva a abrir la aplicación.");
-                await Task.Delay(1500);
-                Application.Current.Shutdown();
+                MostrarExito("Base restaurada. Reiniciando la aplicación…");
+                await Task.Delay(1200); // deja ver el snackbar antes de relanzar
+                ReiniciarAplicacion();
             }
             else MostrarError(res.ErrorMessage ?? "No se pudo restaurar el backup.");
         });
+    }
+
+    /// <summary>Relanza el ejecutable y cierra esta instancia para que la app arranque limpia sobre la
+    /// base recién restaurada. Si el relanzado falla, igual se cierra (la base ya quedó restaurada).</summary>
+    private static void ReiniciarAplicacion()
+    {
+        var exe = Environment.ProcessPath; // apphost .exe en producción
+        if (!string.IsNullOrEmpty(exe))
+        {
+            try { Process.Start(new ProcessStartInfo { FileName = exe, UseShellExecute = true }); }
+            catch { /* si no se pudo relanzar, igual cerramos; el usuario reabre a mano */ }
+        }
+        Application.Current.Shutdown();
     }
 
     private void AbrirCarpetaBackups()
