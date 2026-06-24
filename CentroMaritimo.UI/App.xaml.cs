@@ -29,6 +29,10 @@ public partial class App : Application
     private IHost _host = null!;
     private ILogger<App>? _logger;
 
+    /// <summary>Ruta de la base a generar en modo <c>--seed-prod</c> (null = arranque normal).
+    /// Se resuelve antes de construir el host para que la base apunte a esa ruta.</summary>
+    private string? _seedProdPath;
+
     /// <summary>
     /// Usa FakeMailService en lugar de MailKit (no envía correo real).
     /// Configurable en appsettings.json → PuertoBB:MailMockService. Default: false (correo real).
@@ -78,6 +82,9 @@ public partial class App : Application
             AfipMockService = cfg.GetValue("PuertoBB:AfipMockService", false);
             SeedMockData    = cfg.GetValue("PuertoBB:SeedMockData", false);
 
+            // Resuelto antes de construir el host: en modo seed-prod la base apunta a la ruta destino.
+            _seedProdPath = ParseSeedProd(e.Args);
+
             _host = Host.CreateDefaultBuilder()
                 .ConfigureLogging(logging =>
                 {
@@ -89,6 +96,14 @@ public partial class App : Application
                 .Build();
 
             _logger = _host.Services.GetRequiredService<ILogger<App>>();
+
+            // Modo generador de la base de producción (sin abrir la ventana): --seed-prod <ruta.db>.
+            if (_seedProdPath is not null)
+            {
+                await EjecutarSeedProdAsync(_seedProdPath);
+                Shutdown(0);
+                return;
+            }
 
             // Modo generador de datos de stress (sin abrir la ventana): --seed-stress N.
             if (ParseSeedStress(e.Args) is int seedN)
@@ -117,7 +132,7 @@ public partial class App : Application
 
     private void ConfigureServices(IServiceCollection services)
     {
-        var dbPath = Path.Combine(AppDataDir, "centro-maritimo.db");
+        var dbPath = _seedProdPath ?? Path.Combine(AppDataDir, "centro-maritimo.db");
 
         services.AddCentroMaritimoInfrastructure(dbPath);
         services.AddCentroMaritimoServices();
@@ -186,6 +201,7 @@ public partial class App : Application
         if (SeedMockData)
         {
             await SeedData.EnsureSeededAsync(db);
+            await StressSeedData.SeedDatosDemoAsync(db, _logger); // barcos + vouchers de prueba (idempotente)
             // Carga los recibos de prueba una sola vez (si la base no tiene ninguno) para no duplicarlos
             // en cada arranque. El primer inicio con base vacía tarda unos segundos generándolos.
             if (!await db.Recibos.AnyAsync())
@@ -223,6 +239,54 @@ public partial class App : Application
             if (args[i] == "--seed-stress" && int.TryParse(args[i + 1], out var n) && n > 0)
                 return n;
         return null;
+    }
+
+    /// <summary>
+    /// Si los argumentos incluyen "--seed-prod", devuelve la ruta (absoluta) de la base a generar:
+    /// el argumento siguiente si es una ruta, o un default en el Escritorio. Si no está el flag, null.
+    /// </summary>
+    private static string? ParseSeedProd(string[] args)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] != "--seed-prod") continue;
+            var siguiente = i + 1 < args.Length ? args[i + 1] : null;
+            if (!string.IsNullOrWhiteSpace(siguiente) && !siguiente.StartsWith("--"))
+                return Path.GetFullPath(siguiente);
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "centro-maritimo.db");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Genera la base de PRODUCCIÓN para entregar al cliente: migra el esquema y siembra SOLO los datos
+    /// maestros reales (agencias + cuotas + relaciones). No incluye recibos ni datos de prueba (barcos/
+    /// vouchers) ni la identidad fiscal del emisor (la carga el cliente por Configuración). Borra la base
+    /// previa en la ruta destino para que el resultado sea limpio y repetible. Esta app es WinExe: el
+    /// resumen va a <c>seed-prod.txt</c> junto a la base.
+    /// </summary>
+    private async Task EjecutarSeedProdAsync(string rutaBase)
+    {
+        var dir = Path.GetDirectoryName(rutaBase)!;
+        Directory.CreateDirectory(dir);
+        foreach (var f in new[] { rutaBase, rutaBase + "-wal", rutaBase + "-shm" })
+            if (File.Exists(f)) File.Delete(f);
+
+        await using var scope = _host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CentroMaritimoDbContext>();
+        await db.Database.MigrateAsync();
+        await SeedData.EnsureSeededAsync(db); // solo datos maestros reales (sin barcos/vouchers/recibos)
+
+        // La base usa journal_mode=WAL: volcamos el WAL al .db para entregar un único archivo
+        // autocontenido (si no, los datos quedan en el -wal y se pierden al copiar/versionar solo el .db).
+        await db.Database.ExecuteSqlRawAsync("PRAGMA wal_checkpoint(TRUNCATE);");
+
+        var clientes = await db.Clientes.CountAsync();
+        var grupos = await db.Grupos.CountAsync();
+        var resumen = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Seed de producción: {clientes} agencias · {grupos} grupos · base en {rutaBase}";
+        await File.WriteAllTextAsync(Path.Combine(dir, "seed-prod.txt"), resumen);
+        _logger?.LogInformation("{Resumen}", resumen);
     }
 
     /// <summary>Genera datos de stress contra la base real de la app (migra + siembra base + N recibos) y

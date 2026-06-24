@@ -96,5 +96,63 @@ public static class StressSeedData
         return total;
     }
 
+    /// <summary>
+    /// Datos de prueba propios del Centro Marítimo (solo dev/demo, NO van en la base de producción):
+    /// un catálogo de barcos genéricos + vouchers pendientes del mes corriente para probar el cierre
+    /// de período y el PDF consolidado. Requiere que ya estén sembradas las agencias. Idempotente:
+    /// no hace nada si la base ya tiene barcos.
+    /// </summary>
+    public static async Task SeedDatosDemoAsync(CentroMaritimoDbContext db, ILogger? log = null)
+    {
+        if (await db.Barcos.AnyAsync()) return;
+
+        var barcos = new[]
+        {
+            new Barco { Nombre = "Río Paraná", CreatedAt = DateTime.Now },
+            new Barco { Nombre = "Estrella del Sur", CreatedAt = DateTime.Now },
+            new Barco { Nombre = "Cabo Frío", CreatedAt = DateTime.Now },
+            new Barco { Nombre = "Don Pedro", CreatedAt = DateTime.Now },
+            new Barco { Nombre = "Mar Argentino", CreatedAt = DateTime.Now },
+        };
+        db.Barcos.AddRange(barcos);
+        await db.SaveChangesAsync();
+
+        // Vouchers pendientes del mes corriente para probar el cierre de período.
+        // Cada agencia recibe una cantidad distinta, con barcos y fechas variados para que el
+        // PDF consolidado (recibo + N vouchers) muestre páginas claramente diferentes.
+        var agencias = await db.Clientes.ToListAsync();
+        var contador = await db.Contadores.FirstAsync(c => c.Id == 1);
+        var hoy = DateTime.Today;
+        var diasEnMes = DateTime.DaysInMonth(hoy.Year, hoy.Month);
+        var rnd = new Random(7);
+        int[] cantidades = [3, 2, 4];
+        for (var ai = 0; ai < agencias.Count; ai++)
+        {
+            var a = agencias[ai];
+            var cantidad = cantidades[ai % cantidades.Length];
+
+            var barcosAgencia = barcos.OrderBy(_ => rnd.Next()).Take(cantidad).ToList();
+            var dias = Enumerable.Range(1, diasEnMes).OrderBy(_ => rnd.Next()).Take(cantidad).OrderBy(d => d).ToList();
+
+            for (var i = 0; i < cantidad; i++)
+            {
+                contador.UltimoNumero++;
+                db.Vouchers.Add(new Voucher
+                {
+                    ClienteId = a.Id,
+                    BarcoId = barcosAgencia[i].Id,
+                    Numero = contador.UltimoNumero,
+                    Importe = rnd.Next(50, 200) * 1000m,
+                    Fecha = new DateTime(hoy.Year, hoy.Month, dias[i]),
+                    PeriodoAnio = hoy.Year,
+                    PeriodoMes = hoy.Month,
+                    CreatedAt = DateTime.Now
+                });
+            }
+        }
+        await db.SaveChangesAsync();
+        log?.LogInformation("Seed demo Centro: {Barcos} barcos + vouchers del período {Mes}/{Anio}.", barcos.Length, hoy.Month, hoy.Year);
+    }
+
     private static DateTime Menor(DateTime a, DateTime b) => a < b ? a : b;
 }

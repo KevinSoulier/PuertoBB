@@ -46,16 +46,6 @@ public static class SeedData
             /*12 */ Crear("United Seas",                "United Seas S.R.L.",                                    "30647178908", "leticia.alza@moggia.com.ar", "sandra.mishevitch@unitedseas.com.ar"),
         };
         db.Clientes.AddRange(agencias);
-
-        var barcos = new[]
-        {
-            new Barco { Nombre = "Río Paraná", CreatedAt = DateTime.Now },
-            new Barco { Nombre = "Estrella del Sur", CreatedAt = DateTime.Now },
-            new Barco { Nombre = "Cabo Frío", CreatedAt = DateTime.Now },
-            new Barco { Nombre = "Don Pedro", CreatedAt = DateTime.Now },
-            new Barco { Nombre = "Mar Argentino", CreatedAt = DateTime.Now },
-        };
-        db.Barcos.AddRange(barcos);
         await db.SaveChangesAsync();
 
         // Cuota Social: todos excepto Donmar (índice 6)
@@ -66,39 +56,9 @@ public static class SeedData
         foreach (var idx in new[] { 1, 2, 3, 6, 7, 8, 10 })
             db.ClientesGrupos.Add(new ClienteGrupo { ClienteId = agencias[idx].Id, GrupoFacturacionId = grupoTablas.Id, CreatedAt = DateTime.Now });
 
-        // Vouchers pendientes del mes corriente para probar el cierre de período.
-        // Cada agencia recibe una cantidad distinta, con barcos y fechas variados para que el
-        // PDF consolidado (recibo + N vouchers) muestre páginas claramente diferentes.
-        var contador = await db.Contadores.FirstAsync(c => c.Id == 1);
-        var hoy = DateTime.Today;
-        var diasEnMes = DateTime.DaysInMonth(hoy.Year, hoy.Month);
-        var rnd = new Random(7);
-        int[] cantidades = [3, 2, 4];
-        for (var ai = 0; ai < agencias.Length; ai++)
-        {
-            var a = agencias[ai];
-            var cantidad = cantidades[ai % cantidades.Length];
-
-            var barcosAgencia = barcos.OrderBy(_ => rnd.Next()).Take(cantidad).ToList();
-            var dias = Enumerable.Range(1, diasEnMes).OrderBy(_ => rnd.Next()).Take(cantidad).OrderBy(d => d).ToList();
-
-            for (var i = 0; i < cantidad; i++)
-            {
-                contador.UltimoNumero++;
-                db.Vouchers.Add(new Voucher
-                {
-                    ClienteId = a.Id,
-                    BarcoId = barcosAgencia[i].Id,
-                    Numero = contador.UltimoNumero,
-                    Importe = rnd.Next(50, 200) * 1000m,
-                    Fecha = new DateTime(hoy.Year, hoy.Month, dias[i]),
-                    PeriodoAnio = hoy.Year,
-                    PeriodoMes = hoy.Month,
-                    CreatedAt = DateTime.Now
-                });
-            }
-        }
         await db.SaveChangesAsync();
+        // Los barcos y vouchers de prueba viven en StressSeedData.SeedDatosDemoAsync (solo dev/demo);
+        // la base de producción no los lleva.
     }
 
     private static Cliente Crear(string nombre, string razon, string cuit, params string[] emails) => new()
@@ -108,8 +68,7 @@ public static class SeedData
         Cuit = cuit,
         CondicionIvaId = 1, // IVA Responsable Inscripto (dato demo; verificar con "Validar CUIT en ARCA")
         CreatedAt = DateTime.Now,
-        // TEMPORAL — revertir tras probar envío de mails: todos los recibos van a kevsoulier@gmail.com
-        Emails = [new EmailCliente { Email = "kevsoulier@gmail.com", CreatedAt = DateTime.Now }]
+        Emails = emails.Select(e => new EmailCliente { Email = e, CreatedAt = DateTime.Now }).ToList()
     };
 
     private static GrupoFacturacionLinea Linea(string descripcion, decimal cantidad, decimal precioUnitario, int orden) => new()

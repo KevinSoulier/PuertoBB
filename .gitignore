@@ -489,3 +489,7 @@ camara-portuaria.db
 centro-maritimo.db
 *.db-shm
 *.db-wal
+
+# Excepción: bases semilla de handoff versionadas a propósito (datos maestros reales, sin recibos)
+!seed/camara-portuaria.db
+!seed/centro-maritimo.db

@@ -12,10 +12,10 @@ public static class SeedData
 {
     /// <summary>
     /// Si tiene valor, TODOS los socios se siembran con este único email — útil para
-    /// probar envíos masivos sin escribir a las empresas reales. Poner en null para
-    /// usar los emails reales de cada socio (los que figuran en cada Crear(...)).
+    /// probar envíos masivos sin escribir a las empresas reales. En null (producción)
+    /// usa los emails reales de cada socio (los que figuran en cada Crear(...)).
     /// </summary>
-    private static readonly string? EmailPruebas = "kevsoulier@gmail.com";
+    private static readonly string? EmailPruebas = null;
 
     public static async Task EnsureSeededAsync(CamaraPortuariaDbContext db)
     {
