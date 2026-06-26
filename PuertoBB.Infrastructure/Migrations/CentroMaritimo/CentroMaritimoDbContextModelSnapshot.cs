@@ -99,7 +99,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                         {
                             Id = 1,
                             CodigoAfipNotaDeCredito = 13,
-                            CodigoAfipRecibo = 11,
+                            CodigoAfipRecibo = 15,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 15,
@@ -123,6 +123,9 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("Individual")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("Pendiente")
                         .HasColumnType("INTEGER");
 
@@ -145,7 +148,7 @@ namespace PuertoBB.Infrastructure.Migrations.CentroMaritimo
 
                     b.HasIndex("ClienteId", "PeriodoAnio", "PeriodoMes")
                         .IsUnique()
-                        .HasFilter("\"Pendiente\" = 1");
+                        .HasFilter("\"Pendiente\" = 1 AND \"Individual\" = 0");
 
                     b.ToTable("Consolidaciones", (string)null);
                 });

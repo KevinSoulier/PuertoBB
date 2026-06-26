@@ -78,12 +78,6 @@
                 <WrapPanel Margin="0,0,0,8">
                     <TextBlock Text="{Binding TextoBotonGuardar, StringFormat='{}  {0} voucher'}"
                                FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,8" />
-                    <ui:Button Content="Cancelar" Command="{Binding CancelarEdicionCommand}"
-                               Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
-                               ToolTip="Cancelar la edición en curso"
-                               Visibility="{Binding ModoEdicion, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
-                    </ui:Button>
                 </WrapPanel>
                 <WrapPanel>
                     <!-- Altura uniforme de inputs (32px) provista por los estilos globales en Styles.xaml -->
@@ -144,6 +138,13 @@
                                Margin="0,0,8,8" VerticalAlignment="Bottom"
                                ToolTip="Guardar el voucher">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                    </ui:Button>
+                    <ui:Button Content="Cancelar" Command="{Binding CancelarEdicionCommand}"
+                               Style="{StaticResource AccionIconButton}"
+                               Margin="0,0,8,8" VerticalAlignment="Bottom"
+                               ToolTip="Cancelar la edición en curso"
+                               Visibility="{Binding ModoEdicion, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
                     </ui:Button>
                 </WrapPanel>
                 <TextBlock Text="* Barco nuevo: si el nombre no existe se crea automáticamente."

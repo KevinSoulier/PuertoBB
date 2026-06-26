@@ -131,7 +131,10 @@ public class VoucherService : IVoucherService
                                     v.Barco?.Nombre ?? $"#{v.BarcoId}",
                                     v.Fecha, v.Importe,
                                     Libre: v.ConsolidacionId is null,
-                                    NumeroComprobante: v.Consolidacion?.Recibo is { NumeroComprobante: > 0 } ? v.Consolidacion.Recibo.NumeroComprobante : null))
+                                    NumeroComprobante: v.Consolidacion?.Recibo is { NumeroComprobante: > 0 } ? v.Consolidacion.Recibo.NumeroComprobante : null,
+                                    ReciboId: v.Consolidacion?.ReciboId,
+                                    Emitido: v.Consolidacion?.Recibo is { EstadoFiscal: EstadoFiscal.Emitido },
+                                    EsIndividual: v.Consolidacion?.Individual ?? false))
                                 .ToList();
 
                 return new ClienteCierrePeriodoVm

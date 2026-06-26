@@ -71,7 +71,7 @@ namespace PuertoBB.Infrastructure.Migrations.CamaraPortuaria
                         {
                             Id = 1,
                             CodigoAfipNotaDeCredito = 13,
-                            CodigoAfipRecibo = 11,
+                            CodigoAfipRecibo = 15,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Cuit = "",
                             DiasVencimiento = 15,

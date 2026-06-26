@@ -17,7 +17,7 @@ public class ConfiguracionConfiguration : IEntityTypeConfiguration<Configuracion
             Id = 1,
             RazonSocial = string.Empty,
             Cuit = string.Empty,
-            CodigoAfipRecibo = 11,
+            CodigoAfipRecibo = 15,
             CodigoAfipNotaDeCredito = 13,
             DiasVencimiento = 15,
             MailAsunto = PlantillaMail.DefaultAsunto,

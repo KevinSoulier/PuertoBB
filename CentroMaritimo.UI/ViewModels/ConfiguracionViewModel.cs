@@ -521,6 +521,7 @@ public class ConfiguracionViewModel : PageViewModel
         _ => // Otro / Personalizado
             "Otro proveedor (configuración manual).\n\n" +
             "Usá Autenticación «Básica» con el host/puerto del proveedor y, como contraseña, una contraseña de aplicación o una API key. Ejemplos:\n" +
+            "   • Dominio propio / hosting (cPanel/Plesk): mail.tudominio.com : 465 (SSL/TLS) o 587 (Auto). Usuario = tu email completo; contraseña = la del buzón. Ojo: el mismo servidor recibe (POP3/IMAP) y envía (SMTP); para enviar usá el puerto SMTP, no el de recepción (110/143/993/995).\n" +
             "   • Gmail: smtp.gmail.com : 587 (contraseña de aplicación)\n" +
             "   • Yahoo: smtp.mail.yahoo.com : 465\n" +
             "   • iCloud: smtp.mail.me.com : 587\n" +

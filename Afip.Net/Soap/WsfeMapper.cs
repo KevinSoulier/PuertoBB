@@ -121,14 +121,25 @@ public static class WsfeMapper
     }
 
     /// <summary>
+    /// Lanza si AFIP devolvió errores reales (cualquier código distinto de 602 "sin datos"). AFIP responde
+    /// HTTP 200 con el error dentro del body, así que hay que mirar <c>Errors</c> explícitamente. Lo
+    /// comparten las tablas FEParamGet* y FECompUltimoAutorizado: si este último no lo chequeara, el
+    /// diagnóstico "Probar conexión" daría un falso OK ante un 600 (ValidacionDeToken).
+    /// </summary>
+    public static void LanzarSiHayError(Err[]? errors)
+    {
+        if (errors is { Length: > 0 } && errors.Any(e => e.Code != 602))
+            throw new InvalidOperationException(string.Join(" · ", errors.Select(e => $"[{e.Code}] {e.Msg}")));
+    }
+
+    /// <summary>
     /// Criterio común de las tablas FEParamGet*: sin resultados + sin errores (o solo 602 "sin datos")
     /// → lista vacía; cualquier otro error → excepción con "[código] mensaje" (el caller decide).
     /// </summary>
     private static T[] ResultadoOVacio<T>(T[]? resultGet, Err[]? errors)
     {
         if (resultGet is { Length: > 0 }) return resultGet;
-        if (errors is { Length: > 0 } && errors.Any(e => e.Code != 602))
-            throw new InvalidOperationException(string.Join(" · ", errors.Select(e => $"[{e.Code}] {e.Msg}")));
+        LanzarSiHayError(errors);
         return [];
     }
 

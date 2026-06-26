@@ -70,4 +70,11 @@ public class VoucherRepository : RepositoryBase<Voucher>, IVoucherRepository
             .Include(v => v.Cliente)
             .Include(v => v.Barco)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
+
+    public Task<Voucher?> GetByIdConEstadoAsync(int id, CancellationToken ct = default)
+        => _db.Vouchers.AsNoTracking()
+            .Include(v => v.Cliente)
+            .Include(v => v.Barco)
+            .Include(v => v.Consolidacion).ThenInclude(c => c!.Recibo)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
 }

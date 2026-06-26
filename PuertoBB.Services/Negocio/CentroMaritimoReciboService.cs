@@ -215,6 +215,88 @@ public class CentroMaritimoReciboService : ICentroMaritimoReciboService
         }
     }
 
+    public async Task<ServiceResult<ResultadoEmisionPorCliente>> EmitirVoucherAsync(int voucherId, bool enviarMail, CancellationToken ct = default)
+    {
+        var config = await _config.GetAsync(ct);
+        if (config.PuntoDeVentaActivo is null)
+            return ServiceResult<ResultadoEmisionPorCliente>.Fail("Configure un punto de venta activo en Configuración.");
+
+        var voucher = await _vouchers.GetByIdConEstadoAsync(voucherId, ct);
+        if (voucher is null) return ServiceResult<ResultadoEmisionPorCliente>.Fail("El voucher no existe.");
+        var nombreCliente = voucher.Cliente?.Nombre ?? $"#{voucher.ClienteId}";
+
+        // Ya vinculado a un recibo (emisión individual previa, o parte de un consolidado).
+        if (voucher.Consolidacion is { } cons)
+        {
+            if (!cons.Individual)
+                return ServiceResult<ResultadoEmisionPorCliente>.Fail(
+                    "El voucher forma parte de un recibo consolidado: gestionalo desde el recibo consolidado.");
+
+            var reciboExistente = cons.Recibo;
+            if (!string.IsNullOrEmpty(reciboExistente.CAE))
+            {
+                // Ya emitido (con CAE). "Emitir y enviar" = solo enviar; "Emitir" = ya emitido (omitido).
+                if (!enviarMail)
+                    return ServiceResult<ResultadoEmisionPorCliente>.Ok(
+                        ResultadoEmisionPorCliente.Omitida(voucher.ClienteId, nombreCliente, "El voucher ya fue emitido."));
+
+                var envio = await ReenviarMailAsync(reciboExistente.Id, ct);
+                return envio.Success
+                    ? ServiceResult<ResultadoEmisionPorCliente>.Ok(
+                        ResultadoEmisionPorCliente.Ok(voucher.ClienteId, nombreCliente, reciboExistente.NumeroComprobante))
+                    : ServiceResult<ResultadoEmisionPorCliente>.Fail(envio.ErrorMessage ?? "No se pudo enviar el mail del recibo.");
+            }
+
+            // Recibo sin CAE (una emisión individual previa que falló): reintentar (idempotente).
+            return await ReintentarAsync(reciboExistente.Id, enviarMail, ct);
+        }
+
+        // Voucher libre → recibo individual nuevo (consolidación de UN voucher, Individual = true).
+        var agencia = await _agencias.GetConDetalleAsync(voucher.ClienteId, ct);
+        if (agencia is null) return ServiceResult<ResultadoEmisionPorCliente>.Fail("La agencia no existe.");
+
+        try
+        {
+            var importe = Round2(voucher.Importe);
+            var recibo = ConstruirRecibo(agencia, null, importe, $"Voucher Nro: {voucher.Numero}", voucher.PeriodoAnio, voucher.PeriodoMes, config);
+            recibo.EstadoFiscal = EstadoFiscal.Pendiente;
+            recibo.Lineas =
+            [
+                new ReciboLinea
+                {
+                    Descripcion    = $"Voucher {voucher.Numero} — {voucher.Barco?.Nombre ?? $"#{voucher.BarcoId}"} — {Formato.Fecha(voucher.Fecha)}",
+                    Cantidad       = 1,
+                    PrecioUnitario = voucher.Importe,
+                    Importe        = importe,
+                    Orden          = 0
+                }
+            ];
+
+            // Consolidación de un solo voucher: Individual = true la deja fuera del índice único parcial
+            // y del reintento del consolidado, pero reutiliza todo el flujo (CAE, mail, anulación, edición).
+            var consolidacion = new Consolidacion
+            {
+                Recibo      = recibo,
+                ClienteId   = agencia.Id,
+                PeriodoAnio = voucher.PeriodoAnio,
+                PeriodoMes  = voucher.PeriodoMes,
+                Pendiente   = true,
+                Individual  = true
+            };
+            await _recibos.AddConsolidacionConVouchersAsync(consolidacion, [voucher.Id], ct);
+
+            // Igual que EmitirIndividualAsync/ReintentarAsync: el resultado (con Exito true/false) viaja
+            // envuelto en Ok; un fallo de CAE no es un fallo del servicio, queda Pendiente y reintentable.
+            var resultado = await ProcesarReciboAsync(recibo, agencia, config, enviarMail, forzarEnvio: false, consolidacion, ct);
+            return ServiceResult<ResultadoEmisionPorCliente>.Ok(resultado);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al emitir voucher individual Voucher={VoucherId}", voucherId);
+            return ServiceResult<ResultadoEmisionPorCliente>.Fail(ex.Message);
+        }
+    }
+
     public async Task<ServiceResult<IReadOnlyList<string>>> GetDuplicadosAsync(int grupoId, int anio, int mes, CancellationToken ct = default)
     {
         var grupo = await _grupos.GetConMiembrosAsync(grupoId, ct);

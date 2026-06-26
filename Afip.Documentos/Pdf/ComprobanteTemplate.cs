@@ -53,9 +53,7 @@ internal class ComprobanteTemplate : IDocument
                 if (_doc.Emisor.LogoPng is { Length: > 0 })
                     col.Item().Height(45).AlignLeft().Image(_doc.Emisor.LogoPng).FitHeight();
 
-                col.Item().Text(_doc.Emisor.RazonSocial).FontSize(11).Bold().FontColor(Negro);
-
-                col.Item().PaddingTop(2).Text(t =>
+                col.Item().PaddingTop(6).Text(t =>
                 {
                     t.Span("Razón Social: ").FontColor(Gris);
                     t.Span(_doc.Emisor.RazonSocial);

@@ -188,6 +188,30 @@ public class MailConfigValidarTests
     public void Basica_ConUsuario_Ok() =>
         Assert.Null((Base(MailAutenticacion.Basica) with { SmtpUsuario = "info@x.com" }).Validar());
 
+    [Theory]
+    [InlineData(110)]
+    [InlineData(143)]
+    [InlineData(993)]
+    [InlineData(995)]
+    public void PuertoDeRecepcion_Falla(int puerto) =>
+        Assert.NotNull((Base(MailAutenticacion.Basica) with { SmtpUsuario = "info@x.com", SmtpPort = puerto }).Validar());
+
+    [Theory]
+    [InlineData(25)]
+    [InlineData(465)]
+    [InlineData(587)]
+    [InlineData(2525)]
+    public void PuertoDeEnvio_NoLoBloquea(int puerto) =>
+        Assert.Null((Base(MailAutenticacion.Basica) with { SmtpUsuario = "info@x.com", SmtpPort = puerto }).Validar());
+
+    [Fact]
+    public void AdvertenciaPuertoSmtp_995_MencionaRecepcion() =>
+        Assert.Contains("recepción", MailConfig.AdvertenciaPuertoSmtp(995));
+
+    [Fact]
+    public void AdvertenciaPuertoSmtp_465_EsNull() =>
+        Assert.Null(MailConfig.AdvertenciaPuertoSmtp(465));
+
     [Fact]
     public void OAuth2_SinClientId_Falla() =>
         Assert.NotNull(Base(MailAutenticacion.OAuth2).Validar());
@@ -270,6 +294,20 @@ public class MailServiceProbarConexionTests
 
         Assert.False(res.Success);
         await provider.DidNotReceive().GetAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProbarConexion_PuertoDeRecepcion_FallaSinTocarLaRed()
+    {
+        var svc = new MailService(
+            Substitute.For<IMailConfigProvider>(), Substitute.For<IMailTokenProvider>(), NullLogger<MailService>.Instance);
+
+        // Host y remitente válidos, pero puerto 995 (POP3S) → corta antes de conectar.
+        var res = await svc.ProbarConexionAsync(
+            new MailConfig { SmtpHost = "mail.x.com", EmailRemitente = "a@x.com", SmtpPort = 995 });
+
+        Assert.False(res.Success);
+        Assert.Contains("recepción", res.ErrorMessage);
     }
 
     [Fact]

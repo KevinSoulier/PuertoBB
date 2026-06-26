@@ -22,6 +22,16 @@ public interface ICentroMaritimoReciboService
     /// <paramref name="progreso"/> recibe el avance por agencia para el overlay de espera.</summary>
     Task<ServiceResult<IReadOnlyList<ResultadoCierrePorCliente>>> EmitirRecibosPeriodoAsync(int anio, int mes, IProgress<ProgresoMasivo>? progreso = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Emite UN voucher en su propio recibo (facturación individual por voucher), modelado como una
+    /// consolidación de uno solo (<c>Individual = true</c>). Cubre los tres botones de la ventana de
+    /// cierre: si el voucher está libre genera el recibo (CAE); si <paramref name="enviarMail"/> es true
+    /// además lo envía ("Emitir y enviar"). Si el voucher ya está emitido y <paramref name="enviarMail"/>
+    /// es true, solo reenvía; si es false se OMITE (ya emitido). Si una emisión previa quedó Pendiente,
+    /// reintenta. Rechaza vouchers que forman parte de un recibo consolidado.
+    /// </summary>
+    Task<ServiceResult<ResultadoEmisionPorCliente>> EmitirVoucherAsync(int voucherId, bool enviarMail, CancellationToken ct = default);
+
     /// <summary>Clientes del grupo que YA tienen recibo en el período.</summary>
     Task<ServiceResult<IReadOnlyList<string>>> GetDuplicadosAsync(int grupoId, int anio, int mes, CancellationToken ct = default);
 

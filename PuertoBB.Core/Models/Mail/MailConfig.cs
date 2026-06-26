@@ -35,12 +35,23 @@ public record MailConfig
     public bool EstaConfigurado =>
         !string.IsNullOrWhiteSpace(SmtpHost) && !string.IsNullOrWhiteSpace(EmailRemitente);
 
+    /// <summary>Puertos de recepción (POP3/IMAP, con y sin SSL). No sirven para enviar.</summary>
+    private static readonly int[] PuertosDeRecepcion = { 110, 143, 993, 995 };
+
+    /// <summary>Si <paramref name="puerto"/> es un puerto de recepción (POP3/IMAP) devuelve un mensaje
+    /// accionable; si no, null. Ataja el error típico de pegar el puerto de entrada en la config de envío.</summary>
+    public static string? AdvertenciaPuertoSmtp(int puerto) =>
+        Array.IndexOf(PuertosDeRecepcion, puerto) >= 0
+            ? $"El puerto {puerto} es de recepción (POP3/IMAP), no de envío. Para enviar correo usá un puerto SMTP: 465 (SSL/TLS) o 587 (Auto)."
+            : null;
+
     /// <summary>Valida la configuración según el modo de autenticación. Devuelve null si es válida,
     /// o un mensaje accionable para mostrar en la UI.</summary>
     public string? Validar()
     {
         if (string.IsNullOrWhiteSpace(SmtpHost))       return "Indicá el servidor SMTP.";
         if (string.IsNullOrWhiteSpace(EmailRemitente)) return "Indicá el email remitente.";
+        if (AdvertenciaPuertoSmtp(SmtpPort) is { } advPuerto) return advPuerto;
 
         switch (Autenticacion)
         {

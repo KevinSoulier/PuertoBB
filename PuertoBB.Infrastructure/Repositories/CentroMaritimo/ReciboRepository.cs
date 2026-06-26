@@ -81,20 +81,23 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
         await GuardarAsync(ct);
     }
 
+    // Un recibo por voucher (Individual) no cuenta como "consolidado" de la agencia.
     public Task<bool> ExisteConsolidadoAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
         => _db.Consolidaciones.AnyAsync(c =>
+            !c.Individual &&
             c.ClienteId == agenciaId &&
             c.PeriodoAnio == anio &&
             c.PeriodoMes == mes &&
             c.Recibo.EstadoFiscal != EstadoFiscal.Anulado, ct);
 
+    // El reintento del consolidado ignora los recibos por voucher (Individual): no son work-in-progress del consolidado.
     public Task<Consolidacion?> GetConsolidacionPendienteAsync(int agenciaId, int anio, int mes, CancellationToken ct = default)
         => _db.Consolidaciones
             .Include(c => c.Recibo).ThenInclude(r => r.Cliente).ThenInclude(a => a.Emails)
             .Include(c => c.Recibo).ThenInclude(r => r.Lineas)
             .Include(c => c.Vouchers).ThenInclude(v => v.Barco)
             .FirstOrDefaultAsync(c => c.ClienteId == agenciaId && c.PeriodoAnio == anio &&
-                                      c.PeriodoMes == mes && c.Pendiente, ct);
+                                      c.PeriodoMes == mes && c.Pendiente && !c.Individual, ct);
 
     public Task<Consolidacion?> GetConsolidacionByReciboAsync(int reciboId, CancellationToken ct = default)
         => _db.Consolidaciones
@@ -103,7 +106,7 @@ public class ReciboRepository : RepositoryBase<Recibo>, IReciboRepository
 
     public Task<IReadOnlyList<int>> GetClientesConConsolidacionPendienteAsync(int anio, int mes, CancellationToken ct = default)
         => _db.Consolidaciones
-            .Where(c => c.Pendiente && c.PeriodoAnio == anio && c.PeriodoMes == mes)
+            .Where(c => c.Pendiente && !c.Individual && c.PeriodoAnio == anio && c.PeriodoMes == mes)
             .Select(c => c.ClienteId)
             .Distinct()
             .ToListAsync(ct)

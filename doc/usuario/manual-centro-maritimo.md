@@ -75,6 +75,29 @@ complementario), cada uno con sus botones de previsualizar, descargar y enviar p
 > Usá la anulación (abajo) solo si necesitás **corregir o eliminar** vouchers que ya estaban
 > en el recibo, no para agregar uno nuevo.
 
+## Facturar cada voucher por separado (recibo por voucher)
+
+Si una agencia pide un recibo **por cada voucher** (en vez del consolidado), en **Cierre de
+período**, dentro del detalle de la agencia, cada fila de voucher tiene tres botones:
+
+- **Ver PDF** — el recibo (con CAE + QR) si ese voucher ya está emitido; el PDF del voucher si
+  todavía está libre.
+- **Emitir** — genera el recibo AFIP **de ese voucher solo**, sin mandar mail.
+- **Emitir y Enviar** — si no está emitido, lo emite y lo manda; si **ya está emitido**, solo
+  **reenvía** el mail.
+
+No hay que configurar nada por agencia: vos decidís voucher por voucher. Cada recibo individual es
+independiente y tiene su propio número de comprobante.
+
+> **Ojo con los botones masivos.** "Emitir recibos" y "Cerrar período" **consolidan** los vouchers
+> que sigan **libres**. Para una agencia que factura por voucher, emití cada voucher
+> individualmente **antes** de usar los botones masivos (una vez emitido, el voucher deja de estar
+> libre y el masivo ya no lo toca).
+
+**¿Te equivocaste en un voucher ya emitido?** Anulá su recibo desde **Recibos**
+(`Anular` / `Anular y enviar`): se emite la nota de crédito, el voucher se **libera** y vuelve a ser
+editable. Corregilo en **Vouchers** y volvé a emitirlo con el botón **Emitir** del cierre.
+
 ## Anular un consolidado y reemitir el período
 
 1. En **Recibos**, anular el consolidado → se emite la **nota de crédito** y los vouchers

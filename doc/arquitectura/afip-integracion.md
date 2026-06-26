@@ -58,6 +58,13 @@ Investigación técnica para PuertoBB. Entidades exentas de IVA, emiten Recibo C
 - Ventana `generationTime` / `expirationTime`: 10 minutos (AFIP acepta tolerancia de ±24 hs)
 - El Ticket de Acceso resultante dura **12 horas**
 
+> **CUIT de la empresa, no de quien gestiona el alta.** El `source` DN del TRA
+> (`serialNumber=CUIT <empresa>`) y el *Representado* de la relación del web service llevan el **CUIT de la
+> empresa emisora**, con independencia de quién genere el certificado y autorice el servicio: el alta puede
+> hacerla el administrador de relaciones **o un subadministrador de relaciones** (actúan de forma
+> indistinta). El camino del subadministrador **no altera el flujo WSAA/WSFE ni los campos de
+> `AfipOptions`/`Configuracion`**: el `CUIT` emisor y el certificado siguen siendo los de la empresa.
+
 ### 2. Firmar con CMS PKCS#7 (SHA1+RSA)
 
 ```csharp

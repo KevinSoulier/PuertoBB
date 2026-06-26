@@ -245,13 +245,16 @@ public class CentroMaritimoPdfService : ICentroMaritimoPdfService
     {
         e.BorderBottom(2).BorderColor(_theme.Acento).PaddingBottom(8).Row(row =>
         {
+            // El logo horizontal ya incluye el texto "Centro Marítimo Bahía Blanca";
+            // el bloque de texto queda solo como fallback si el logo no carga.
             if (logo is { Length: > 0 })
-                row.ConstantItem(58).AlignMiddle().Image(logo).FitWidth();
-            row.RelativeItem().PaddingLeft(12).AlignMiddle().Column(col =>
-            {
-                col.Item().Text("CENTRO MARÍTIMO").FontSize(15).Bold().FontColor(_theme.Acento);
-                col.Item().Text("BAHÍA BLANCA").FontSize(11).SemiBold().FontColor(_theme.Acento);
-            });
+                row.RelativeItem().Height(50).AlignLeft().AlignMiddle().Image(logo).FitHeight();
+            else
+                row.RelativeItem().AlignMiddle().Column(col =>
+                {
+                    col.Item().Text("CENTRO MARÍTIMO").FontSize(15).Bold().FontColor(_theme.Acento);
+                    col.Item().Text("BAHÍA BLANCA").FontSize(11).SemiBold().FontColor(_theme.Acento);
+                });
             row.ConstantItem(140).AlignMiddle().Column(col =>
             {
                 col.Item().AlignRight().Text("Voucher / Comprobante").FontSize(8).FontColor(_theme.TextoSecundario);

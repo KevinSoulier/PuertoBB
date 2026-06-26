@@ -28,10 +28,21 @@ public record ClienteCierrePeriodoVm
 /// <summary>Un recibo consolidado de la agencia en el período (con su número y estado), para listar/operar por recibo.</summary>
 public record ConsolidadoCierreVm(int ReciboId, long NumeroComprobante, decimal Importe, int CantVouchers, EstadoCierreCliente Estado);
 
-public record VoucherCierreVm(int Id, int Numero, string Barco, DateTime Fecha, decimal Importe, bool Libre, long? NumeroComprobante)
+/// <param name="ReciboId">Recibo de su consolidación, si el voucher ya está vinculado a uno (null = libre).</param>
+/// <param name="Emitido">El recibo del voucher ya tiene CAE (EstadoFiscal = Emitido).</param>
+/// <param name="EsIndividual">El voucher se facturó por sí solo (Consolidacion.Individual), no en un consolidado.</param>
+public record VoucherCierreVm(
+    int Id, int Numero, string Barco, DateTime Fecha, decimal Importe, bool Libre, long? NumeroComprobante,
+    int? ReciboId = null, bool Emitido = false, bool EsIndividual = false)
 {
     /// <summary>Texto para la columna "Comprobante" de la sublista: Libre / Pendiente / N° de comprobante.</summary>
     public string ComprobanteTexto => Libre ? "Libre" : NumeroComprobante is > 0 ? $"N° {NumeroComprobante}" : "Pendiente";
+
+    /// <summary>"Emitir" (sin mail) aplica a un voucher libre o a una emisión individual previa que quedó pendiente.</summary>
+    public bool PuedeEmitir => Libre || (EsIndividual && !Emitido);
+
+    /// <summary>"Emitir y enviar" aplica a un voucher libre o a cualquier emisión individual (pendiente → emite+envía; emitida → solo envía).</summary>
+    public bool PuedeEmitirYEnviar => Libre || EsIndividual;
 }
 
 public enum EstadoCierreCliente

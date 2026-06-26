@@ -38,6 +38,8 @@ public class MailService : IMailService
         var config = await _configProvider.GetAsync(ct);
         if (!config.EstaConfigurado)
             return ServiceResult<bool>.Fail("El servidor de correo (SMTP) no está configurado.");
+        if (MailConfig.AdvertenciaPuertoSmtp(config.SmtpPort) is { } advPuerto)
+            return ServiceResult<bool>.Fail(advPuerto);
 
         // Remitente: validar formato antes de armar el mensaje (evita el críptico "Invalid addr-spec").
         if (!MailboxAddress.TryParse(config.EmailRemitente?.Trim(), out var fromAddress))
@@ -98,6 +100,8 @@ public class MailService : IMailService
     {
         if (!config.EstaConfigurado)
             return ServiceResult<string>.Fail("Configure el servidor y el email remitente antes de probar.");
+        if (MailConfig.AdvertenciaPuertoSmtp(config.SmtpPort) is { } advPuerto)
+            return ServiceResult<string>.Fail(advPuerto);
         if (!MailboxAddress.TryParse(config.EmailRemitente?.Trim(), out _))
             return ServiceResult<string>.Fail(
                 $"El email remitente «{config.EmailRemitente}» no tiene un formato válido. Corregilo en Configuración → Correo.");
@@ -150,6 +154,8 @@ public class MailService : IMailService
     {
         SmtpSeguridad.SslOnConnect => SecureSocketOptions.SslOnConnect,
         SmtpSeguridad.None         => SecureSocketOptions.None,
-        _                          => SecureSocketOptions.StartTlsWhenAvailable
+        // Auto: MailKit elige solo (465 → SSL implícito; 587/25 → STARTTLS). Cubre 465 y 587 sin que
+        // el usuario tenga que acertar el combo de seguridad.
+        _                          => SecureSocketOptions.Auto
     };
 }

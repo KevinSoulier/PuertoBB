@@ -8,12 +8,12 @@ namespace PuertoBB.Core.Entities.CentroMaritimo;
 /// esta entidad es la única que vincula vouchers + período + recibo, igual que <see cref="EmisionGrupo"/>
 /// hace con los grupos. Al borrar el recibo Pendiente, esta fila cascadea y los vouchers quedan libres.
 ///
-/// Índice único parcial (ClienteId, PeriodoAnio, PeriodoMes) WHERE Pendiente: un solo consolidado
-/// "work in progress" (sin CAE) por agencia/período, pero permite COMPLEMENTARIOS (cada uno con su CAE)
-/// cuando aparecen vouchers olvidados después de emitir. <see cref="Pendiente"/> está denormalizado
-/// (lo mantiene el servicio en sync con el EstadoFiscal del recibo) porque SQLite exige columnas de la
-/// misma tabla en el filtro del índice. ClienteId/PeriodoAnio/PeriodoMes están denormalizados y deben
-/// coincidir con el Recibo (invariante garantizado por el servicio de cierre).
+/// Índice único parcial (ClienteId, PeriodoAnio, PeriodoMes) WHERE Pendiente AND NOT Individual: un solo
+/// consolidado "work in progress" (sin CAE) por agencia/período, pero permite COMPLEMENTARIOS (cada uno
+/// con su CAE) cuando aparecen vouchers olvidados después de emitir. <see cref="Pendiente"/> está
+/// denormalizado (lo mantiene el servicio en sync con el EstadoFiscal del recibo) porque SQLite exige
+/// columnas de la misma tabla en el filtro del índice. ClienteId/PeriodoAnio/PeriodoMes están
+/// denormalizados y deben coincidir con el Recibo (invariante garantizado por el servicio de cierre).
 /// </summary>
 public class Consolidacion : BaseEntity
 {
@@ -27,6 +27,11 @@ public class Consolidacion : BaseEntity
     /// <summary>Espejo de "el recibo sigue Pendiente (sin CAE)": denormalizado para el índice único parcial.
     /// El servicio lo pone en false al obtener el CAE y al anular.</summary>
     public bool Pendiente { get; set; } = true;
+
+    /// <summary>true = recibo por voucher (consolidación de UNO solo, emisión individual). Estas filas
+    /// quedan FUERA del índice único parcial (puede haber varias por agencia/período) y de las consultas
+    /// de reintento del consolidado, para que el cierre masivo no las trate como work-in-progress.</summary>
+    public bool Individual { get; set; }
 
     public ICollection<Voucher> Vouchers { get; set; } = [];
 }

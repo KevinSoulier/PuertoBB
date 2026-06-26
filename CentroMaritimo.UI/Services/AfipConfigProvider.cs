@@ -12,7 +12,8 @@ public class AfipConfigProvider : IAfipConfigProvider
 {
     private readonly IConfiguracionRepository _config;
 
-    // Logo del emisor embebido en este assembly (Resources\CMBB_Logo.png) para comprobante/voucher.
+    // Logo horizontal (emblema + texto) embebido en este assembly (Resources\CMBB_Logohorizontal.png)
+    // para el header del comprobante y del voucher.
     private static readonly byte[]? Logo = CargarLogo();
 
     public AfipConfigProvider(IConfiguracionRepository config)
@@ -25,7 +26,7 @@ public class AfipConfigProvider : IAfipConfigProvider
         try
         {
             var asm = typeof(AfipConfigProvider).Assembly;
-            using var s = asm.GetManifestResourceStream("CentroMaritimo.UI.Resources.CMBB_Logo.png");
+            using var s = asm.GetManifestResourceStream("CentroMaritimo.UI.Resources.CMBB_Logohorizontal.png");
             if (s is null) return null;
             using var ms = new MemoryStream();
             s.CopyTo(ms);

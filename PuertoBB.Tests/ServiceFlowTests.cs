@@ -1748,6 +1748,164 @@ public class CentroCierreTests
         Assert.True(ind.Data!.Exito);           // individual no choca con el consolidado
         Assert.Equal(2, db.Recibos.Count());    // 1 consolidado + 1 individual
     }
+
+    // ── Facturación individual POR VOUCHER (EmitirVoucherAsync) ──
+
+    [Fact]
+    public async Task EmitirVoucher_Libre_CreaReciboIndividualConCae()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedClienteConVouchers(db, cantVouchers: 2);   // V1, V2 = $1000 c/u
+        var mail = MailOk();
+        var service = BuildService(db, mail);
+        var voucherId = db.Vouchers.OrderBy(v => v.Numero).First().Id;
+
+        var res = await service.EmitirVoucherAsync(voucherId, enviarMail: false);
+
+        Assert.True(res.Data!.Exito);
+        var consolidacion = db.Consolidaciones.Single();
+        Assert.True(consolidacion.Individual);                         // recibo por voucher
+        var recibo = db.Recibos.Single();
+        Assert.False(string.IsNullOrEmpty(recibo.CAE));
+        Assert.Equal(1000m, recibo.Importe);
+        Assert.Null(recibo.FechaEnvioMail);                           // sin mail
+        Assert.Equal(consolidacion.Id, db.Vouchers.Single(v => v.Id == voucherId).ConsolidacionId);
+        Assert.Null(db.Vouchers.Single(v => v.Id != voucherId).ConsolidacionId);   // el otro voucher sigue libre
+        Assert.Single(db.RecibosLineas.Where(l => l.ReciboId == recibo.Id));        // una línea: el voucher
+        await mail.DidNotReceive().EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EmitirVoucher_EmitirYEnviar_Libre_EmiteYEnvia()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedClienteConVouchers(db, cantVouchers: 1);
+        var mail = MailOk();
+        var service = BuildService(db, mail);
+        var voucherId = db.Vouchers.Single().Id;
+
+        var res = await service.EmitirVoucherAsync(voucherId, enviarMail: true);
+
+        Assert.True(res.Data!.Exito);
+        Assert.Null(res.Data.ErrorMail);
+        Assert.NotNull(db.Recibos.Single().FechaEnvioMail);
+        await mail.Received(1).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EmitirVoucher_YaEmitido_EmitirYEnviar_SoloEnviaSinReemitir()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedClienteConVouchers(db, cantVouchers: 1);
+        var afip = AfipOk();
+        var mail = MailOk();
+        var service = BuildService(db, mail, afip);
+        var voucherId = db.Vouchers.Single().Id;
+
+        await service.EmitirVoucherAsync(voucherId, enviarMail: false);   // emite (1 CAE)
+        var numeroOriginal = db.Recibos.Single().NumeroComprobante;
+
+        var res = await service.EmitirVoucherAsync(voucherId, enviarMail: true);   // ya emitido → solo envía
+
+        Assert.True(res.Data!.Exito);
+        Assert.Equal(1, db.Recibos.Count());                                 // no se duplicó
+        Assert.Equal(numeroOriginal, db.Recibos.Single().NumeroComprobante); // mismo comprobante
+        Assert.NotNull(db.Recibos.Single().FechaEnvioMail);
+        await afip.Received(1).ObtenerCAEAsync(Arg.Any<ComprobanteAfipRequest>(), Arg.Any<CancellationToken>()); // solo el CAE inicial
+        await mail.Received(1).EnviarReciboAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EmitirVoucher_YaEmitido_SinMail_SeOmite()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedClienteConVouchers(db, cantVouchers: 1);
+        var service = BuildService(db, MailOk());
+        var voucherId = db.Vouchers.Single().Id;
+
+        await service.EmitirVoucherAsync(voucherId, enviarMail: false);   // emite
+        var res = await service.EmitirVoucherAsync(voucherId, enviarMail: false);   // "Emitir" sobre uno ya emitido
+
+        Assert.True(res.Data!.Omitido);                  // omitido, no error
+        Assert.False(res.Data.Exito);
+        Assert.Equal(1, db.Recibos.Count());             // no se duplicó
+    }
+
+    [Fact]
+    public async Task EmitirVoucher_DosIndividualesMismaAgenciaPeriodo_NoViolanIndiceUnico()
+    {
+        // Con CAE caído ambos recibos individuales quedan Pendiente: el índice único parcial los excluye
+        // (Individual = 1), así que pueden coexistir varios pendientes por agencia/período.
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        SeedClienteConVouchers(db, cantVouchers: 2);
+        var service = BuildService(db, MailOk(), AfipFallaCm());
+        var ids = db.Vouchers.OrderBy(v => v.Numero).Select(v => v.Id).ToList();
+
+        var r1 = await service.EmitirVoucherAsync(ids[0], enviarMail: false);
+        var r2 = await service.EmitirVoucherAsync(ids[1], enviarMail: false);
+
+        Assert.False(r1.Data!.Exito);   // CAE falló, pero el recibo Pendiente quedó persistido
+        Assert.False(r2.Data!.Exito);
+        Assert.Equal(2, db.Consolidaciones.Count());                                 // sin violar el índice único
+        Assert.All(db.Consolidaciones.ToList(), c => Assert.True(c.Individual && c.Pendiente));
+        Assert.Equal(2, db.Recibos.Count(r => r.EstadoFiscal == EstadoFiscal.Pendiente));
+    }
+
+    [Fact]
+    public async Task EmitirReciboCliente_IgnoraConsolidacionIndividualPendiente()
+    {
+        // El reintento del consolidado NO debe adoptar la consolidación individual pendiente de un voucher.
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, _) = SeedClienteConVouchers(db, cantVouchers: 2);
+        var ids = db.Vouchers.OrderBy(v => v.Numero).Select(v => v.Id).ToList();
+
+        // V1 emitido individualmente pero con CAE caído → consolidación Individual Pendiente.
+        await BuildService(db, MailOk(), AfipFallaCm()).EmitirVoucherAsync(ids[0], enviarMail: false);
+        Assert.Single(db.Consolidaciones);
+
+        // Cerrar la agencia (consolidado) con AFIP OK: debe consolidar SOLO el voucher libre (V2),
+        // sin tocar la consolidación individual de V1.
+        var consol = await BuildService(db, MailOk()).EmitirReciboClienteAsync(ag.Id, 2026, 6);
+
+        Assert.True(consol.Success);
+        Assert.True(consol.Data!.Exito);
+        Assert.Equal(2, db.Consolidaciones.Count());                                 // individual + consolidado nuevo
+        var individual = db.Consolidaciones.Single(c => c.Individual);
+        var consolidado = db.Consolidaciones.Single(c => !c.Individual);
+        Assert.Equal(ids[0], db.Vouchers.Single(v => v.ConsolidacionId == individual.Id).Id);   // V1 sigue en la individual
+        Assert.Equal(ids[1], db.Vouchers.Single(v => v.ConsolidacionId == consolidado.Id).Id);  // V2 en el consolidado
+    }
+
+    [Fact]
+    public async Task AnularReciboIndividual_LiberaVoucher_YQuedaEditable()
+    {
+        using var fx = SqliteTestDb.CreateCentro(out var db);
+        var (ag, barco) = SeedClienteConVouchers(db, cantVouchers: 1);
+        var service = BuildService(db, MailOk());
+        var voucherId = db.Vouchers.Single().Id;
+
+        await service.EmitirVoucherAsync(voucherId, enviarMail: false);   // recibo individual emitido
+        var reciboId = db.Recibos.Single().Id;
+
+        var anulacion = await service.AnularReciboAsync(reciboId, enviarMail: false);
+
+        Assert.True(anulacion.Success);
+        Assert.Equal(EstadoFiscal.Anulado, db.Recibos.Single().EstadoFiscal);
+        Assert.Equal(1, db.NotasDeCredito.Count());
+        Assert.Null(db.Vouchers.Single().ConsolidacionId);               // voucher liberado
+
+        // Liberado ⇒ vuelve a ser editable.
+        var voucherService = new VoucherService(
+            new CmRepos.VoucherRepository(db, NullLogger<CmRepos.VoucherRepository>.Instance),
+            new CmRepos.ContadorVoucherRepository(db),
+            new CmRepos.ClienteRepository(db, NullLogger<CmRepos.ClienteRepository>.Instance),
+            new CmRepos.BarcoRepository(db, NullLogger<CmRepos.BarcoRepository>.Instance),
+            NullLogger<VoucherService>.Instance);
+        var edicion = await voucherService.ActualizarVoucherAsync(
+            new Voucher { Id = voucherId, ClienteId = ag.Id, BarcoId = barco.Id, Importe = 1500m, Fecha = new DateTime(2026, 6, 5) });
+        Assert.True(edicion.Success);
+        Assert.Equal(1500m, db.Vouchers.Single().Importe);
+    }
 }
 
 public class VoucherServiceTests

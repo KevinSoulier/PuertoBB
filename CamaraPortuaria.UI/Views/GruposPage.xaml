@@ -67,17 +67,26 @@
                                     <DataGridTextColumn Header="Cant."        Binding="{Binding CantidadTexto}"   Width="60"  />
                                     <DataGridTextColumn Header="Precio unit." Binding="{Binding PrecioUnitTexto}" Width="110" />
                                     <DataGridTextColumn Header="Subtotal"     Binding="{Binding ImporteTexto}"    Width="110" />
-                                    <DataGridTemplateColumn Width="46" CanUserResize="False" CanUserSort="False">
+                                    <DataGridTemplateColumn Width="84" CanUserResize="False" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <ui:Button Command="{Binding DataContext.QuitarLineaCommand,
-                                                                     RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                           CommandParameter="{Binding}"
-                                                           Style="{StaticResource AccionIconButtonCompact}"
-                                                           VerticalAlignment="Center"
-                                                           ToolTip="Quitar este ítem">
-                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
-                                                </ui:Button>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <ui:Button Command="{Binding DataContext.EditarLineaCommand,
+                                                                         RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                               CommandParameter="{Binding}"
+                                                               Style="{StaticResource AccionIconButtonCompact}"
+                                                               Margin="0,0,4,0"
+                                                               ToolTip="Editar este ítem">
+                                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                                                    </ui:Button>
+                                                    <ui:Button Command="{Binding DataContext.QuitarLineaCommand,
+                                                                         RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                               CommandParameter="{Binding}"
+                                                               Style="{StaticResource AccionIconButtonCompact}"
+                                                               ToolTip="Quitar este ítem">
+                                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                                    </ui:Button>
+                                                </StackPanel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -104,9 +113,9 @@
                                                   SpinButtonPlacementMode="Hidden" Width="120" />
                                 </StackPanel>
                                 <StackPanel VerticalAlignment="Bottom" Margin="0,0,8,8">
-                                    <ui:Button Content="Agregar ítem" Command="{Binding AgregarLineaCommand}"
+                                    <ui:Button Content="{Binding TextoBotonLinea}" Command="{Binding AgregarLineaCommand}"
                                                Style="{StaticResource AccionIconButton}"
-                                               ToolTip="Agregar este ítem al grupo">
+                                               ToolTip="Agregar el ítem al grupo (o guardar el ítem en edición)">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </StackPanel>

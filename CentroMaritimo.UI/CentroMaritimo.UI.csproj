@@ -12,7 +12,7 @@
   <ItemGroup>
     <Resource Include="Resources\app.ico" />
     <!-- Logo del emisor embebido para comprobante/voucher (lo lee AfipConfigProvider) -->
-    <EmbeddedResource Include="Resources\CMBB_Logo.png" />
+    <EmbeddedResource Include="Resources\CMBB_Logohorizontal.png" />
   </ItemGroup>
 
   <ItemGroup>

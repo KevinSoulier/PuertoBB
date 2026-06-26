@@ -113,6 +113,14 @@ public partial class App : Application
                 return;
             }
 
+            // Modo poblar datos de PRUEBA en la base real (sin abrir la ventana): --seed-demo.
+            if (ParseSeedDemo(e.Args))
+            {
+                await EjecutarSeedDemoAsync();
+                Shutdown(0);
+                return;
+            }
+
             await InicializarBaseDeDatosAsync();
             RestaurarTema();
 
@@ -241,6 +249,13 @@ public partial class App : Application
         return null;
     }
 
+    /// <summary>True si los argumentos incluyen "--seed-demo" (poblar datos de prueba en la base real).</summary>
+    private static bool ParseSeedDemo(string[] args)
+    {
+        foreach (var a in args) if (a == "--seed-demo") return true;
+        return false;
+    }
+
     /// <summary>
     /// Si los argumentos incluyen "--seed-prod", devuelve la ruta (absoluta) de la base a generar:
     /// el argumento siguiente si es una ruta, o un default en el Escritorio. Si no está el flag, null.
@@ -302,6 +317,39 @@ public partial class App : Application
         sw.Stop();
         var resumen = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Stress seed: {cantidad} pedidos · {total} recibos en base · {sw.Elapsed:mm\\:ss\\.fff}";
         await File.WriteAllTextAsync(Path.Combine(AppDataDir, "stress-seed.txt"), resumen);
+        _logger?.LogInformation("{Resumen}", resumen);
+    }
+
+    /// <summary>
+    /// Puebla la base REAL de la app con datos de PRUEBA (dev/demo): borra la base previa, migra el
+    /// esquema y siembra los maestros (agencias + grupos con ítems), los barcos y vouchers libres del
+    /// mes, más <see cref="RecibosDemo"/> recibos con estados variados. DESTRUCTIVO por diseño (reemplaza
+    /// la base). Esta app es WinExe: el resumen va a <c>seed-demo.txt</c> junto a la base.
+    /// </summary>
+    private async Task EjecutarSeedDemoAsync()
+    {
+        var rutaBase = Path.Combine(AppDataDir, "centro-maritimo.db");
+        Directory.CreateDirectory(AppDataDir);
+        foreach (var f in new[] { rutaBase, rutaBase + "-wal", rutaBase + "-shm" })
+            if (File.Exists(f)) File.Delete(f);
+
+        await using var scope = _host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CentroMaritimoDbContext>();
+        await db.Database.MigrateAsync();
+        await SeedData.EnsureSeededAsync(db);                    // maestros + grupos con ítems
+        await StressSeedData.SeedDatosDemoAsync(db, _logger);    // barcos + vouchers libres del mes
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        await StressSeedData.GenerarRecibosAsync(db, RecibosDemo, _logger);
+        sw.Stop();
+        await db.Database.ExecuteSqlRawAsync("PRAGMA wal_checkpoint(TRUNCATE);");
+
+        var clientes = await db.Clientes.CountAsync();
+        var grupos = await db.Grupos.CountAsync();
+        var barcos = await db.Barcos.CountAsync();
+        var vouchers = await db.Vouchers.CountAsync();
+        var recibos = await db.Recibos.CountAsync();
+        var resumen = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Seed demo: {clientes} agencias · {grupos} grupos · {barcos} barcos · {vouchers} vouchers · {recibos} recibos · base en {rutaBase} · {sw.Elapsed:mm\\:ss\\.fff}";
+        await File.WriteAllTextAsync(Path.Combine(AppDataDir, "seed-demo.txt"), resumen);
         _logger?.LogInformation("{Resumen}", resumen);
     }
 

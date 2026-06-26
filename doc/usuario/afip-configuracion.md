@@ -13,6 +13,21 @@ Hay tres etapas:
 > que todo funciona, pero los comprobantes **no tienen validez fiscal**. *Producción* es el real. Se
 > recomienda configurar primero homologación, probar, y recién después pasar a producción.
 
+> **¿Lo hace un subadministrador de relaciones?** Las tres etapas en AFIP las puede realizar tanto el
+> administrador de relaciones titular como un **subadministrador de relaciones** (actúan "en forma
+> simultánea e indistinta"). Las pantallas y los datos resultantes son los mismos: **el certificado y el
+> punto de venta quedan a nombre de la empresa**, no del subadministrador, así que el resto de la guía no
+> cambia y el **CUIT emisor que se carga en la app sigue siendo el de la empresa**. Solo tené en cuenta:
+>
+> 1. Entrá con la **Clave Fiscal del subadministrador** y elegí **"actuar en representación de" la empresa**
+>    antes de entrar a cada servicio. No uses su CUIT personal como emisor.
+> 2. El subadministrador necesita tener **delegados** los servicios *"Administración de Certificados
+>    Digitales"*, *"Administrador de Relaciones"* y *"Administración de puntos de venta y domicilios"*. Si
+>    una pantalla le da *acceso denegado*, es porque el administrador titular todavía no se los habilitó
+>    (no es un problema de la app).
+> 3. **Designar otros subadministradores** queda reservado al administrador de relaciones; para todo lo de
+>    facturación electrónica, el subadministrador alcanza.
+
 ---
 
 ## Etapa 1 — Obtener el certificado digital
@@ -86,7 +101,8 @@ Subí el `pedido.csr` a AFIP (ver 1.2), descargá el `.crt` y después tenés do
 
 Tener el certificado no alcanza: hay que autorizarlo a usar el web service de facturación.
 
-1. En AFIP, entrá a **"Administrador de Relaciones de Clave Fiscal"**.
+1. En AFIP, entrá a **"Administrador de Relaciones de Clave Fiscal"** (como administrador o subadministrador
+   de relaciones).
 2. **Nueva relación** → Buscar el servicio **"Facturación Electrónica" (wsfe)** y asociarlo al
    **alias del certificado** creado en la etapa 1.
 3. Repetí el paso anterior para el servicio **"Consulta a Padrón - Constancia de inscripción"**
@@ -159,7 +175,9 @@ A partir de acá, al emitir un recibo la app pide el CAE a AFIP, genera el PDF (
 | Rechazo con código **10071** | Se informó IVA en un Recibo C | No debería ocurrir (la app ya lo evita); avisá a soporte. |
 | Rechazo con código **10016** | Fecha fuera de rango | Verificá la fecha/hora de la PC. |
 | Rechazo con código **10242** | Falta la condición IVA del receptor (RG 5616) | Asignala en el ABM de empresas/agencias (o usá "Validar en ARCA") y reintentá. |
+| Rechazo **600** `ValidacionDeToken: No apareció CUIT en lista de relaciones` | El certificado autentica, pero ese CUIT no figura en sus relaciones para `wsfe` | Revisá que el **CUIT del Emisor** sea correcto (sin errores de tipeo) y **coincida con el del certificado**; y que `wsfe` esté autorizado a ese certificado para ese CUIT, en el **mismo ambiente** del PV (producción: Administrador de Relaciones; homologación: WSASS). |
 | "Validar en ARCA" falla con error de autenticación | El servicio de padrón no está delegado | Delegá "Consulta a Padrón - Constancia de inscripción" al certificado (Etapa 2, paso 3). |
+| "Acceso denegado" a Administración de Certificados / Relaciones / Puntos de venta | El subadministrador no tiene ese servicio delegado | Pedile al administrador de relaciones que se lo habilite (ver el recuadro del subadministrador y la Etapa 2). |
 | "El CEE ya posee un TA válido" | Se intentó autenticar de más | La app reutiliza el ticket automáticamente; reintentá en unos minutos. |
 | El comprobante salió en homologación | Estaba tildado "Usar homologación" | Destildalo para producción y volvé a probar. |
 

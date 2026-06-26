@@ -31,7 +31,7 @@
             <ui:Button Content="Emitir recibos" Command="{Binding EmitirRecibosCommand}"
                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
                        ToolTip="Genera los recibos AFIP de todas las agencias pendientes SIN enviar mails.">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentBulletList24" /></ui:Button.Icon>
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
             </ui:Button>
             <ui:Button Content="Enviar mails" Command="{Binding EnviarMailsCommand}"
                        Style="{StaticResource AccionIconButton}" Margin="0,0,8,8"
@@ -87,20 +87,20 @@
                                     <ui:Button Command="{Binding DataContext.PrevisualizarLibresCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
-                                               ToolTip="Previsualizar PDF de los vouchers libres">
+                                               ToolTip="Ver PDF de los vouchers libres">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
-                                    </ui:Button>
-                                    <ui:Button Command="{Binding DataContext.DescargarLibresCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                               CommandParameter="{Binding}"
-                                               Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
-                                               ToolTip="Descargar PDF de los vouchers libres">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Command="{Binding DataContext.EmitirReciboClienteCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                CommandParameter="{Binding}"
+                                               Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,6"
+                                               ToolTip="Emitir el recibo consolidado por los vouchers libres (complementario si ya hay uno), sin enviar mail">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Command="{Binding DataContext.EmitirYEnviarReciboClienteCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                               CommandParameter="{Binding}"
                                                Style="{StaticResource AccionIconButtonCompact}" Appearance="Primary" Margin="0,0,6,6"
-                                               ToolTip="Generar recibo en AFIP por los vouchers libres (complementario si ya hay uno)">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentBulletList24" /></ui:Button.Icon>
+                                               ToolTip="Emitir el recibo consolidado y enviarlo por mail">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </WrapPanel>
                             </DataTemplate>
@@ -145,6 +145,32 @@
                                                             ElementStyle="{StaticResource CeldaVoucher}" />
                                         <DataGridTextColumn Header="Comprobante" Binding="{Binding ComprobanteTexto}" Width="120"
                                                             ElementStyle="{StaticResource CeldaVoucher}" />
+                                        <DataGridTemplateColumn Header="Acciones" Width="160">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <WrapPanel VerticalAlignment="Center">
+                                                        <ui:Button Command="{Binding DataContext.VerPdfVoucherCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,0"
+                                                                   ToolTip="Ver PDF (recibo si ya está emitido, voucher si está libre)">
+                                                            <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentPdf24" /></ui:Button.Icon>
+                                                        </ui:Button>
+                                                        <ui:Button Command="{Binding DataContext.EmitirVoucherCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Style="{StaticResource AccionIconButtonCompact}" Margin="0,0,6,0"
+                                                                   ToolTip="Emitir el recibo AFIP de este voucher (sin enviar mail)">
+                                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Receipt24" /></ui:Button.Icon>
+                                                        </ui:Button>
+                                                        <ui:Button Command="{Binding DataContext.EmitirYEnviarVoucherCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Style="{StaticResource AccionIconButtonCompact}" Appearance="Primary" Margin="0,0,6,0"
+                                                                   ToolTip="Emitir y enviar (o solo enviar si el voucher ya está emitido)">
+                                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Send24" /></ui:Button.Icon>
+                                                        </ui:Button>
+                                                    </WrapPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
 

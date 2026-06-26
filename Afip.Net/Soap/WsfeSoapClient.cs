@@ -49,7 +49,9 @@ public class WsfeSoapClient : IWsfeClient
         {
             var r = await client.FECompUltimoAutorizadoAsync(Auth(token, sign, cuit), puntoVenta, tipoComprobante);
             await client.CloseAsync();
-            return r.Body.FECompUltimoAutorizadoResult.CbteNro;
+            var result = r.Body.FECompUltimoAutorizadoResult;
+            WsfeMapper.LanzarSiHayError(result.Errors);   // AFIP responde 200 con el 600 (ValidacionDeToken) en el body
+            return result.CbteNro;
         }
         catch { client.Abort(); throw; }
     }

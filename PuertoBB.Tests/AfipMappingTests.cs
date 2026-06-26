@@ -184,6 +184,25 @@ public class WsfeMapperParametrosTests
     }
 
     [Fact]
+    public void LanzarSiHayError_ConErrorReal_Lanza()
+    {
+        // FECompUltimoAutorizado devuelve el 600 (ValidacionDeToken) DENTRO del body, no como excepción.
+        // El helper debe lanzar para que "Probar conexión" no dé un falso OK (regresión del bug del CUIT).
+        var ex = Assert.Throws<InvalidOperationException>(() => WsfeMapper.LanzarSiHayError(
+            [new Err { Code = 600, Msg = "ValidacionDeToken: No apareció CUIT en lista de relaciones" }]));
+        Assert.Contains("[600]", ex.Message);
+    }
+
+    [Fact]
+    public void LanzarSiHayError_SinErroresReales_NoLanza()
+    {
+        // 602 = "sin datos" (habitual en homologación) → tolerado. null/vacío → tampoco lanza.
+        Assert.Null(Record.Exception(() => WsfeMapper.LanzarSiHayError([new Err { Code = 602, Msg = "Sin resultados" }])));
+        Assert.Null(Record.Exception(() => WsfeMapper.LanzarSiHayError(null)));
+        Assert.Null(Record.Exception(() => WsfeMapper.LanzarSiHayError([])));
+    }
+
+    [Fact]
     public void ToTiposComprobante_ParseaVigencias()
     {
         var resp = new CbteTipoResponse

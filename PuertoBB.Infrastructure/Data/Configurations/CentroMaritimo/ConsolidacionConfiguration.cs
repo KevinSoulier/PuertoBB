@@ -14,10 +14,11 @@ public class ConsolidacionConfiguration : IEntityTypeConfiguration<Consolidacion
         // Un solo consolidado SIN CAE (Pendiente) por (agencia, período) — índice único parcial: evita dos
         // work-in-progress simultáneos, pero permite consolidados COMPLEMENTARIOS (cada uno con su CAE) cuando
         // aparecen vouchers olvidados después de emitir. 'Pendiente' está denormalizado (espejo del EstadoFiscal
-        // del recibo) porque SQLite exige columnas de la misma tabla en el filtro del índice.
+        // del recibo) porque SQLite exige columnas de la misma tabla en el filtro del índice. Los recibos por
+        // voucher (Individual = 1) quedan FUERA del índice: puede haber varios pendientes por agencia/período.
         b.HasIndex(c => new { c.ClienteId, c.PeriodoAnio, c.PeriodoMes })
             .IsUnique()
-            .HasFilter("\"Pendiente\" = 1");
+            .HasFilter("\"Pendiente\" = 1 AND \"Individual\" = 0");
 
         // Una consolidación pertenece a exactamente un recibo (1:1). El recibo no conoce la consolidación
         // (entidad de auditoría autocontenida); borrar el recibo Pendiente cascadea la consolidación y

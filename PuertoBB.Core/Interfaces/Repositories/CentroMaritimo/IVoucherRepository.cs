@@ -21,4 +21,8 @@ public interface IVoucherRepository : IRepository<Voucher>
 
     /// <summary>Devuelve el voucher con Cliente y Barco cargados (para generar PDF individual).</summary>
     Task<Voucher?> GetByIdConDetalleAsync(int id, CancellationToken ct = default);
+
+    /// <summary>Devuelve el voucher con Cliente, Barco y Consolidacion.Recibo cargados (para decidir si
+    /// está libre, pendiente o emitido en la emisión individual por voucher).</summary>
+    Task<Voucher?> GetByIdConEstadoAsync(int id, CancellationToken ct = default);
 }

@@ -15,6 +15,7 @@ public class GruposViewModel : PageViewModel
     private readonly IClienteRepository _agenciasRepo;
     private readonly IDialogService _dialog;
     private int _editId;
+    private int _lineaEnEdicionIndex = -1; // -1 = alta de ítem nuevo; >=0 = editando el ítem en esa posición
     private List<MiembroGrupoItem> _todosMiembros = [];
 
     public ObservableCollection<GrupoFacturacion> Grupos { get; } = [];
@@ -54,6 +55,9 @@ public class GruposViewModel : PageViewModel
     public decimal TotalEdit => LineasEdit.Sum(l => l.Importe);
     public string TotalEditTexto => Formato.Moneda(TotalEdit);
 
+    /// <summary>Texto del botón de carga: "Guardar ítem" cuando se está editando uno existente, "Agregar ítem" al dar de alta.</summary>
+    public string TextoBotonLinea => _lineaEnEdicionIndex >= 0 ? "Guardar ítem" : "Agregar ítem";
+
     private string _filtroMiembros = string.Empty;
     public string FiltroMiembros
     {
@@ -74,6 +78,7 @@ public class GruposViewModel : PageViewModel
     public ICommand CancelarCommand { get; }
     public ICommand EliminarCommand { get; }
     public ICommand AgregarLineaCommand { get; }
+    public ICommand EditarLineaCommand { get; }
     public ICommand QuitarLineaCommand { get; }
     public ICommand AgregarMiembroCommand { get; }
     public ICommand QuitarMiembroCommand { get; }
@@ -90,7 +95,8 @@ public class GruposViewModel : PageViewModel
         CancelarCommand = new AsyncRelayCommand(CancelarAsync, () => EnEdicion);
         EliminarCommand = new AsyncRelayCommand(EliminarAsync, () => Seleccionado is not null && !EnEdicion);
         AgregarLineaCommand = new RelayCommand(_ => AgregarLinea(), _ => EnEdicion);
-        QuitarLineaCommand = new RelayCommand(param => { if (param is LineaEmisionItem l) { LineasEdit.Remove(l); RefrescarTotal(); } });
+        EditarLineaCommand = new RelayCommand(param => { if (param is LineaEmisionItem l) EditarLinea(l); }, _ => EnEdicion);
+        QuitarLineaCommand = new RelayCommand(param => { if (param is LineaEmisionItem l) { LineasEdit.Remove(l); _lineaEnEdicionIndex = -1; OnPropertyChanged(nameof(TextoBotonLinea)); RefrescarTotal(); } });
         AgregarMiembroCommand = new RelayCommand(_ => AgregarMiembro(), _ => ClienteSeleccionada != null && EnEdicion);
         QuitarMiembroCommand = new RelayCommand(param => { if (param is MiembroGrupoItem m) QuitarMiembro(m); });
         CargarSeguro(CargarListaAsync);
@@ -171,9 +177,24 @@ public class GruposViewModel : PageViewModel
         if (CantidadLinea <= 0) { MostrarError("La cantidad debe ser mayor a cero."); return; }
         if (PrecioUnitarioLinea <= 0) { MostrarError("El precio unitario debe ser mayor a cero."); return; }
 
-        LineasEdit.Add(new LineaEmisionItem(desc, CantidadLinea, PrecioUnitarioLinea));
-        LimpiarCargaLinea();
+        var item = new LineaEmisionItem(desc, CantidadLinea, PrecioUnitarioLinea);
+        if (_lineaEnEdicionIndex >= 0 && _lineaEnEdicionIndex < LineasEdit.Count)
+            LineasEdit[_lineaEnEdicionIndex] = item;   // reemplaza el ítem editado en su posición
+        else
+            LineasEdit.Add(item);
+        LimpiarCargaLinea();   // resetea el índice de edición y vuelve el botón a "Agregar ítem"
         RefrescarTotal();
+    }
+
+    private void EditarLinea(LineaEmisionItem linea)
+    {
+        var idx = LineasEdit.IndexOf(linea);
+        if (idx < 0) return;
+        DescripcionLinea = linea.Descripcion;
+        CantidadLinea = linea.Cantidad;
+        PrecioUnitarioLinea = linea.PrecioUnitario;
+        _lineaEnEdicionIndex = idx;
+        OnPropertyChanged(nameof(TextoBotonLinea));
     }
 
     private void LimpiarCargaLinea()
@@ -181,6 +202,8 @@ public class GruposViewModel : PageViewModel
         DescripcionLinea = string.Empty;
         CantidadLinea = 1;
         PrecioUnitarioLinea = 0;
+        _lineaEnEdicionIndex = -1;
+        OnPropertyChanged(nameof(TextoBotonLinea));
     }
 
     private void RefrescarTotal()
